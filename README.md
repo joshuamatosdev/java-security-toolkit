@@ -14,7 +14,7 @@ layer.
 | Layer | Concern | Module |
 |---|---|---|
 | 1 — Identity / AuthN | OIDC + PKCE, MFA / step-up | `edge-perimeter` *(planned)* |
-| 2 — Authorization | coarse edge + fine-grained service, deny-by-default | `layered-authorization` *(planned)* |
+| 2 — Authorization | coarse edge + fine-grained service, deny-by-default | **`layered-authorization`** |
 | 3 — Secrets / config | no secret in git or image; rotation is config | *(documented in ADR-0001)* |
 | 4 — Transport / runtime | perimeter, headers, actuator lockdown | `edge-perimeter` *(planned)* |
 | 5 — Data | per-service DB roles, RLS, least privilege | **`tenant-isolation`** |
@@ -25,7 +25,17 @@ layer.
 
 - **`tenant-isolation`** — PostgreSQL Row-Level Security + session-bound
   `app.current_tenant`, served by a non-superuser pool identity. Includes an
-  audit test that fails if the pool role can bypass RLS. *(in progress)*
+  audit test that fails if the pool role can bypass RLS.
+- **`layered-authorization`** — a typed, sealed principal; an immutable
+  `RequestContext` resolved once and passed by parameter; a scoped, per-action
+  policy (`READ`/`UPDATE`/`DELETE`) evaluated deny-overrides across the access
+  variants (tenant membership, wide-scope admin, resource owner, organization
+  membership, effective permission); a coarse request-gate
+  (`SecurityUrlGroup` + `AccessRule`, deny-by-default) plus method security; and
+  an audit entry on every decision, allow or deny.
+- **`shared`** — the cross-module identity kernel (`TenantId`, `OrganizationId`,
+  `ResourceId`). A type used by more than one module lives here once; no class is
+  duplicated across modules.
 
 ## Build
 

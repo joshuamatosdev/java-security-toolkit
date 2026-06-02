@@ -1,8 +1,10 @@
-package io.github.joshuamatosdev.security.tenant;
+package io.github.joshuamatosdev.security.tenant.binding;
 
 import java.util.Optional;
 import java.util.function.Supplier;
 import org.jspecify.annotations.Nullable;
+import io.github.joshuamatosdev.security.shared.TenantId;
+import io.github.joshuamatosdev.security.tenant.TenantIds;
 
 /**
  * Holds the active {@link TenantId} for the current thread. The {@link TenantSessionDataSourceProxy}
@@ -46,8 +48,8 @@ public final class TenantContext {
 
     public static void runAs(final TenantId tenant, final Runnable work) {
         rejectSystemOpsTenant(tenant);
-        final @Nullable TenantId prior = CURRENT.get();
-        final @Nullable TenantBindingScope priorScope = CURRENT_SCOPE.get();
+        final TenantId prior = CURRENT.get();
+        final TenantBindingScope priorScope = CURRENT_SCOPE.get();
         bind(tenant, TenantBindingScope.BOUNDED);
         try {
             work.run();
@@ -58,8 +60,8 @@ public final class TenantContext {
 
     public static <T> T supplyAs(final TenantId tenant, final Supplier<T> work) {
         rejectSystemOpsTenant(tenant);
-        final @Nullable TenantId prior = CURRENT.get();
-        final @Nullable TenantBindingScope priorScope = CURRENT_SCOPE.get();
+        final TenantId prior = CURRENT.get();
+        final TenantBindingScope priorScope = CURRENT_SCOPE.get();
         bind(tenant, TenantBindingScope.BOUNDED);
         try {
             return work.get();
@@ -69,8 +71,8 @@ public final class TenantContext {
     }
 
     public static void runAsSystemOps(final Runnable work) {
-        final @Nullable TenantId prior = CURRENT.get();
-        final @Nullable TenantBindingScope priorScope = CURRENT_SCOPE.get();
+        final TenantId prior = CURRENT.get();
+        final TenantBindingScope priorScope = CURRENT_SCOPE.get();
         bind(TenantIds.SYSTEM_OPS, TenantBindingScope.BOUNDED);
         try {
             work.run();
@@ -80,8 +82,8 @@ public final class TenantContext {
     }
 
     public static <T> T supplyAsSystemOps(final Supplier<T> work) {
-        final @Nullable TenantId prior = CURRENT.get();
-        final @Nullable TenantBindingScope priorScope = CURRENT_SCOPE.get();
+        final TenantId prior = CURRENT.get();
+        final TenantBindingScope priorScope = CURRENT_SCOPE.get();
         bind(TenantIds.SYSTEM_OPS, TenantBindingScope.BOUNDED);
         try {
             return work.get();

@@ -1,15 +1,17 @@
 package io.github.joshuamatosdev.security.tenant;
 
-import java.sql.Connection;
-import java.sql.DriverManager;
-import java.sql.PreparedStatement;
-import java.sql.Statement;
-import java.util.UUID;
+import io.github.joshuamatosdev.security.shared.TenantId;
 import org.junit.jupiter.api.BeforeEach;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
 import org.testcontainers.containers.PostgreSQLContainer;
+
+import java.sql.Connection;
+import java.sql.DriverManager;
+import java.sql.PreparedStatement;
+import java.sql.Statement;
+import java.util.UUID;
 
 /**
  * Boots the module against a singleton PostgreSQL container whose roles and schema are created by

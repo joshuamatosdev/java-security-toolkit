@@ -1,4 +1,4 @@
-package io.github.joshuamatosdev.security.tenant;
+package io.github.joshuamatosdev.security.tenant.persistence;
 
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;

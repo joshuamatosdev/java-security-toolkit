@@ -1,0 +1,6 @@
+spring:
+  application:
+    name: layered-authorization
+# No datasource: the authorization decision is a pure, in-memory function and the policy rules are
+# served by an in-memory repository. Two demo accounts (member / admin) are defined in SecurityConfig,
+# so the module is runnable end-to-end; their passwords are obvious local-only placeholders.

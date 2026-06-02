@@ -1,4 +1,4 @@
-package io.github.joshuamatosdev.security.tenant;
+package io.github.joshuamatosdev.security.tenant.binding;
 
 import java.lang.reflect.InvocationHandler;
 import java.lang.reflect.InvocationTargetException;
@@ -14,6 +14,7 @@ import javax.sql.DataSource;
 import org.jspecify.annotations.Nullable;
 import org.springframework.jdbc.datasource.DelegatingDataSource;
 import org.springframework.transaction.support.TransactionSynchronizationManager;
+import io.github.joshuamatosdev.security.tenant.TenantIds;
 
 /**
  * Binds PostgreSQL session variables {@code app.current_tenant} and {@code app.bypass_rls} on every
