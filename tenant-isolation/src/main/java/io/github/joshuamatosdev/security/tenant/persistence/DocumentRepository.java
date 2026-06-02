@@ -1,4 +1,4 @@
-package io.github.joshuamatosdev.security.tenant;
+package io.github.joshuamatosdev.security.tenant.persistence;
 
 import java.util.UUID;
 import org.springframework.data.jpa.repository.JpaRepository;

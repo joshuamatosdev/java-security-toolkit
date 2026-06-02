@@ -1,8 +1,8 @@
-package io.github.joshuamatosdev.security.tenant;
+package io.github.joshuamatosdev.security.tenant.binding;
 
 /**
  * Observability seam for {@link TenantSessionDataSourceProxy}. Production wiring would back this
- * with a metrics registry (counters for bindings set, missing-tenant borrows, and failed resets);
+ * with a metrics registry (counters for binding set, missing-tenant borrows, and failed resets);
  * this reference keeps the proxy dependency-free with a no-op default.
  */
 public interface TenantBindingObserver {

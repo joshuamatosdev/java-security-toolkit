@@ -1,4 +1,4 @@
-package io.github.joshuamatosdev.security.tenant;
+package io.github.joshuamatosdev.security.tenant.config;
 
 import com.zaxxer.hikari.HikariDataSource;
 import javax.sql.DataSource;
@@ -6,6 +6,7 @@ import org.springframework.boot.autoconfigure.jdbc.DataSourceProperties;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.Primary;
+import io.github.joshuamatosdev.security.tenant.binding.TenantSessionDataSourceProxy;
 
 /**
  * Wires the runtime connection pool and wraps it with {@link TenantSessionDataSourceProxy} so every

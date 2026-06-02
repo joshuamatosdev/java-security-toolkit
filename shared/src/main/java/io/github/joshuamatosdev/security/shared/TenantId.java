@@ -1,4 +1,4 @@
-package io.github.joshuamatosdev.security.tenant;
+package io.github.joshuamatosdev.security.shared;
 
 import java.util.UUID;
 

@@ -1,9 +1,10 @@
 package io.github.joshuamatosdev.security.tenant.testfixtures;
 
-import io.github.joshuamatosdev.security.tenant.TenantContext;
-import io.github.joshuamatosdev.security.tenant.TenantId;
-import java.util.function.Supplier;
+import io.github.joshuamatosdev.security.shared.TenantId;
+import io.github.joshuamatosdev.security.tenant.binding.TenantContext;
 import org.jspecify.annotations.Nullable;
+
+import java.util.function.Supplier;
 
 /**
  * Scopes a {@link TenantId} into {@link TenantContext} for the duration of a unit of work, then

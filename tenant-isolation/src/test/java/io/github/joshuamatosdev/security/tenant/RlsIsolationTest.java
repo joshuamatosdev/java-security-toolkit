@@ -1,14 +1,18 @@
 package io.github.joshuamatosdev.security.tenant;
 
-import static org.assertj.core.api.Assertions.assertThat;
-import static org.assertj.core.api.Assertions.assertThatThrownBy;
-
+import io.github.joshuamatosdev.security.tenant.binding.TenantContext;
+import io.github.joshuamatosdev.security.tenant.persistence.DocumentEntity;
+import io.github.joshuamatosdev.security.tenant.persistence.DocumentRepository;
 import io.github.joshuamatosdev.security.tenant.testfixtures.WithTenant;
-import java.util.UUID;
-import javax.sql.DataSource;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.jdbc.core.JdbcTemplate;
+
+import javax.sql.DataSource;
+import java.util.UUID;
+
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 /**
  * Proves tenant isolation is enforced by the database, not by query predicates: the repository has

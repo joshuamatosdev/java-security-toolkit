@@ -1,5 +1,9 @@
 package io.github.joshuamatosdev.security.tenant;
 
+import io.github.joshuamatosdev.security.shared.TenantId;
+import io.github.joshuamatosdev.security.tenant.binding.SystemTenantBoundary;
+import io.github.joshuamatosdev.security.tenant.binding.TenantContext;
+
 /**
  * Well-known tenant identifiers.
  *
