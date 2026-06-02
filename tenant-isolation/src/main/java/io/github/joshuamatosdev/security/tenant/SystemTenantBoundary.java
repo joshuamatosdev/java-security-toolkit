@@ -1,0 +1,15 @@
+package io.github.joshuamatosdev.security.tenant;
+
+import java.lang.annotation.ElementType;
+import java.lang.annotation.Retention;
+import java.lang.annotation.RetentionPolicy;
+import java.lang.annotation.Target;
+
+/**
+ * Marks a type that is permitted to reason about the system-operations tenant boundary — the
+ * narrow set of components allowed to set or observe {@code app.bypass_rls}. Used as an
+ * architecture-test anchor: only annotated types may touch the bypass path.
+ */
+@Target(ElementType.TYPE)
+@Retention(RetentionPolicy.RUNTIME)
+public @interface SystemTenantBoundary {}

@@ -24,3 +24,10 @@ Thumbs.db
 # Local env / secrets — never commit
 .env
 *.local
+
+# Local-only planning scaffolding — references the private source system; never published.
+docs/superpowers/
+
+# Superseded Flyway-era files (schema authority moved to container init SQL); local cruft only.
+tenant-isolation/src/main/resources/db/migration/
+tenant-isolation/src/test/resources/db/init-roles.sql
