@@ -1,0 +1,17 @@
+spring:
+  jpa:
+    database-platform: org.hibernate.dialect.PostgreSQLDialect
+    hibernate:
+      ddl-auto: none          # Flyway owns the schema
+    open-in-view: false
+    properties:
+      hibernate:
+        # Do not open a metadata connection at startup. The runtime pool is the
+        # tenant-bound proxy and fails closed when no tenant is set, so a boot-time
+        # borrow with no TenantContext would otherwise abort context startup.
+        boot:
+          allow_jdbc_metadata_access: false
+# Schema authority is init-db SQL (see src/test/resources/db/init.sql), not Flyway — mirroring the
+# production pattern. The runtime datasource credentials (the NON-superuser tenant_user) are injected
+# by the integration tests via @DynamicPropertySource; for standalone `bootRun`, supply
+# SPRING_DATASOURCE_* against a database whose schema was created by that init SQL.
