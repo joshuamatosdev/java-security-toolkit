@@ -6,7 +6,8 @@ import org.slf4j.LoggerFactory;
 /**
  * The production-style audit sink: it logs every decision, allows at INFO, and denials at WARN, with
  * the structured facts an investigation needs. A real deployment would additionally (or instead)
- * write to an append-only store; the {@link AuthorizationAuditSink} seam keeps that swappable.
+ * write to an append-only store; the {@link AuthorizationAuditSink} interface keeps the audit
+ * destination swappable.
  */
 public final class Slf4jAuthorizationAuditSink implements AuthorizationAuditSink {
 

@@ -1,5 +1,6 @@
 package io.github.joshuamatosdev.security.authz.web.gate;
 
+import io.github.joshuamatosdev.security.authz.policy.Roles;
 import org.jspecify.annotations.Nullable;
 import org.springframework.http.HttpMethod;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
@@ -19,8 +20,8 @@ public record AccessRule(SecurityUrlGroup group, @Nullable HttpMethod method, Li
      * The coarse authorization table. Documents need a member or admin; admin routes need an admin.
      */
     public static final List<AccessRule> RESTRICTED_RULES = List.of(
-        AccessRule.any(SecurityUrlGroup.DOCUMENTS, "MEMBER", "PLATFORM_ADMIN"),
-        AccessRule.any(SecurityUrlGroup.ADMIN, "PLATFORM_ADMIN"));
+        AccessRule.any(SecurityUrlGroup.DOCUMENTS, Roles.MEMBER, Roles.PLATFORM_ADMIN),
+        AccessRule.any(SecurityUrlGroup.ADMIN, Roles.PLATFORM_ADMIN));
 
     public AccessRule {
         roles = List.copyOf(roles);

@@ -4,7 +4,7 @@ dependencyResolutionManagement {
     }
 }
 
-rootProject.name = "modules"
+rootProject.name = "glyptodon"
 
 // Modules are added as they land (one spec → plan → build cycle each).
 include("tenant-isolation")

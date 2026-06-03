@@ -24,10 +24,14 @@ public final class CapturingAuditSink implements AuthorizationAuditSink {
         return List.copyOf(records);
     }
 
+    public void clear() {
+        records.clear();
+    }
+
     public AuthorizationAuditRecord only() {
         if (records.size() != 1) {
             throw new AssertionError("expected exactly one audit record but captured " + records.size());
         }
-        return records.get(0);
+        return records.getFirst();
     }
 }

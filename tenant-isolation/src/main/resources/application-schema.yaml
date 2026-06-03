@@ -1,0 +1,20 @@
+spring:
+  config:
+    activate:
+      on-profile: schema
+
+tenant:
+  binding:
+    # Required in every isolation mode. Schema mode uses the signed claim for database defaults,
+    # constraints, or optional RLS policies inside each tenant schema.
+    claim-secret: ${TENANT_BINDING_CLAIM_SECRET}
+  isolation:
+    mode: schema
+    schema:
+      tenants:
+        acme:
+          id: 0190a000-0000-7000-8000-0000000000a1
+          schema: tenant_acme
+        globex:
+          id: 0190a000-0000-7000-8000-0000000000b2
+          schema: tenant_globex

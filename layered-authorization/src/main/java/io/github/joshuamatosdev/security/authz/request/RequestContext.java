@@ -48,4 +48,11 @@ public record RequestContext(
         return roleAssignments.stream()
             .anyMatch(a -> a.scopeType() == PolicyScopeType.TENANT && a.roleKey().equals(roleKey));
     }
+
+    /**
+     * True when the actor has any tenant-wide assignment.
+     */
+    public boolean hasTenantScopedAssignment() {
+        return roleAssignments.stream().anyMatch(a -> a.scopeType() == PolicyScopeType.TENANT);
+    }
 }

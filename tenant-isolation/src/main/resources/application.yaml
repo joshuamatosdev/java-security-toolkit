@@ -2,7 +2,7 @@ spring:
   jpa:
     database-platform: org.hibernate.dialect.PostgreSQLDialect
     hibernate:
-      ddl-auto: none          # Flyway owns the schema
+      ddl-auto: none          # init-db SQL owns the schema
     open-in-view: false
     properties:
       hibernate:
@@ -11,7 +11,19 @@ spring:
         # borrow with no TenantContext would otherwise abort context startup.
         boot:
           allow_jdbc_metadata_access: false
-# Schema authority is init-db SQL (see src/test/resources/db/init.sql), not Flyway — mirroring the
-# production pattern. The runtime datasource credentials (the NON-superuser tenant_user) are injected
-# by the integration tests via @DynamicPropertySource; for standalone `bootRun`, supply
-# SPRING_DATASOURCE_* against a database whose schema was created by that init SQL.
+tenant:
+  isolation:
+    # id = shared tables + tenant_id + PostgreSQL RLS.
+    # schema = one schema per tenant, selected from tenant.isolation.schema.tenants.
+    # database = one JDBC pool per tenant, selected from tenant.isolation.database.tenants.
+    mode: id
+# Schema authority is init-db SQL (see src/test/resources/db/init.sql), mirroring the production
+# pattern. The runtime datasource credentials (the NON-superuser tenant_user) are injected by the
+# integration tests via @DynamicPropertySource; for standalone `bootRun`, supply SPRING_DATASOURCE_*
+# against a database whose schema was created by that init SQL. All modes require
+# TENANT_BINDING_CLAIM_SECRET (binds tenant.binding.claim-secret) so database defaults, checks, or
+# RLS policies can verify the selected tenant. ID mode also requires
+# TENANT_BINDING_SYSTEM_OPS_PASSWORD (binds tenant.binding.system-ops-password) for the
+# tenant_ops_user pool.
+# No default secret is provided on purpose: a missing value fails startup (fail-closed) rather than
+# signing tenant claims with a guessable key.

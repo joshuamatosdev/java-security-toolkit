@@ -14,12 +14,12 @@ leak. Security must be enforced structurally, at every layer, deny-by-default.
 
 Adopt a five-layer model. Each layer has a single responsibility and must not
 drift into another's job. Every feature ships with authentication,
-authorization, audit, and traceability in the same change — no partial security
-implementation is admissible.
+authorization, audit, and traceability in the same change. Partial security
+implementation is not admissible.
 
 1. **Identity / Authentication.** OIDC provider; browser uses Authorization
-   Code + PKCE; tokens carry coarse roles only — no fine-grained permissions in
-   the token. MFA required for privileged roles; step-up for role elevation.
+   Code + PKCE. Tokens carry only coarse roles and no fine-grained permissions.
+   MFA required for privileged roles; step-up for role elevation.
 2. **Authorization.** Coarse route guards at the edge (deny-by-default; an
    unmatched path is 403). Fine-grained, resource-aware decisions in the
    service, behind a policy boundary. Never defer a 403 to a 404 to mask an

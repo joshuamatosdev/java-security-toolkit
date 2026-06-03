@@ -2,6 +2,7 @@ package io.github.joshuamatosdev.security.shared;
 
 import java.util.Objects;
 import java.util.UUID;
+import org.jspecify.annotations.NonNull;
 
 /**
  * Typed organization (team) identifier — a subtenant scope. An {@code ORGANIZATION}-scoped role
@@ -19,7 +20,7 @@ public record OrganizationId(UUID value) {
     }
 
     @Override
-    public String toString() {
+    public @NonNull String toString() {
         return value.toString();
     }
 }

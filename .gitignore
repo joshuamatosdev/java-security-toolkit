@@ -28,6 +28,9 @@ Thumbs.db
 # Local-only planning scaffolding — references the private source system; never published.
 docs/superpowers/
 
+# Agent tooling state (machine-local; never published).
+.claude/
+
 # Superseded Flyway-era files (schema authority moved to container init SQL); local cruft only.
 tenant-isolation/src/main/resources/db/migration/
 tenant-isolation/src/test/resources/db/init-roles.sql

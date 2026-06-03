@@ -19,9 +19,9 @@ import java.util.Optional;
  * <ol>
  *   <li><b>Tenant membership</b> — a cross-tenant request is denied here and can be rescued by
  *       nothing below it.
+ *   <li><b>Explicit deny</b> — a DENY rule for the action wins over any allow (deny-overrides).
  *   <li><b>Wide-scope admin</b> — a tenant-scoped admin grant short-circuits to allow (audited as
  *       wide-scope by the caller).
- *   <li><b>Explicit deny</b> — a DENY rule for the action wins over any allow (deny-overrides).
  *   <li><b>Resource grant</b> — the resource owner is allowed.
  *   <li><b>Organization membership</b> — an organization-scoped ALLOW rule matched in the resource's
  *       organization.
@@ -42,14 +42,14 @@ public final class AuthorizationPolicy {
             return new Deny(DenialReason.TENANT_MISMATCH);
         }
 
-        // 2. Audited wide-scope admin short-circuit.
-        if (actor.hasTenantScopedRole(Roles.PLATFORM_ADMIN)) {
-            return new Allow(GrantBasis.WIDE_SCOPE_ADMIN);
-        }
-
-        // 3. Explicit deny — deny overrides allow.
+        // 2. Explicit deny — deny overrides every allow, including broad grants.
         if (effectivePolicy.denies(actor.roleAssignments(), resource.organizationId(), action)) {
             return new Deny(DenialReason.EXPLICIT_DENY);
+        }
+
+        // 3. Audited wide-scope admin short-circuit.
+        if (actor.hasTenantScopedRole(Roles.PLATFORM_ADMIN)) {
+            return new Allow(GrantBasis.WIDE_SCOPE_ADMIN);
         }
 
         // 4. Resource grant (ownership).
