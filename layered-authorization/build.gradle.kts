@@ -12,15 +12,24 @@ dependencies {
     implementation(project(":shared"))
     implementation("org.springframework.boot:spring-boot-starter-web")
     implementation("org.springframework.boot:spring-boot-starter-security")
+    implementation("org.springframework.boot:spring-boot-starter-data-jpa")
     implementation(libs.jspecify)
+    runtimeOnly("org.postgresql:postgresql")
 
     testImplementation("org.springframework.boot:spring-boot-starter-test")
     testImplementation("org.springframework.security:spring-security-test")
+    testImplementation("org.testcontainers:junit-jupiter")
+    testImplementation("org.testcontainers:postgresql")
+}
+
+dependencyManagement {
+    imports {
+        mavenBom("org.testcontainers:testcontainers-bom:1.20.4")
+    }
 }
 
 tasks.test {
     useJUnitPlatform()
-    // No Testcontainers / no database in this module — the authorization decision is a pure,
-    // in-memory function and the request gate is a slice test. So the Docker Engine api.version
-    // pin that the tenant-isolation module needs does not apply here.
+    // Match tenant-isolation: PG18 Testcontainers owns database identifier behavior, including uuidv7().
+    systemProperty("api.version", "1.44")
 }

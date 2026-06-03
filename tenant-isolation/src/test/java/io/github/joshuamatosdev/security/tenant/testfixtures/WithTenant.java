@@ -2,7 +2,6 @@ package io.github.joshuamatosdev.security.tenant.testfixtures;
 
 import io.github.joshuamatosdev.security.shared.TenantId;
 import io.github.joshuamatosdev.security.tenant.binding.TenantContext;
-import org.jspecify.annotations.Nullable;
 
 import java.util.function.Supplier;
 
@@ -15,30 +14,10 @@ public final class WithTenant {
     private WithTenant() {}
 
     public static void runAs(final TenantId tenant, final Runnable work) {
-        final @Nullable TenantId prior = TenantContext.current().orElse(null);
-        TenantContext.set(tenant);
-        try {
-            work.run();
-        } finally {
-            restore(prior);
-        }
+        TenantContext.runAs(tenant, work);
     }
 
     public static <T> T supplyAs(final TenantId tenant, final Supplier<T> work) {
-        final @Nullable TenantId prior = TenantContext.current().orElse(null);
-        TenantContext.set(tenant);
-        try {
-            return work.get();
-        } finally {
-            restore(prior);
-        }
-    }
-
-    private static void restore(final @Nullable TenantId prior) {
-        if (prior == null) {
-            TenantContext.clear();
-        } else {
-            TenantContext.set(prior);
-        }
+        return TenantContext.supplyAs(tenant, work);
     }
 }

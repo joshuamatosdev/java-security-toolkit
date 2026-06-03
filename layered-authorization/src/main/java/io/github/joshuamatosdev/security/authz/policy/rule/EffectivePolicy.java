@@ -46,7 +46,7 @@ public final class EffectivePolicy {
     }
 
     /**
-     * True if any {@code DENY} rule matches the actor for this action — deny overrides every allow.
+     * True if any {@code DENY} rule matches the actor for this action; deny overrides every allow.
      */
     public boolean denies(
         final Set<RoleAssignment> assignments, @Nullable final OrganizationId resourceOrg, final Action action) {
@@ -55,7 +55,7 @@ public final class EffectivePolicy {
 
     /**
      * The scope of a matching {@code ALLOW} rule, if any. Organization-scoped allows are reported
-     * ahead of tenant-scoped allows so the grant basis reflects the most specific scope that
+     * ahead of tenant-scoped allows, so the grant basis reflects the most specific scope that
      * permitted the action (organization membership before a tenant-wide effective permission).
      */
     public Optional<PolicyScopeType> allowingScope(

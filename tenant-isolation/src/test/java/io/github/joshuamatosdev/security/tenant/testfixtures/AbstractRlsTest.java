@@ -1,6 +1,7 @@
-package io.github.joshuamatosdev.security.tenant;
+package io.github.joshuamatosdev.security.tenant.testfixtures;
 
 import io.github.joshuamatosdev.security.shared.TenantId;
+import io.github.joshuamatosdev.security.tenant.testfixtures.TenantTestConstants;
 import org.junit.jupiter.api.BeforeEach;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.test.context.DynamicPropertyRegistry;
@@ -20,14 +21,22 @@ import java.util.UUID;
  * container's bootstrap superuser is used only to seed cross-tenant fixtures (it bypasses RLS).
  */
 @SpringBootTest
-abstract class AbstractRlsTest {
+public abstract class AbstractRlsTest {
+
+    protected static final String CLAIM_SECRET = TenantTestConstants.CLAIM_SECRET;
+    public static final String POSTGRES_IMAGE = "postgres:18-alpine";
+    protected static final String INIT_SCRIPT = "db/init.sql";
+    protected static final String RUNTIME_USERNAME = TenantTestConstants.RUNTIME_USERNAME;
+    protected static final String SYSTEM_OPS_USERNAME = TenantTestConstants.SYSTEM_OPS_USERNAME;
+    protected static final String DEV_PASSWORD = TenantTestConstants.DEV_PASSWORD;
+    protected static final String DOCUMENT_TABLE = "document";
 
     // Singleton container: started once on first use, shared by every test class, reaped by Ryuk at
     // JVM exit. One stable container instead of one per test class.
-    static final PostgreSQLContainer<?> POSTGRES;
+    protected static final PostgreSQLContainer<?> POSTGRES;
 
     static {
-        POSTGRES = new PostgreSQLContainer<>("postgres:18-alpine").withInitScript("db/init.sql");
+        POSTGRES = new PostgreSQLContainer<>(POSTGRES_IMAGE).withInitScript(INIT_SCRIPT);
         POSTGRES.start();
     }
 
@@ -35,22 +44,24 @@ abstract class AbstractRlsTest {
     static void props(final DynamicPropertyRegistry registry) {
         // Runtime pool: the non-superuser tenant_user — this is the identity RLS evaluates against.
         registry.add("spring.datasource.url", POSTGRES::getJdbcUrl);
-        registry.add("spring.datasource.username", () -> "tenant_user");
-        registry.add("spring.datasource.password", () -> "local_dev_only");
+        registry.add("spring.datasource.username", () -> RUNTIME_USERNAME);
+        registry.add("spring.datasource.password", () -> DEV_PASSWORD);
+        registry.add("tenant.binding.claim-secret", () -> CLAIM_SECRET);
+        registry.add("tenant.binding.system-ops-password", () -> DEV_PASSWORD);
     }
 
     /** Truncates the shared singleton table so each test starts from a clean, deterministic state. */
     @BeforeEach
-    void cleanDocuments() throws Exception {
+    protected void cleanDocuments() throws Exception {
         try (Connection c = DriverManager.getConnection(
-                        POSTGRES.getJdbcUrl(), POSTGRES.getUsername(), POSTGRES.getPassword());
+                POSTGRES.getJdbcUrl(), POSTGRES.getUsername(), POSTGRES.getPassword());
                 Statement st = c.createStatement()) {
-            st.execute("TRUNCATE TABLE document");
+            st.execute("TRUNCATE TABLE " + DOCUMENT_TABLE);
         }
     }
 
     /** Inserts a row as the bootstrap superuser, which bypasses RLS — models a privileged seed path. */
-    static void seedAsSuperuser(final UUID id, final TenantId tenant, final String title, final String body)
+    protected static void seedAsSuperuser(final UUID id, final TenantId tenant, final String title, final String body)
             throws Exception {
         try (Connection c = DriverManager.getConnection(
                         POSTGRES.getJdbcUrl(), POSTGRES.getUsername(), POSTGRES.getPassword());

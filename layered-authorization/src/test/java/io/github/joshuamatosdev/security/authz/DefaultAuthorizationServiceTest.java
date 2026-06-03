@@ -18,6 +18,7 @@ import io.github.joshuamatosdev.security.authz.service.AuthorizationPolicy;
 import io.github.joshuamatosdev.security.authz.service.AuthorizationService;
 import io.github.joshuamatosdev.security.authz.service.DefaultAuthorizationService;
 import io.github.joshuamatosdev.security.authz.testfixtures.CapturingAuditSink;
+import io.github.joshuamatosdev.security.authz.web.support.DemoAccounts;
 import io.github.joshuamatosdev.security.shared.OrganizationId;
 import io.github.joshuamatosdev.security.shared.ResourceId;
 import io.github.joshuamatosdev.security.shared.TenantId;
@@ -45,6 +46,9 @@ class DefaultAuthorizationServiceTest {
     private static final OrganizationId ENGINEERING =
         new OrganizationId(UUID.fromString("22222222-2222-2222-2222-222222222222"));
     private static final ResourceId DOC = new ResourceId(UUID.fromString("33333333-3333-3333-3333-333333333333"));
+    private static final String OTHER_OWNER = "someone-else";
+    private static final String OWNER_SUBJECT = "alice";
+    private static final String MEMBER_SUBJECT = "bob";
 
     private final CapturingAuditSink auditSink = new CapturingAuditSink();
     private final AuthorizationService service = new DefaultAuthorizationService(
@@ -59,13 +63,13 @@ class DefaultAuthorizationServiceTest {
             ? ENGINEERING
             : null;
         return new RequestContext(
-            new UserPrincipal(subject, subject + "@example.test", 1L), ACME, org, assignments, UUID.randomUUID());
+            new UserPrincipal(subject, subject + DemoAccounts.EMAIL_DOMAIN, 1L), ACME, org, assignments, UUID.randomUUID());
     }
 
     @Test
     void anAllowedDecisionReturnsAndIsAuditedWithItsGrantBasisAndClockTimestamp() {
-        final RequestContext owner = context(Set.of(), "alice");
-        final ProtectedResource ownedByAlice = new ProtectedResource(DOC, ACME, ENGINEERING, "alice");
+        final RequestContext owner = context(Set.of(), OWNER_SUBJECT);
+        final ProtectedResource ownedByAlice = new ProtectedResource(DOC, ACME, ENGINEERING, OWNER_SUBJECT);
 
         service.enforce(owner, ownedByAlice, Action.DELETE);
 
@@ -82,8 +86,8 @@ class DefaultAuthorizationServiceTest {
     @Test
     void aDeniedDecisionIsAuditedAndThenThrows() {
         // A tenant-wide member cannot DELETE — no rule, not owner, not admin.
-        final RequestContext member = context(Set.of(RoleAssignment.tenant(Roles.MEMBER)), "bob");
-        final ProtectedResource doc = new ProtectedResource(DOC, ACME, ENGINEERING, "someone-else");
+        final RequestContext member = context(Set.of(RoleAssignment.tenant(Roles.MEMBER)), MEMBER_SUBJECT);
+        final ProtectedResource doc = new ProtectedResource(DOC, ACME, ENGINEERING, OTHER_OWNER);
 
         assertThatThrownBy(() -> service.enforce(member, doc, Action.DELETE))
             .isInstanceOf(AuthorizationDeniedException.class)
@@ -100,11 +104,64 @@ class DefaultAuthorizationServiceTest {
     @Test
     void aWideScopeAdminAllowIsFlaggedInTheAuditTrail() {
         final RequestContext admin = context(Set.of(RoleAssignment.tenant(Roles.PLATFORM_ADMIN)), "ops");
-        final ProtectedResource doc = new ProtectedResource(DOC, ACME, ENGINEERING, "someone-else");
+        final ProtectedResource doc = new ProtectedResource(DOC, ACME, ENGINEERING, OTHER_OWNER);
 
         final Decision decision = service.decide(admin, doc, Action.DELETE);
 
         assertThat(decision).isEqualTo(new Allow(GrantBasis.WIDE_SCOPE_ADMIN));
         assertThat(auditSink.only().wideScope()).isTrue();
+    }
+
+    @Test
+    void anAlreadyDeterminedBoundaryDenyIsAuditedAndThenThrows() {
+        final RequestContext member = context(Set.of(RoleAssignment.organization(Roles.MEMBER, ENGINEERING)), MEMBER_SUBJECT);
+        final ProtectedResource doc = new ProtectedResource(DOC, ACME, ENGINEERING, OTHER_OWNER);
+
+        assertThatThrownBy(() -> service.deny(member, doc, Action.READ, DenialReason.TENANT_MISMATCH))
+            .isInstanceOf(AuthorizationDeniedException.class)
+            .extracting(ex -> ((AuthorizationDeniedException) ex).reason())
+            .isEqualTo(DenialReason.TENANT_MISMATCH);
+
+        final AuthorizationAuditRecord record = auditSink.only();
+        assertThat(record.allowed()).isFalse();
+        assertThat(record.denialReason()).isEqualTo(DenialReason.TENANT_MISMATCH);
+        assertThat(record.action()).isEqualTo(Action.READ);
+        assertThat(record.resourceId()).isEqualTo(DOC);
+    }
+
+    @Test
+    void anAlreadyDeterminedNonForbiddenDenyCanBeAuditedWithoutThrowing() {
+        final RequestContext member = context(Set.of(RoleAssignment.organization(Roles.MEMBER, ENGINEERING)), MEMBER_SUBJECT);
+        final ProtectedResource doc = new ProtectedResource(DOC, ACME, null, null);
+
+        service.auditDeny(member, doc, Action.READ, DenialReason.RESOURCE_NOT_FOUND);
+
+        final AuthorizationAuditRecord record = auditSink.only();
+        assertThat(record.allowed()).isFalse();
+        assertThat(record.denialReason()).isEqualTo(DenialReason.RESOURCE_NOT_FOUND);
+        assertThat(record.action()).isEqualTo(Action.READ);
+        assertThat(record.resourceId()).isEqualTo(DOC);
+    }
+
+    @Test
+    void anUntrustedBoundaryDenyIsAuditedWithoutInventingTenantContext() {
+        final UserPrincipal principal = new UserPrincipal(
+            DemoAccounts.MALICIOUS_USERNAME,
+            DemoAccounts.MALICIOUS_USERNAME + DemoAccounts.EMAIL_DOMAIN,
+            1L);
+        final UUID correlationId = UUID.randomUUID();
+        final ProtectedResource doc = new ProtectedResource(DOC, ACME, ENGINEERING, OTHER_OWNER);
+
+        assertThatThrownBy(() -> service.denyWithoutTrustedContext(
+                principal, correlationId, doc, Action.READ, DenialReason.NO_MATCHING_RULE))
+            .isInstanceOf(AuthorizationDeniedException.class)
+            .extracting(ex -> ((AuthorizationDeniedException) ex).reason())
+            .isEqualTo(DenialReason.NO_MATCHING_RULE);
+
+        final AuthorizationAuditRecord record = auditSink.only();
+        assertThat(record.principalKey()).isEqualTo(DemoAccounts.MALICIOUS_USERNAME);
+        assertThat(record.tenantId()).isNull();
+        assertThat(record.correlationId()).isEqualTo(correlationId);
+        assertThat(record.denialReason()).isEqualTo(DenialReason.NO_MATCHING_RULE);
     }
 }

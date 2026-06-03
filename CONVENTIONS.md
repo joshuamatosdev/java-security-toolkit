@@ -11,7 +11,7 @@ liftable.
 - **Folder size:** no source folder holds 6 or more files. Split into cohesive
   sub-packages (≤5 files each), and name the sub-packages consistently across
   modules where the concept is shared (`config`, `web`, `persistence`, …).
-- **Shared types — no class repeats.** A type used by more than one module lives
+- **Shared types: no class repeats.** A type used by more than one module lives
   exactly once in the `shared` module (the identity kernel: `TenantId`,
   `OrganizationId`, `ResourceId`). Modules depend on it via
   `implementation(project(":shared"))`; a class is never duplicated across modules.

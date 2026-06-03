@@ -1,0 +1,32 @@
+spring:
+  config:
+    activate:
+      on-profile: database
+
+tenant:
+  binding:
+    # Required in every isolation mode. Database mode uses the signed claim for database defaults,
+    # constraints, or optional RLS policies inside each tenant database.
+    claim-secret: ${TENANT_BINDING_CLAIM_SECRET}
+  isolation:
+    mode: database
+    database:
+      tenants:
+        acme:
+          id: 0190a000-0000-7000-8000-0000000000a1
+          jdbc-url: ${TENANT_ACME_JDBC_URL}
+          username: ${TENANT_ACME_USERNAME}
+          password: ${TENANT_ACME_PASSWORD}
+          driver-class-name: org.postgresql.Driver
+          pool-name: tenant-db-acme
+          maximum-pool-size: 10
+          minimum-idle: 1
+        globex:
+          id: 0190a000-0000-7000-8000-0000000000b2
+          jdbc-url: ${TENANT_GLOBEX_JDBC_URL}
+          username: ${TENANT_GLOBEX_USERNAME}
+          password: ${TENANT_GLOBEX_PASSWORD}
+          driver-class-name: org.postgresql.Driver
+          pool-name: tenant-db-globex
+          maximum-pool-size: 10
+          minimum-idle: 1

@@ -2,6 +2,7 @@ package io.github.joshuamatosdev.security.authz.audit;
 
 import io.github.joshuamatosdev.security.authz.decision.*;
 import io.github.joshuamatosdev.security.authz.policy.Action;
+import io.github.joshuamatosdev.security.authz.principal.PolicyPrincipal;
 import io.github.joshuamatosdev.security.authz.principal.PrincipalType;
 import io.github.joshuamatosdev.security.authz.request.ProtectedResource;
 import io.github.joshuamatosdev.security.authz.request.RequestContext;
@@ -17,6 +18,8 @@ import java.util.UUID;
  * One audit entry for one decision — written for allowing and denies alike. It answers, for an
  * investigation, "who was permitted or refused to do what, to which resource, where, when, and why".
  *
+ * @param tenantId     set from trusted actor context; {@code null} when no trusted tenant context
+ *                     exists yet
  * @param grantBasis   set when {@code allowed} is true (otherwise {@code null})
  * @param denialReason set when {@code allowed} is false (otherwise {@code null})
  * @param wideScope    true when the grant basis was the wide-scope admin short-circuit — the
@@ -27,7 +30,7 @@ public record AuthorizationAuditRecord(
     UUID correlationId,
     PrincipalType principalType,
     String principalKey,
-    TenantId tenantId,
+    @Nullable TenantId tenantId,
     ResourceId resourceId,
     @Nullable OrganizationId resourceOrganizationId,
     Action action,
@@ -59,5 +62,28 @@ public record AuthorizationAuditRecord(
             basis,
             reason,
             basis == GrantBasis.WIDE_SCOPE_ADMIN);
+    }
+
+    public static AuthorizationAuditRecord boundaryDenyWithoutTrustedContext(
+        final PolicyPrincipal principal,
+        final UUID correlationId,
+        final ProtectedResource resource,
+        final Action action,
+        final DenialReason reason,
+        final Instant at) {
+
+        return new AuthorizationAuditRecord(
+            at,
+            correlationId,
+            principal.principalType(),
+            principal.principalKey(),
+            null,
+            resource.resourceId(),
+            resource.organizationId(),
+            action,
+            false,
+            null,
+            reason,
+            false);
     }
 }

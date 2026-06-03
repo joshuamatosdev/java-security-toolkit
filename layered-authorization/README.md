@@ -1,78 +1,142 @@
-# layered-authorization
+# Layered Authorization
 
-Fine-grained, resource-aware authorization behind a coarse request gate — Layer 2
-of the [five-layer posture](../docs/adr/0001-five-layer-security-posture.md),
-deny-by-default and audited. Decision record:
-[ADR-0003](../docs/adr/0003-layered-authorization.md).
+A runnable reference for deny-by-default authorization behind a coarse request
+gate. The module keeps route-level protection, resource-level policy, trusted
+request context, and audit records as separate responsibilities.
 
-## The two gates
+It covers Layer 2, authorization, in the
+[five-layer posture](../docs/adr/0001-five-layer-security-posture.md). The
+decision record is [ADR-0003](../docs/adr/0003-layered-authorization.md).
 
-1. **Coarse request gate** (`web/gate/SecurityUrlGroup` + `web/gate/AccessRule`,
-   wired in `web/config/SecurityConfig`). A static URL-group → role table applied
-   deny-by-default: a route matching no rule is `denyAll()`. Cheap, runs first,
-   rejects whole classes of request — but it cannot see the resource.
-2. **Fine-grained policy** (`service/AuthorizationService.enforce`). For a
-   decision about a specific resource it evaluates the access variants, writes an
-   audit entry, and throws on a deny. This is where object-level access lives.
+## Table of Contents
 
-## The decision (pure function, deny-by-default)
+- [Quick Start](#quick-start)
+- [What It Demonstrates](#what-it-demonstrates)
+- [How Requests Are Authorized](#how-requests-are-authorized)
+- [Decision Model](#decision-model)
+- [Request Context](#request-context)
+- [Audit](#audit)
+- [Persistence](#persistence)
+- [Testing](#testing)
 
-`service/AuthorizationPolicy.decide(actor, resource, action, effectivePolicy)`
-walks the variants in order and ends in a deny — there is no implicit permit:
+## Quick Start
 
-1. **Tenant membership** — actor's tenant ≠ resource's tenant → deny
-   (`TENANT_MISMATCH`). The outer boundary; nothing below can rescue it.
-2. **Wide-scope admin** — a tenant-scoped admin grant → allow, **audited** as
-   wide-scope (a short-circuit; the highest-risk decision is never silent).
-3. **Explicit deny** — a `DENY` rule for the action wins over any allow
-   (deny-overrides), so a revocation is effective immediately.
-4. **Resource grant** — the resource owner is allowed.
-5. **Organization membership** — an organization-scoped `ALLOW` rule matched in
-   the resource's organization (the team/org variant).
-6. **Effective permission** — a tenant-scoped `ALLOW` rule matched a tenant-wide
-   role.
-7. otherwise → deny (`NO_MATCHING_RULE`).
+Requirements:
 
-## Scope and action are first-class
+- JDK 21
+- Docker, for PostgreSQL Testcontainers in the HTTP tests
 
-A rule is `(roleKey, action, effect, scope)`. The same role grants different
-access depending on whether it is held **tenant-wide** or only **inside the
-owning organization**, and **per action** — a grant to `READ` is not a grant to
-`DELETE`. The seeded example policy lets an organization member `READ`/`UPDATE`
-in-org and read tenant-wide, but only the owner or a wide-scope admin may
-`DELETE`. Changing what a role may do is a rule change (data), not code.
-
-## Typed principal, immutable context
-
-The actor is a sealed `principal/PolicyPrincipal` (a `UserPrincipal` or a
-`ServicePrincipal`) — never a bare string. Per-request facts are resolved once
-into an immutable `request/RequestContext` and passed by parameter; decisions
-never reach into a thread-local. Typed identifiers (`TenantId`,
-`OrganizationId`, `ResourceId`) come from the shared `:shared` module.
-
-## Audit
-
-`service/DefaultAuthorizationService` writes an `audit/AuthorizationAuditRecord`
-for **every** decision — allow and deny alike — before it throws on a deny. The
-record carries principal, tenant, organization, resource, action, the outcome,
-the grant basis or denial reason, the wide-scope flag, and a correlation id.
-
-## Run it
-
-Requires JDK 21 (no database — the decision is a pure in-memory function and the
-policy rules come from an in-memory repository).
+Run the module tests:
 
 ```bash
 ../gradlew :layered-authorization:test
 ```
 
-Tests:
+The pure policy tests run in memory. HTTP tests start PostgreSQL 18 so document
+facts use database-owned UUIDv7 identifiers.
 
-- `AuthorizationPolicyTest` — each access variant in isolation: every grant
-  basis, the tenant-mismatch and default-deny denials, per-action granularity,
-  organization-scope boundaries, and deny-overrides.
-- `DefaultAuthorizationServiceTest` — every decision is audited; a deny is
-  recorded before the guard throws; a wide-scope admin allow is flagged.
-- `DocumentControllerSecurityTest` — both gates over HTTP: unauthenticated
-  rejected, deny-by-default on an unmatched route, owner/admin allowed, and a
-  fine-grained denial surfaced as 403.
+## What It Demonstrates
+
+- Deny-by-default route protection.
+- Typed principals instead of bare strings.
+- Immutable request context resolved once at the web boundary.
+- Resource-aware policy for `READ`, `UPDATE`, and `DELETE`.
+- Tenant, organization, owner, and role-scope checks.
+- Deny-overrides behavior.
+- Audit records for every allow and deny.
+- PostgreSQL-backed document facts with database-owned identifiers.
+
+## How Requests Are Authorized
+
+The module uses two gates:
+
+1. **Coarse request gate.** `web/gate/SecurityUrlGroup` and
+   `web/gate/AccessRule` define a static URL-group to role table in
+   `web/config/SecurityConfig`. A route matching no rule is denied.
+2. **Fine-grained policy.** `service/AuthorizationService.enforce` evaluates
+   the actor, resource, action, and effective policy. It writes an audit record
+   before returning or throwing.
+
+Boundary failures that occur before a resource policy can run still use
+`AuthorizationService.deny`, so denials follow the same audit path.
+
+## Decision Model
+
+`AuthorizationPolicy.decide(actor, resource, action, effectivePolicy)` is a pure
+function. It checks variants in order and ends in deny. There is no implicit
+permit.
+
+1. Tenant mismatch denies immediately.
+2. Explicit `DENY` for the action wins over every allow.
+3. Tenant-wide admin allows after deny checks.
+4. Resource owner allows.
+5. Organization-scoped `ALLOW` allows within the resource organization.
+6. Tenant-scoped `ALLOW` allows through effective permissions.
+7. No matching rule denies.
+
+A role grant is action-specific and scope-specific. A grant to `READ` is not a
+grant to `DELETE`, and an organization-scoped grant is not tenant-wide access.
+
+## Request Context
+
+The actor is a sealed `principal/PolicyPrincipal`: either a `UserPrincipal` or a
+`ServicePrincipal`. Per-request facts are resolved once into
+`request/RequestContext` and passed as a value. Policy code does not read a
+thread-local.
+
+The trusted actor profile is resolved from the authenticated subject by
+`web/RequestContextResolver` — not from request headers. Before a resource is
+loaded, `web/DocumentBoundaryAuthorizer` cross-checks the caller-supplied tenant
+header against the resolved profile and denies a mismatch on the same audit
+path. The organization a caller may claim is not an authorization input:
+organization membership comes from the trusted profile and the resource's own
+organization, so a header can neither manufacture nor revoke access. If no
+trusted profile exists, audit keeps tenant context empty instead of copying an
+untrusted tenant header.
+
+Typed identifiers come from `:shared`:
+
+- `TenantId`
+- `OrganizationId`
+- `ResourceId`
+
+## Audit
+
+`DefaultAuthorizationService` writes an `AuthorizationAuditRecord` for every
+decision:
+
+- allow
+- deny
+- explicit boundary denial
+
+The record includes principal, tenant, organization, resource, action, outcome,
+grant basis or denial reason, wide-scope flag, and correlation id. Tenant can be
+empty only when the denial happens before trusted actor tenant context exists.
+
+## Persistence
+
+Document resource facts are loaded from PostgreSQL, not from an in-memory map.
+PostgreSQL 18 owns document primary-key creation through the `id_v7` domain
+default (`uuidv7()`), matching the `tenant-isolation` module's database-owned
+identifier contract.
+
+Application code omits `id` on insert and reads back the database-minted UUIDv7
+value.
+
+## Testing
+
+Run all layered-authorization tests:
+
+```bash
+../gradlew :layered-authorization:test
+```
+
+Important tests:
+
+- `AuthorizationPolicyTest`: each grant basis, deny reason, action boundary,
+  organization boundary, and deny-overrides behavior.
+- `DefaultAuthorizationServiceTest`: audit coverage for allows, denies,
+  wide-scope admin decisions, and explicit boundary denials.
+- `DocumentControllerSecurityTest`: HTTP coverage for both gates, trusted header
+  validation, deny-by-default routes, UUIDv7 document id creation, persistence
+  deletion, and 403 behavior for fine-grained denials.

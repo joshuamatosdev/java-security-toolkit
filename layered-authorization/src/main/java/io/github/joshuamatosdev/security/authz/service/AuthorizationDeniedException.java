@@ -9,7 +9,7 @@ import io.github.joshuamatosdev.security.authz.decision.DenialReason;
  */
 public final class AuthorizationDeniedException extends RuntimeException {
 
-    private final transient DenialReason reason;
+    private final DenialReason reason;
 
     public AuthorizationDeniedException(final DenialReason reason) {
         super("access denied: " + reason);

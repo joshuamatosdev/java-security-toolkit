@@ -1,0 +1,3 @@
+# Local runnable-showcase profile. Do not use this profile for deployment.
+showcase:
+  demo-identity: true

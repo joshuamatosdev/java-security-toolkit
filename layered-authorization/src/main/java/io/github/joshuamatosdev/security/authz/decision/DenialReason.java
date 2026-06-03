@@ -13,7 +13,11 @@ public enum DenialReason {
      */
     EXPLICIT_DENY,
     /**
-     * No variant granted access and no rule matched — the deny-by-default outcome.
+     * No variant granted access, and no rule matched: the deny-by-default outcome.
      */
-    NO_MATCHING_RULE
+    NO_MATCHING_RULE,
+    /**
+     * The request reached a trusted tenant boundary, but no resource facts could be loaded.
+     */
+    RESOURCE_NOT_FOUND
 }
