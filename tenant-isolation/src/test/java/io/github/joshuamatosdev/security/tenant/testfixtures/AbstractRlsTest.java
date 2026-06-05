@@ -19,6 +19,9 @@ import java.util.UUID;
  * {@code db/init.sql} (mirroring the production "init-db is the schema authority" pattern). The
  * runtime pool authenticates as the NON-superuser {@code tenant_user} so RLS engages; the
  * container's bootstrap superuser is used only to seed cross-tenant fixtures (it bypasses RLS).
+ *
+ * <p>Why this is important to test: shared fixtures must encode the same tenant assumptions in
+ * every isolation test, or passing tests could exercise different boundaries.
  */
 @SpringBootTest
 public abstract class AbstractRlsTest {

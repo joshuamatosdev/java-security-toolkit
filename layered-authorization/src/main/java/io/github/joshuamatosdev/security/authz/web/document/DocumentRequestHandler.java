@@ -6,17 +6,19 @@ import io.github.joshuamatosdev.security.authz.request.ProtectedResource;
 import io.github.joshuamatosdev.security.authz.request.RequestContext;
 import io.github.joshuamatosdev.security.authz.service.AuthorizationService;
 import io.github.joshuamatosdev.security.shared.ResourceId;
+import io.github.joshuamatosdev.security.shared.TenantId;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.Authentication;
 import org.springframework.stereotype.Component;
 import org.springframework.web.server.ResponseStatusException;
 
-import java.util.UUID;
-
 /**
  * Coordinates document lookup with the fine-grained authorization boundary. Pre-lookup denials are
  * audited against the attempted resource id so missing-resource probes cannot bypass the audit path.
+ *
+ * <p>Why this exists: document web components provide the resource-backed endpoint used to
+ * demonstrate route gates plus fine-grained policy.
  */
 @Component
 public class DocumentRequestHandler {
@@ -35,10 +37,9 @@ public class DocumentRequestHandler {
     }
 
     public ProtectedResource read(
-        final UUID id,
+        final ResourceId resourceId,
         final Authentication authentication,
-        final UUID tenantId) {
-        final ResourceId resourceId = new ResourceId(id);
+        final TenantId tenantId) {
         final RequestContext context =
             boundaryAuthorizer.authorize(authentication, tenantId, resourceId, Action.READ);
         final ProtectedResource resource = resolveResource(context, resourceId, Action.READ);
@@ -47,15 +48,14 @@ public class DocumentRequestHandler {
     }
 
     public ResponseEntity<Void> delete(
-        final UUID id,
+        final ResourceId resourceId,
         final Authentication authentication,
-        final UUID tenantId) {
-        final ResourceId resourceId = new ResourceId(id);
+        final TenantId tenantId) {
         final RequestContext context =
             boundaryAuthorizer.authorize(authentication, tenantId, resourceId, Action.DELETE);
         final ProtectedResource resource = resolveResource(context, resourceId, Action.DELETE);
         authorizationService.enforce(context, resource, Action.DELETE);
-        documents.delete(resourceId);
+        documents.delete(context.tenantId(), resourceId);
         return ResponseEntity.noContent().build();
     }
 

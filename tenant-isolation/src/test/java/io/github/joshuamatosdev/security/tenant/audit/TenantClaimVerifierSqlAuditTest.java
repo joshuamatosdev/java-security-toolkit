@@ -11,6 +11,9 @@ import org.junit.jupiter.api.Test;
 
 /**
  * Static guard for tenant claim verifier parity across isolation-mode SQL fixtures.
+ *
+ * <p>Why this is important to test: static audits catch future code that moves UUID ownership or
+ * signed-claim verification out of the database boundary.
  */
 class TenantClaimVerifierSqlAuditTest {
 
@@ -41,6 +44,14 @@ class TenantClaimVerifierSqlAuditTest {
             assertThat(sql)
                     .as(script + " must fail fast if pgcrypto is installed outside tenant_security")
                     .contains("pgcrypto extension must be installed in tenant_security");
+            assertThat(sql)
+                    .as(script + " must expire claims against wall-clock time, not transaction-start time")
+                    .contains("extract(epoch FROM clock_timestamp())::bigint")
+                    .doesNotContain("extract(epoch FROM now())::bigint");
+            assertThat(sql)
+                    .as(script + " must not mark a wall-clock/random verifier as STABLE")
+                    .contains("VOLATILE")
+                    .doesNotContain("STABLE");
         }
     }
 }

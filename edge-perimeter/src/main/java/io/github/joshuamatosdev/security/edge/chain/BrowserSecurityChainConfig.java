@@ -7,6 +7,7 @@ import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.core.Ordered;
 import org.springframework.core.annotation.Order;
+import org.springframework.http.HttpMethod;
 import org.springframework.security.config.annotation.web.reactive.EnableWebFluxSecurity;
 import org.springframework.security.config.web.server.ServerHttpSecurity;
 import org.springframework.security.oauth2.client.oidc.authentication.OidcIdTokenValidator;
@@ -33,8 +34,9 @@ import org.springframework.web.server.WebFilter;
  * /api/service/**}) wins on its paths and every other request falls through to here. The shape:
  *
  * <ul>
- *   <li><b>Deny-by-default</b> — the route map ends in {@code anyExchange().authenticated()} and
- *       there is no permit-all fallthrough. The actuator is locked the same way: health and info
+ *   <li><b>Deny-by-default</b> — the route map ends in {@code anyExchange().denyAll()} and
+ *       every protected browser surface is listed explicitly. The actuator is locked the same way:
+ *       health and info
  *       are explicitly permitted, then {@code /actuator/**} is explicitly denied, so an endpoint
  *       accidentally exposed in {@code management.endpoints.web.exposure} is still unreachable.
  *   <li><b>Narrow-before-broad</b> — the audit-export exception is registered before the broad
@@ -44,6 +46,9 @@ import org.springframework.web.server.WebFilter;
  *   <li><b>CSRF</b> double-submit cookie, <b>CORS</b> credentialed allow-list, <b>security
  *       headers</b> on every response.
  * </ul>
+ *
+ * <p>Why this exists: separate security chains encode browser-session and service-token
+ * authentication so one credential model cannot authorize the other.
  */
 @Configuration
 @EnableWebFluxSecurity
@@ -63,21 +68,23 @@ public class BrowserSecurityChainConfig {
                 csrf.csrfTokenRepository(csrfTokenRepository)
                     .csrfTokenRequestHandler(csrfTokenRequestHandler))
         .authorizeExchange(
-            exchanges ->
+                exchanges ->
                 exchanges
-                    .pathMatchers(RouteAuthorities.PUBLIC_PATHS)
+                    .pathMatchers(HttpMethod.GET, RouteAuthorities.PUBLIC_PATHS)
                     .permitAll()
-                    .pathMatchers("/actuator/health/**", "/actuator/info")
+                    .pathMatchers(HttpMethod.GET, "/actuator/health/**", "/actuator/info")
                     .permitAll()
                     .pathMatchers("/actuator/**")
                     .denyAll()
+                    .pathMatchers(RouteAuthorities.DOCUMENT_PATHS)
+                    .authenticated()
                     // Narrow exception MUST precede the broad admin gate (first-match-wins).
                     .pathMatchers(RouteAuthorities.AUDIT_EXPORT_PATHS)
                     .hasAnyAuthority(RouteAuthorities.AUDIT_EXPORT_AUTHORITIES)
                     .pathMatchers(RouteAuthorities.ADMIN_PATHS)
                     .hasAnyAuthority(RouteAuthorities.ADMIN_AUTHORITIES)
                     .anyExchange()
-                    .authenticated())
+                    .denyAll())
         // An explicit loginPage suppresses Spring Security's generated OAuth2 login page, which
         // would otherwise leak the client-registration id and confirm the IdP backend. Pointing
         // it at the single client's authorization endpoint makes an HTML auth challenge redirect

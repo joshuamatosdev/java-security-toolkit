@@ -9,6 +9,9 @@ import org.springframework.boot.autoconfigure.SpringBootApplication;
  * <p>The application intentionally has little behavior at this layer: the module exists to
  * demonstrate datasource wiring and database-enforced tenant isolation, so runtime security
  * behavior lives in the datasource, binding, and schema components.
+ *
+ * <p>Why this exists: a runnable Spring boundary keeps the tenant-isolation pattern executable,
+ * configurable, and testable instead of only described in ADR prose.
  */
 @SpringBootApplication
 public class TenantIsolationApplication {

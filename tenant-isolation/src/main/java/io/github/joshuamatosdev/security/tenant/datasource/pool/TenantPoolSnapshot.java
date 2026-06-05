@@ -12,6 +12,9 @@ import java.util.Objects;
  * @param threadsAwaitingConnection threads currently waiting for a pool connection
  * @param minimumIdle configured minimum idle connection count
  * @param maximumPoolSize configured maximum pool size
+ *
+ * <p>Why this exists: pool inspection makes runtime pool identity observable so tests can prove
+ * least-privilege tenant connections are really in use.
  */
 public record TenantPoolSnapshot(
         String name,
@@ -27,7 +30,21 @@ public record TenantPoolSnapshot(
      */
     public TenantPoolSnapshot {
         Objects.requireNonNull(name, "name");
+        requireNonNegative(activeConnections, "activeConnections");
+        requireNonNegative(idleConnections, "idleConnections");
+        requireNonNegative(totalConnections, "totalConnections");
+        requireNonNegative(threadsAwaitingConnection, "threadsAwaitingConnection");
+        final long expectedTotalConnections = (long) activeConnections + idleConnections;
+        if (totalConnections != expectedTotalConnections) {
+            throw new IllegalArgumentException(
+                    "totalConnections must equal activeConnections plus idleConnections");
+        }
+    }
+
+    private static void requireNonNegative(final int value, final String field) {
+        if (value < 0) {
+            throw new IllegalArgumentException(field + " must not be negative");
+        }
     }
 }
-
 

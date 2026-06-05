@@ -11,6 +11,12 @@ import java.time.Instant;
 import java.time.ZoneOffset;
 import org.junit.jupiter.api.Test;
 
+/**
+ * Tenant Claim Signer test coverage.
+ *
+ * <p>Why this is important to test: every borrowed connection must carry a valid tenant claim, or
+ * database policies cannot reliably isolate tenant data.
+ */
 class TenantClaimSignerTest {
 
     private static final Duration TTL = Duration.ofMinutes(30);
@@ -65,8 +71,29 @@ class TenantClaimSignerTest {
                 .hasMessageContaining("TTL must be positive");
     }
 
+    @Test
+    void rejectsSecretsWithLeadingOrTrailingWhitespace() {
+        assertThatThrownBy(() -> new TenantClaimSigner(TenantTestConstants.CLAIM_SECRET + " ", TTL, CLOCK))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessage("tenant claim secret must not include leading or trailing whitespace");
+    }
+
+    @Test
+    void rejectsSecretsWithControlCharacters() {
+        assertThatThrownBy(() -> new TenantClaimSigner(TenantTestConstants.CLAIM_SECRET + "\nforged", TTL, CLOCK))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessage("tenant claim secret must not contain control characters");
+    }
+
+    @Test
+    void rejectsSubSecondTtlBecauseClaimsAreSerializedInEpochSeconds() {
+        assertThatThrownBy(() -> new TenantClaimSigner(
+                        TenantTestConstants.CLAIM_SECRET, Duration.ofMillis(1), CLOCK))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("at least 1 second");
+    }
+
     private static long expOf(final String claim) {
         return Long.parseLong(claim.split(":")[2]);
     }
 }
-

@@ -7,6 +7,9 @@ import java.util.Map;
 
 /**
  * Minimal liveness endpoint for the public health URL group.
+ *
+ * <p>Why this exists: health routes stay separate so operational liveness does not inherit
+ * document or admin authorization behavior.
  */
 @RestController
 public class HealthController {

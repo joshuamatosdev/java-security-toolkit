@@ -1,18 +1,25 @@
 package io.github.joshuamatosdev.security.tenant.datasource.factory;
 
 import com.zaxxer.hikari.HikariDataSource;
+import io.github.joshuamatosdev.security.tenant.PostgresJdbcUrls;
 import io.github.joshuamatosdev.security.shared.TenantId;
 import io.github.joshuamatosdev.security.tenant.binding.SystemTenantBoundary;
 import io.github.joshuamatosdev.security.tenant.config.TenantBindingProperties;
 import io.github.joshuamatosdev.security.tenant.config.TenantIsolationMode;
 import io.github.joshuamatosdev.security.tenant.config.TenantIsolationProperties;
 import java.util.LinkedHashMap;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Set;
+import java.util.regex.Pattern;
 import org.springframework.boot.autoconfigure.jdbc.DataSourceProperties;
 
 /**
  * Creates raw Hikari pools used behind guarded tenant datasources.
+ *
+ * <p>Why this exists: factory-owned composition keeps placement mode, runtime credentials, and
+ * signed-claim wiring in one auditable construction path.
  */
 @SystemTenantBoundary
 final class TenantPoolFactory {
@@ -21,6 +28,11 @@ final class TenantPoolFactory {
     static final String SYSTEM_OPS_POOL_NAME = "tenant-system-ops";
     static final String TENANT_DATABASE_POOL_PREFIX = "tenant-db-";
     static final String SYSTEM_OPS_USERNAME = "tenant_ops_user";
+    private static final Pattern JDBC_URL =
+            Pattern.compile("jdbc:[A-Za-z][A-Za-z0-9._-]*:\\S+");
+    private static final String POSTGRES_JDBC_URL_PREFIX = "jdbc:postgresql:";
+    private static final Set<String> FORBIDDEN_RUNTIME_POOL_USERNAMES =
+            Set.of("postgres", "tenant_bypass", SYSTEM_OPS_USERNAME, "ttx");
 
     private final TenantIsolationProperties isolationProperties;
     private final TenantBindingProperties bindingProperties;
@@ -45,6 +57,9 @@ final class TenantPoolFactory {
      * @return raw Hikari pool used for ordinary tenant work
      */
     HikariDataSource runtimePool(final DataSourceProperties properties) {
+        requirePostgresRuntimeJdbcUrl(properties);
+        requireTenantRuntimeUsername(properties);
+        requireTenantRuntimePassword(properties);
         final HikariDataSource hikari =
                 properties.initializeDataSourceBuilder().type(HikariDataSource.class).build();
         hikari.setPoolName(RUNTIME_POOL_NAME);
@@ -58,6 +73,7 @@ final class TenantPoolFactory {
      * @return raw Hikari pool used for system-operations reads
      */
     HikariDataSource systemOpsPool(final DataSourceProperties properties) {
+        requirePostgresRuntimeJdbcUrl(properties);
         final HikariDataSource hikari =
                 properties.initializeDataSourceBuilder().type(HikariDataSource.class).build();
         hikari.setUsername(SYSTEM_OPS_USERNAME);
@@ -111,6 +127,66 @@ final class TenantPoolFactory {
         }
         return bindingProperties.systemOpsPasswordOrEmpty();
     }
+
+    private static void requirePostgresRuntimeJdbcUrl(final DataSourceProperties properties) {
+        Objects.requireNonNull(properties, "properties must not be null");
+        final String jdbcUrl = properties.getUrl();
+        if (jdbcUrl == null || jdbcUrl.isBlank()) {
+            throw new IllegalStateException(
+                    "spring.datasource.url must name the PostgreSQL tenant runtime database");
+        }
+        if (!jdbcUrl.equals(jdbcUrl.strip())) {
+            throw new IllegalStateException(
+                    "spring.datasource.url must not include leading or trailing whitespace");
+        }
+        if (jdbcUrl.chars().anyMatch(Character::isISOControl)) {
+            throw new IllegalStateException(
+                    "spring.datasource.url must not contain control characters");
+        }
+        if (!JDBC_URL.matcher(jdbcUrl).matches()) {
+            throw new IllegalStateException("spring.datasource.url must be a valid JDBC URL");
+        }
+        if (!jdbcUrl.startsWith(POSTGRES_JDBC_URL_PREFIX)) {
+            throw new IllegalStateException(
+                    "spring.datasource.url must be a PostgreSQL jdbc-url");
+        }
+        if (PostgresJdbcUrls.containsCredentialQueryParameter(jdbcUrl)) {
+            throw new IllegalStateException(
+                    "spring.datasource.url must not include credential parameters");
+        }
+    }
+
+    private static void requireTenantRuntimeUsername(final DataSourceProperties properties) {
+        final String username = properties.getUsername();
+        if (username == null || username.isBlank()) {
+            throw new IllegalStateException("spring.datasource.username must name the tenant runtime role");
+        }
+        if (!username.equals(username.strip())) {
+            throw new IllegalStateException(
+                    "spring.datasource.username must not include leading or trailing whitespace");
+        }
+        if (username.chars().anyMatch(Character::isISOControl)) {
+            throw new IllegalStateException(
+                    "spring.datasource.username must not contain control characters");
+        }
+        if (FORBIDDEN_RUNTIME_POOL_USERNAMES.contains(username.toLowerCase(Locale.ROOT))) {
+            throw new IllegalStateException(
+                    "spring.datasource.username must not be a privileged or system-ops identity");
+        }
+    }
+
+    private static void requireTenantRuntimePassword(final DataSourceProperties properties) {
+        final String password = properties.getPassword();
+        if (password == null || password.isBlank()) {
+            throw new IllegalStateException("spring.datasource.password must name the tenant runtime role password");
+        }
+        if (!password.equals(password.strip())) {
+            throw new IllegalStateException(
+                    "spring.datasource.password must not include leading or trailing whitespace");
+        }
+        if (password.chars().anyMatch(Character::isISOControl)) {
+            throw new IllegalStateException(
+                    "spring.datasource.password must not contain control characters");
+        }
+    }
 }
-
-

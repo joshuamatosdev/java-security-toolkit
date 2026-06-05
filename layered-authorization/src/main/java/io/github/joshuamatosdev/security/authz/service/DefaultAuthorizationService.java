@@ -21,6 +21,9 @@ import java.util.UUID;
  * write the audit entry (allow or deny), then throw on a deny. The orchestrator holds the I/O and
  * side effects; the decision itself stays a pure function. A {@link Clock} is injected so the audit
  * timestamp is deterministic in tests.
+ *
+ * <p>Why this exists: the service layer is the single authorization decision point, preventing
+ * callers from skipping audit or fine-grained resource checks.
  */
 public final class DefaultAuthorizationService implements AuthorizationService {
 

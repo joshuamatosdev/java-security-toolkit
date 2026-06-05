@@ -17,6 +17,9 @@ import reactor.core.publisher.Mono;
  * plane (where the credential is a session cookie) and preserved on the service plane (whose whole
  * contract is to accept bearer tokens). A capturing chain records the request the next filter would
  * actually observe.
+ *
+ * <p>Why this is important to test: browser-supplied bearer headers must not leak into service
+ * authorization decisions.
  */
 class BrowserCredentialIsolationTest {
 

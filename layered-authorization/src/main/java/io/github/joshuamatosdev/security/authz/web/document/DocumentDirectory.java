@@ -16,6 +16,9 @@ import java.util.Optional;
  * domain default; this component only reads and deletes by already-known resource ids.
  *
  * <p>Neutral fictional tenant and organization identifiers support the demo actor profile.
+ *
+ * <p>Why this exists: document web components provide the resource-backed endpoint used to
+ * demonstrate route gates plus fine-grained policy.
  */
 @Component
 public class DocumentDirectory {
@@ -37,8 +40,8 @@ public class DocumentDirectory {
             .map(DocumentEntity::toProtectedResource);
     }
 
-    public void delete(final ResourceId id) {
-        repository.deleteById(id.value());
+    public void delete(final TenantId tenantId, final ResourceId id) {
+        repository.deleteByIdAndTenantId(id.value(), tenantId.value());
     }
 
     public ProtectedResource create(

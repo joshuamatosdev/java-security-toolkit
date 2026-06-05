@@ -3,11 +3,10 @@
 # two builds — so a reproducible, tamper-evident build pins the content digest instead. BaseImagePolicy
 # + BaseImagePolicyTest fail the build if any external FROM here loses its digest.
 #
-# The digest below is illustrative for the showcase. Refresh it against the registry before any real
-# deployment:
+# Refresh deliberately with:
 #   docker buildx imagetools inspect eclipse-temurin:21-jre --format '{{.Manifest.Digest}}'
 
-FROM eclipse-temurin:21-jre@sha256:9c7f1e3b2a4d6c8e0f1a2b3c4d5e6f708192a3b4c5d6e7f8091a2b3c4d5e6f70 AS runtime
+FROM eclipse-temurin:21-jre@sha256:010e0a06bd4e0184dec58626afb3ba727b42c56c91b977e2f0a9e0837e0fa3fb AS runtime
 
 WORKDIR /app
 COPY build/libs/*.jar app.jar

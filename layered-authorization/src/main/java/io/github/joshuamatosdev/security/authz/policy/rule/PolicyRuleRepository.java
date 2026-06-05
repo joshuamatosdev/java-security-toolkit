@@ -6,6 +6,9 @@ import io.github.joshuamatosdev.security.shared.TenantId;
  * Port that supplies the {@link EffectivePolicy} in force for a tenant. In production this reads the
  * {@code role_policy_rule} rows for the tenant; the decision layer depends only on this interface, so
  * the rule source (database, cache, config) is an adapter detail.
+ *
+ * <p>Why this exists: policy rules keep role-to-action grants data-shaped so deny-overrides
+ * behavior can change without controller rewrites.
  */
 public interface PolicyRuleRepository {
 

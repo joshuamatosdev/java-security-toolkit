@@ -38,6 +38,9 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
  * and deny), a deny is recorded <em>before</em> the guard throws, and a wide-scope admin allow is
  * flagged in the audit trail. Uses the real {@link AuthorizationPolicy} and
  * {@link InMemoryPolicyRuleRepository}; only the audit sink and clock are test doubles.
+ *
+ * <p>Why this is important to test: authorization is a privilege boundary, so the documented
+ * route, policy, and audit contracts need executable proof.
  */
 class DefaultAuthorizationServiceTest {
 

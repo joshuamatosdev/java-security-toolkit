@@ -19,6 +19,12 @@ import javax.sql.DataSource;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
 
+/**
+ * Tenant Schema Data Source test coverage.
+ *
+ * <p>Why this is important to test: choosing the wrong schema or pool is a cross-tenant exposure,
+ * so routing behavior needs executable coverage.
+ */
 class TenantSchemaDataSourceTest {
 
     private static final String ACME_SCHEMA = "tenant_acme";
@@ -56,6 +62,35 @@ class TenantSchemaDataSourceTest {
     }
 
     @Test
+    void closedSchemaConnectionRejectsFurtherSqlWithoutReachingDelegate() throws Exception {
+        final DataSource delegate = mock(DataSource.class);
+        final Connection raw = mock(Connection.class);
+        final TenantSchemaDataSource dataSource = new TenantSchemaDataSource(
+                delegate,
+                Map.of(TenantIds.ACME, ACME_SCHEMA),
+                TenantPoolInspection.NONE);
+        when(delegate.getConnection()).thenReturn(raw);
+        when(raw.getSchema()).thenReturn(DEFAULT_SCHEMA);
+        when(raw.getAutoCommit()).thenReturn(true);
+
+        TenantContext.runAs(TenantIds.ACME, () -> {
+            try {
+                final Connection guarded = dataSource.getConnection();
+                guarded.close();
+
+                assertThat(guarded.isClosed()).isTrue();
+                assertThatThrownBy(() -> guarded.prepareStatement("SELECT 1"))
+                        .isInstanceOf(Exception.class)
+                        .hasMessageContaining("closed");
+            } catch (Exception ex) {
+                throw new AssertionError(ex);
+            }
+        });
+
+        verify(raw, never()).prepareStatement("SELECT 1");
+    }
+
+    @Test
     void missingTenantContextFailsBeforeBorrowing() throws Exception {
         final DataSource delegate = mock(DataSource.class);
         final TenantSchemaDataSource dataSource = new TenantSchemaDataSource(
@@ -68,6 +103,30 @@ class TenantSchemaDataSourceTest {
                 .hasMessageContaining(TenantTestConstants.TENANT_CONTEXT_NOT_POPULATED_MESSAGE);
 
         verify(delegate, never()).getConnection();
+    }
+
+    @Test
+    void constructorRejectsUnsafeSchemaNamesBeforeTheyReachJdbc() {
+        final DataSource delegate = mock(DataSource.class);
+
+        assertThatThrownBy(() -> new TenantSchemaDataSource(
+                        delegate,
+                        Map.of(TenantIds.ACME, "tenant-acme"),
+                        TenantPoolInspection.NONE))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("invalid schema name");
+    }
+
+    @Test
+    void constructorRejectsDuplicateSchemaNamesAcrossTenants() {
+        final DataSource delegate = mock(DataSource.class);
+
+        assertThatThrownBy(() -> new TenantSchemaDataSource(
+                        delegate,
+                        Map.of(TenantIds.ACME, ACME_SCHEMA, TenantIds.GLOBEX, ACME_SCHEMA),
+                        TenantPoolInspection.NONE))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("duplicate schema name");
     }
 
     @Test
@@ -97,6 +156,45 @@ class TenantSchemaDataSourceTest {
                 .isInstanceOf(SQLFeatureNotSupportedException.class)
                 .hasMessageContaining(TenantTestConstants.CALLER_SUPPLIED_CREDENTIALS_MESSAGE);
     }
+
+    @Test
+    void doesNotExposeTheDelegatePoolOrRawBuilders() throws Exception {
+        final DataSource delegate = mock(DataSource.class);
+        final TenantSchemaDataSource dataSource = new TenantSchemaDataSource(
+                delegate,
+                Map.of(TenantIds.ACME, ACME_SCHEMA),
+                TenantPoolInspection.NONE);
+        final Class<? extends DataSource> delegateClass = delegate.getClass();
+
+        assertThat(dataSource.isWrapperFor(DataSource.class)).isTrue();
+        assertThat(dataSource.unwrap(DataSource.class)).isSameAs(dataSource);
+        assertThat(dataSource.isWrapperFor(delegateClass)).isFalse();
+        assertThatThrownBy(() -> dataSource.unwrap(delegateClass))
+                .isInstanceOf(Exception.class)
+                .hasMessageContaining("cannot be unwrapped");
+        assertThatThrownBy(dataSource::createConnectionBuilder)
+                .isInstanceOf(SQLFeatureNotSupportedException.class);
+        assertThatThrownBy(dataSource::createShardingKeyBuilder)
+                .isInstanceOf(SQLFeatureNotSupportedException.class);
+
+        verify(delegate, never()).unwrap(delegateClass);
+        verify(delegate, never()).createConnectionBuilder();
+        verify(delegate, never()).createShardingKeyBuilder();
+    }
+
+    @Test
+    void closesClosableDelegatePool() throws Exception {
+        final CloseableDataSource delegate = mock(CloseableDataSource.class);
+        final TenantSchemaDataSource dataSource = new TenantSchemaDataSource(
+                delegate,
+                Map.of(TenantIds.ACME, ACME_SCHEMA),
+                TenantPoolInspection.NONE);
+
+        assertThat(dataSource).isInstanceOf(AutoCloseable.class);
+        ((AutoCloseable) dataSource).close();
+
+        verify(delegate).close();
+    }
+
+    private interface CloseableDataSource extends DataSource, AutoCloseable {}
 }
-
-

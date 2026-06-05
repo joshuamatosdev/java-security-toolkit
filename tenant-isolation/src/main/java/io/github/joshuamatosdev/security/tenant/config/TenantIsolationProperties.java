@@ -1,10 +1,13 @@
 package io.github.joshuamatosdev.security.tenant.config;
 
 import io.github.joshuamatosdev.security.shared.TenantId;
+import io.github.joshuamatosdev.security.tenant.PostgresJdbcUrls;
+import io.github.joshuamatosdev.security.tenant.binding.SystemTenantBoundary;
 import java.util.Collections;
 import java.util.LinkedHashMap;
+import java.util.Locale;
 import java.util.Map;
-import java.util.UUID;
+import java.util.Set;
 import java.util.regex.Pattern;
 import org.springframework.boot.context.properties.ConfigurationProperties;
 
@@ -18,8 +21,12 @@ import org.springframework.boot.context.properties.ConfigurationProperties;
  * @param mode active tenant placement strategy; defaults to {@link TenantIsolationMode#ID}
  * @param schema schema-per-tenant placement config
  * @param database database-per-tenant placement config
+ *
+ * <p>Why this exists: tenant placement is a security boundary, so validation rejects ambiguous or
+ * unsafe configuration before any datasource can route traffic.
  */
 @ConfigurationProperties("tenant.isolation")
+@SystemTenantBoundary
 public record TenantIsolationProperties(
         TenantIsolationMode mode,
         SchemaIsolationProperties schema,
@@ -81,6 +88,7 @@ public record TenantIsolationProperties(
 
         private Map<TenantId, String> toPlacements() {
             final Map<TenantId, String> placements = new LinkedHashMap<>();
+            final Map<String, TenantId> schemaOwners = new LinkedHashMap<>();
             tenants.forEach((alias, tenant) -> {
                 final SchemaTenantProperties requiredTenant = requireTenantConfig(alias, tenant);
                 final TenantId tenantId = parseTenantId(alias, requiredTenant.id());
@@ -89,6 +97,11 @@ public record TenantIsolationProperties(
                 if (prior != null) {
                     throw new IllegalArgumentException(
                             DUPLICATE_TENANT_ID_PREFIX + tenantId + " in tenant.isolation.schema.tenants");
+                }
+                final TenantId priorOwner = schemaOwners.putIfAbsent(schema, tenantId);
+                if (priorOwner != null) {
+                    throw new IllegalArgumentException(
+                            "duplicate schema name " + schema + " in tenant.isolation.schema.tenants");
                 }
             });
             return Collections.unmodifiableMap(placements);
@@ -125,13 +138,15 @@ public record TenantIsolationProperties(
 
         private Map<TenantId, DatabaseTenantProperties> toPlacements() {
             final Map<TenantId, DatabaseTenantProperties> placements = new LinkedHashMap<>();
+            final Map<String, TenantId> jdbcUrlOwners = new LinkedHashMap<>();
+            final Map<String, TenantId> poolNameOwners = new LinkedHashMap<>();
             tenants.forEach((alias, tenant) -> {
                 final DatabaseTenantProperties requiredTenant = requireTenantConfig(alias, tenant);
                 final TenantId tenantId = parseTenantId(alias, requiredTenant.id());
-                requireNonBlank(alias, requiredTenant.jdbcUrl(), "jdbc-url");
-                requireNonBlank(alias, requiredTenant.username(), "username");
-                requireNonBlank(alias, requiredTenant.password(), "password");
-                requireOptionalNonBlank(alias, requiredTenant.driverClassName(), "driver-class-name");
+                final String jdbcUrl = requireJdbcUrl(alias, requiredTenant.jdbcUrl());
+                requireTenantPoolUsername(alias, requiredTenant.username());
+                requireNonBlankWithoutEdgeWhitespace(alias, requiredTenant.password(), "password");
+                requireOptionalDriverClassName(alias, requiredTenant.driverClassName());
                 requirePoolName(alias, requiredTenant.poolName());
                 requirePositive(alias, requiredTenant.maximumPoolSize(), "maximum-pool-size");
                 requireNonNegative(alias, requiredTenant.minimumIdle(), "minimum-idle");
@@ -141,6 +156,17 @@ public record TenantIsolationProperties(
                 if (prior != null) {
                     throw new IllegalArgumentException(
                             DUPLICATE_TENANT_ID_PREFIX + tenantId + " in tenant.isolation.database.tenants");
+                }
+                final TenantId priorJdbcOwner = jdbcUrlOwners.putIfAbsent(jdbcUrl, tenantId);
+                if (priorJdbcOwner != null) {
+                    throw new IllegalArgumentException(
+                            "duplicate jdbc-url " + jdbcUrl + " in tenant.isolation.database.tenants");
+                }
+                final String poolName = databasePoolName(requiredTenant);
+                final TenantId priorPoolOwner = poolNameOwners.putIfAbsent(poolName, tenantId);
+                if (priorPoolOwner != null) {
+                    throw new IllegalArgumentException(
+                            "duplicate pool-name " + poolName + " in tenant.isolation.database.tenants");
                 }
             });
             return Collections.unmodifiableMap(placements);
@@ -173,8 +199,16 @@ public record TenantIsolationProperties(
             Pattern.compile("[A-Za-z_][A-Za-z0-9_]{0,62}");
     private static final Pattern STABLE_POOL_NAME =
             Pattern.compile("[A-Za-z0-9][A-Za-z0-9_.:-]{0,127}");
+    private static final Pattern JDBC_URL =
+            Pattern.compile("jdbc:[A-Za-z][A-Za-z0-9._-]*:\\S+");
+    private static final Pattern JAVA_CLASS_NAME =
+            Pattern.compile("[A-Za-z_$][A-Za-z0-9_$]*(\\.[A-Za-z_$][A-Za-z0-9_$]*)*");
+    private static final Set<String> FORBIDDEN_TENANT_POOL_USERNAMES =
+            Set.of("postgres", "tenant_bypass", "tenant_ops_user", "ttx");
     private static final String DUPLICATE_TENANT_ID_PREFIX = "duplicate tenant id ";
+    private static final String TENANT_DATABASE_POOL_PREFIX = "tenant-db-";
     private static final String TENANT_MESSAGE_PREFIX = "tenant '";
+    private static final String POSTGRES_JDBC_URL_PREFIX = "jdbc:postgresql:";
 
     private static <T> Map<String, T> immutableCopy(final Map<String, T> tenants) {
         return tenants == null ? Map.of() : Collections.unmodifiableMap(new LinkedHashMap<>(tenants));
@@ -189,7 +223,7 @@ public record TenantIsolationProperties(
     private static TenantId parseTenantId(final String alias, final String raw) {
         final String value = requireNonBlank(alias, raw, "id");
         try {
-            return new TenantId(UUID.fromString(value));
+            return TenantId.fromString(value);
         } catch (IllegalArgumentException ex) {
             throw new IllegalArgumentException(tenantMessage(alias, "has invalid UUID id: " + value), ex);
         }
@@ -217,9 +251,59 @@ public record TenantIsolationProperties(
         return raw;
     }
 
+    private static String requireNonBlankWithoutEdgeWhitespace(
+            final String alias, final String raw, final String property) {
+        final String value = requireNonBlank(alias, raw, property);
+        if (!value.equals(value.strip())) {
+            throw new IllegalArgumentException(
+                    tenantMessage(alias, property + " must not include leading or trailing whitespace"));
+        }
+        if (containsControlCharacter(value)) {
+            throw new IllegalArgumentException(
+                    tenantMessage(alias, property + " must not contain control characters"));
+        }
+        return value;
+    }
+
+    private static String requireTenantPoolUsername(final String alias, final String raw) {
+        final String value = requireNonBlankWithoutEdgeWhitespace(alias, raw, "username");
+        if (FORBIDDEN_TENANT_POOL_USERNAMES.contains(value.toLowerCase(Locale.ROOT))) {
+            throw new IllegalArgumentException(
+                    tenantMessage(alias, "username must not be a privileged or system-ops identity"));
+        }
+        return value;
+    }
+
+    private static String requireJdbcUrl(final String alias, final String raw) {
+        final String value = requireNonBlank(alias, raw, "jdbc-url");
+        if (containsControlCharacter(value)) {
+            throw new IllegalArgumentException(
+                    tenantMessage(alias, "jdbc-url must not contain control characters"));
+        }
+        if (!JDBC_URL.matcher(value).matches()) {
+            throw new IllegalArgumentException(tenantMessage(alias, "has invalid jdbc-url: " + value));
+        }
+        if (!value.startsWith(POSTGRES_JDBC_URL_PREFIX)) {
+            throw new IllegalArgumentException(
+                    tenantMessage(alias, "must be a PostgreSQL jdbc-url: " + value));
+        }
+        if (PostgresJdbcUrls.containsCredentialQueryParameter(value)) {
+            throw new IllegalArgumentException(
+                    tenantMessage(alias, "jdbc-url must not include credential parameters"));
+        }
+        return value;
+    }
+
     private static void requireOptionalNonBlank(final String alias, final String raw, final String property) {
         if (raw != null && raw.isBlank()) {
             throw new IllegalArgumentException(tenantMessage(alias, "requires non-blank " + property));
+        }
+    }
+
+    private static void requireOptionalDriverClassName(final String alias, final String raw) {
+        requireOptionalNonBlank(alias, raw, "driver-class-name");
+        if (raw != null && !JAVA_CLASS_NAME.matcher(raw).matches()) {
+            throw new IllegalArgumentException(tenantMessage(alias, "has invalid driver-class-name: " + raw));
         }
     }
 
@@ -231,6 +315,13 @@ public record TenantIsolationProperties(
         if (!STABLE_POOL_NAME.matcher(raw).matches()) {
             throw new IllegalArgumentException(tenantMessage(alias, "has invalid pool-name: " + raw));
         }
+    }
+
+    private static String databasePoolName(final DatabaseTenantProperties placement) {
+        if (placement.poolName() != null && !placement.poolName().isBlank()) {
+            return placement.poolName();
+        }
+        return TENANT_DATABASE_POOL_PREFIX + placement.id();
     }
 
     private static void requirePositive(final String alias, final Integer raw, final String property) {
@@ -255,5 +346,9 @@ public record TenantIsolationProperties(
 
     private static String tenantMessage(final String alias, final String message) {
         return TENANT_MESSAGE_PREFIX + alias + "' " + message;
+    }
+
+    private static boolean containsControlCharacter(final String value) {
+        return value.chars().anyMatch(Character::isISOControl);
     }
 }

@@ -45,6 +45,9 @@ import org.springframework.test.web.reactive.server.WebTestClient;
  * <p>An in-process {@link MockWebServer} serves the JWK set the decoder fetches; tokens are signed
  * with the matching key so the signature is genuinely valid and the only variable under test is the
  * {@code iss} / {@code aud} claim.
+ *
+ * <p>Why this is important to test: browser sessions and service JWTs are separate credential
+ * planes, and validator drift could accept the wrong token.
  */
 @SpringBootTest
 @AutoConfigureWebTestClient

@@ -6,6 +6,12 @@ import java.util.Collection;
 import java.util.List;
 import java.util.Objects;
 
+/**
+ * Hikari Tenant Pool Inspection for the tenant-isolation module.
+ *
+ * <p>Why this exists: pool inspection makes runtime pool identity observable so tests can prove
+ * least-privilege tenant connections are really in use.
+ */
 @SystemTenantBoundary
 public final class HikariTenantPoolInspection implements TenantPoolInspection {
 

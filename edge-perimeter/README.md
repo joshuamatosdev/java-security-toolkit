@@ -71,18 +71,19 @@ required role is `403`.
 
 ## Route Map
 
-The browser route map is deny-by-default — it ends in `anyExchange().authenticated()`
-with no permit-all fallthrough. Narrow exceptions come before the broad gates they
-sit under, because matching is first-match-wins:
+The browser route map is deny-by-default — every browser surface is listed
+explicitly and the map ends in `anyExchange().denyAll()`. Narrow exceptions come
+before the broad gates they sit under, because matching is first-match-wins:
 
 ```
 /api/public/**            permitAll
 /actuator/health/**       permitAll
 /actuator/info            permitAll
 /actuator/**              denyAll
+/api/documents/**         authenticated
 /api/admin/audit-export   ROLE_auditor or ROLE_admin     # narrow, first
 /api/admin/**             ROLE_admin                      # broad, second
-anyExchange               authenticated
+anyExchange               denyAll
 ```
 
 ## Transport Hardening
@@ -108,10 +109,14 @@ edge:
     allowed-origins:
       - https://app.acme.example   # wildcard/opaque origins are rejected at startup
   cookie:
-    secure: false                  # true where TLS terminates upstream
+    secure: true                   # hardened default; cookies carry Secure
   hsts:
-    unconditional: true            # false only for plain-HTTP local demos
+    unconditional: true            # emitted on every response
 ```
+
+The shipped default profile is hardened: Secure cookies under unconditional HSTS. Plain-HTTP
+local runs activate the `local` profile (`--spring.profiles.active=local`), which relaxes
+`cookie.secure` and `hsts.unconditional` together — never one without the other.
 
 ## Testing
 

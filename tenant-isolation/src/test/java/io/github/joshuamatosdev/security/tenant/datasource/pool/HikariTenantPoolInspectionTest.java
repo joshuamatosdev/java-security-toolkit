@@ -5,6 +5,12 @@ import static org.assertj.core.api.Assertions.assertThat;
 import com.zaxxer.hikari.HikariDataSource;
 import org.junit.jupiter.api.Test;
 
+/**
+ * Hikari Tenant Pool Inspection test coverage.
+ *
+ * <p>Why this is important to test: pool snapshots are the evidence that runtime connections use
+ * the intended tenant identities.
+ */
 class HikariTenantPoolInspectionTest {
 
     private static final String RUNTIME_POOL_NAME = "tenant-runtime";

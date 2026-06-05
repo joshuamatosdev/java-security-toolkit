@@ -22,6 +22,9 @@ import java.util.UUID;
  * @param organizationId  the actor's primary organization, if any (may be {@code null})
  * @param roleAssignments the actor's scoped role grants (tenant-wide and/or per organization)
  * @param correlationId   ties every audit entry for this request together
+ *
+ * <p>Why this exists: request and resource facts are explicit policy inputs, which avoids
+ * authorization decisions depending on mutable web framework state.
  */
 public record RequestContext(
     PolicyPrincipal principal,

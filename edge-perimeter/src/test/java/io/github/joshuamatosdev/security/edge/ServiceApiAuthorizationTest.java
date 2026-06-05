@@ -16,6 +16,9 @@ import org.springframework.test.web.reactive.server.WebTestClient;
  * Proves the service plane: a stateless bearer-JWT resource server under {@code /api/service/**}.
  * The 401-vs-403 split is the authn-vs-authz boundary — no token is unauthenticated (401 with a
  * Bearer challenge), a valid token without the role is unauthorized (403), the right role passes.
+ *
+ * <p>Why this is important to test: the edge is the first externally reachable request boundary,
+ * so regressions become observable access-control behavior.
  */
 @SpringBootTest
 @AutoConfigureWebTestClient

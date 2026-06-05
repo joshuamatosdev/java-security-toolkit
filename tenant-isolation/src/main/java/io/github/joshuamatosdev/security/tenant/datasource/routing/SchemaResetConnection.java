@@ -13,6 +13,9 @@ import org.jspecify.annotations.Nullable;
 
 /**
  * Connection proxy that restores the prior schema before returning a borrowed connection.
+ *
+ * <p>Why this exists: tenant placement routing is the boundary that chooses the physical schema or
+ * database, so it must be explicit and auditable.
  */
 final class SchemaResetConnection implements InvocationHandler {
 
@@ -56,6 +59,12 @@ final class SchemaResetConnection implements InvocationHandler {
             closeOnce();
             return null;
         }
+        if ("isClosed".equals(name) && method.getParameterCount() == 0) {
+            return closed || Boolean.TRUE.equals(invokeRaw(method, args));
+        }
+        if (closed && method.getDeclaringClass() != Object.class) {
+            throw new SQLException("tenant schema connection is closed");
+        }
         if ("isWrapperFor".equals(name) && method.getParameterCount() == 1) {
             final Class<?> iface = wrapperInterface(args);
             return iface != null && iface.isInstance(proxy);
@@ -63,6 +72,10 @@ final class SchemaResetConnection implements InvocationHandler {
         if ("unwrap".equals(name) && method.getParameterCount() == 1) {
             return unwrapProxy(proxy, wrapperInterface(args));
         }
+        return invokeRaw(method, args);
+    }
+
+    private @Nullable Object invokeRaw(final Method method, final @Nullable Object[] args) throws Throwable {
         try {
             return method.invoke(raw, args);
         } catch (InvocationTargetException ex) {
@@ -114,5 +127,4 @@ final class SchemaResetConnection implements InvocationHandler {
         }
     }
 }
-
 

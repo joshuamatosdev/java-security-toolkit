@@ -7,9 +7,12 @@ import org.springframework.web.bind.annotation.RestController;
 
 /**
  * A generic authenticated browser-plane surface (no special role). Used to prove two things:
- * any authenticated session reaches {@code anyExchange().authenticated()} endpoints, and a mutating
- * request is gated by CSRF (the {@code POST} reaching the controller means a valid CSRF token was
- * presented).
+ * explicitly registered authenticated endpoints are reachable by any authenticated session, and a
+ * mutating request is gated by CSRF (the {@code POST} reaching the controller means a valid CSRF
+ * token was presented).
+ *
+ * <p>Why this exists: small controllers expose the exact browser, admin, public, and service
+ * surfaces that the security chains protect.
  */
 @RestController
 public class DocumentController {

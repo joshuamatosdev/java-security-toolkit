@@ -6,15 +6,23 @@ import io.github.joshuamatosdev.security.tenant.binding.TenantContext;
 import java.sql.Connection;
 import java.sql.SQLException;
 import java.sql.SQLFeatureNotSupportedException;
+import java.util.Collections;
+import java.util.IdentityHashMap;
+import java.util.List;
+import java.util.Objects;
+import java.util.Set;
 import javax.sql.DataSource;
 import org.jspecify.annotations.NonNull;
 import org.springframework.jdbc.datasource.AbstractDataSource;
 
 /**
  * Routes ID-isolation borrows to the ordinary runtime pool or the read-only system-ops pool.
+ *
+ * <p>Why this exists: tenant placement routing is the boundary that chooses the physical schema or
+ * database, so it must be explicit and auditable.
  */
 @SystemTenantBoundary
-public final class SystemOpsRoutingDataSource extends AbstractDataSource {
+public final class SystemOpsRoutingDataSource extends AbstractDataSource implements AutoCloseable {
 
     private final DataSource runtime;
     private final DataSource systemOps;
@@ -26,8 +34,8 @@ public final class SystemOpsRoutingDataSource extends AbstractDataSource {
      * @param systemOps read-only cross-tenant pool backed by {@code tenant_ops_user}
      */
     public SystemOpsRoutingDataSource(final DataSource runtime, final DataSource systemOps) {
-        this.runtime = runtime;
-        this.systemOps = systemOps;
+        this.runtime = Objects.requireNonNull(runtime, "runtime");
+        this.systemOps = Objects.requireNonNull(systemOps, "systemOps");
     }
 
     /**
@@ -60,20 +68,43 @@ public final class SystemOpsRoutingDataSource extends AbstractDataSource {
                 "tenant routing datasource does not allow caller-supplied credentials");
     }
 
+    @Override
+    public void close() throws Exception {
+        Exception failure = null;
+        final Set<DataSource> closedPools = Collections.newSetFromMap(new IdentityHashMap<>());
+        for (DataSource dataSource : List.of(runtime, systemOps)) {
+            if (!closedPools.add(dataSource)) {
+                continue;
+            }
+            if (dataSource instanceof AutoCloseable closeable) {
+                try {
+                    closeable.close();
+                } catch (Exception ex) {
+                    if (failure == null) {
+                        failure = ex;
+                    } else {
+                        failure.addSuppressed(ex);
+                    }
+                }
+            }
+        }
+        if (failure != null) {
+            throw failure;
+        }
+    }
+
     /**
      * Selects the raw pool for the current tenant context.
      *
-     * <p>Only the explicit {@link TenantIds#SYSTEM_OPS} binding routes to the system-ops pool.
-     * All other states, including missing tenant context, default to the ordinary runtime pool; the
-     * outer proxy is responsible for failing closed when the context is missing.
+     * <p>The explicit {@link TenantIds#SYSTEM_OPS} binding routes to the system-ops pool; any bound
+     * tenant routes to the ordinary runtime pool. A missing tenant context fails closed via
+     * {@link TenantContext#requireCurrent()} — symmetric with the schema and database routers —
+     * rather than silently defaulting to runtime. The outer proxy already fails closed first; this
+     * guard makes the router safe on its own.
      *
      * @return the datasource that matches the current tenant context
      */
     private DataSource currentDelegate() {
-        return TenantContext.current()
-                .filter(TenantIds.SYSTEM_OPS::equals)
-                .map(ignored -> systemOps)
-                .orElse(runtime);
+        return TenantIds.SYSTEM_OPS.equals(TenantContext.requireCurrent()) ? systemOps : runtime;
     }
 }
-

@@ -28,6 +28,9 @@ import java.util.Optional;
  *   <li><b>Effective permission</b> — a tenant-scoped ALLOW rule matched a tenant-wide role.
  *   <li>otherwise — <b>deny by default</b>.
  * </ol>
+ *
+ * <p>Why this exists: the service layer is the single authorization decision point, preventing
+ * callers from skipping audit or fine-grained resource checks.
  */
 public final class AuthorizationPolicy {
 
@@ -53,7 +56,9 @@ public final class AuthorizationPolicy {
         }
 
         // 4. Resource grant (ownership).
-        if (resource.ownerPrincipalKey() != null
+        if (resource.ownerPrincipalType() != null
+            && resource.ownerPrincipalKey() != null
+            && resource.ownerPrincipalType() == actor.principal().principalType()
             && resource.ownerPrincipalKey().equals(actor.principalKey())) {
             return new Allow(GrantBasis.RESOURCE_OWNER);
         }

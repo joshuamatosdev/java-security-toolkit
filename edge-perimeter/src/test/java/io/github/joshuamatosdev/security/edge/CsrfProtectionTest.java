@@ -22,6 +22,9 @@ import org.springframework.test.web.reactive.server.WebTestClient;
  * blocked by CSRF — it reaches routing (which rejects the method), proving the CSRF filter did not
  * short-circuit it. A bearer plane has no cookie to ride and no browser to forge from, so CSRF is
  * correctly absent.
+ *
+ * <p>Why this is important to test: the edge is the first externally reachable request boundary,
+ * so regressions become observable access-control behavior.
  */
 @SpringBootTest
 @AutoConfigureWebTestClient

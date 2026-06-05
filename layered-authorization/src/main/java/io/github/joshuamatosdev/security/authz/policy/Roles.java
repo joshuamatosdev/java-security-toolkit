@@ -4,6 +4,9 @@ package io.github.joshuamatosdev.security.authz.policy;
  * Neutral role keys used across the coarse request gate and the fine-grained policy. Two are enough
  * to show the pattern: a tenant-wide operator and an ordinary member. Role names are the value Spring
  * Security checks via {@code hasRole(...)} (without the {@code ROLE_} prefix it adds internally).
+ *
+ * <p>Why this exists: the policy vocabulary names actions, effects, roles, and scopes once so
+ * route and resource checks use the same language.
  */
 public final class Roles {
 

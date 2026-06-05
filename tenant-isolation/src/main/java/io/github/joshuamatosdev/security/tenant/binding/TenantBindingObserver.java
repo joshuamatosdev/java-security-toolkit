@@ -4,6 +4,9 @@ package io.github.joshuamatosdev.security.tenant.binding;
  * Observer extension point for {@link TenantSessionDataSourceProxy}. Production wiring would back this
  * with a metrics registry (counters for binding set, missing-tenant borrows, and failed resets);
  * this reference keeps the proxy dependency-free with a no-op default.
+ *
+ * <p>Why this exists: tenant binding is the handoff from request identity to database/session
+ * controls and must be centralized rather than rebuilt ad hoc.
  */
 public interface TenantBindingObserver {
 

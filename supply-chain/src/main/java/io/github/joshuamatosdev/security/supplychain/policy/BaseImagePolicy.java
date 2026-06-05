@@ -13,56 +13,244 @@ import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 /**
- * Enforces the base-image-pin policy over a Dockerfile: every <em>external</em> base image must be
- * referenced by an immutable {@code @sha256} content digest, not a mutable tag.
+ * Enforces the base-image-pin policy over a Dockerfile: every <em>external</em> image source must
+ * be referenced by an immutable {@code @sha256} content digest, not a mutable tag.
  *
  * <p>A tag ({@code eclipse-temurin:21-jre}) can be repointed at new content by the registry between
  * two builds, so a tag-based build is neither reproducible nor tamper-evident. A digest names exact
- * bytes. Multi-stage references — a {@code FROM <stage>} that names an earlier {@code AS <stage>} —
- * and the empty {@code scratch} base are not external images and are exempt.
+ * bytes. Multi-stage references — a {@code FROM <stage>}, {@code COPY --from=<stage>}, or
+ * {@code RUN --mount=...,from=<stage>} that names an earlier {@code AS <stage>} — and the empty
+ * {@code scratch} base are not external images and are exempt.
+ *
+ * <p>Why this exists: base-image policy makes container provenance a testable rule rather than a
+ * checklist item.
  */
 public final class BaseImagePolicy {
+
+  private static final char DEFAULT_ESCAPE = '\\';
 
   private static final Pattern FROM_REF =
       Pattern.compile("^\\s*FROM\\s+(?:--platform=\\S+\\s+)?(\\S+)", Pattern.CASE_INSENSITIVE);
 
   private static final Pattern AS_STAGE =
-      Pattern.compile("\\bAS\\s+(\\S+)\\s*$", Pattern.CASE_INSENSITIVE);
+      Pattern.compile("^\\s*FROM\\s+(?:--platform=\\S+\\s+)?\\S+\\s+AS\\s+(\\S+)\\s*$", Pattern.CASE_INSENSITIVE);
 
-  private static final Pattern DIGEST_PINNED = Pattern.compile("@sha256:[0-9a-f]{64}$");
+  private static final Pattern INSTRUCTION_WITH_ARGS =
+      Pattern.compile("^\\s*([A-Z]+)\\s+(.*)$", Pattern.CASE_INSENSITIVE);
+
+  private static final Pattern DIGEST_PINNED =
+      Pattern.compile("^\\S+@sha256:[0-9a-f]{64}$", Pattern.CASE_INSENSITIVE);
 
   /** True when the reference pins an immutable {@code @sha256:<64 hex>} digest. */
   public boolean isDigestPinned(String imageRef) {
-    return DIGEST_PINNED.matcher(imageRef.trim()).find();
+    return imageRef != null
+        && imageRef.chars().noneMatch(Character::isISOControl)
+        && DIGEST_PINNED.matcher(imageRef).matches();
   }
 
   /**
-   * Returns the external base-image references in the Dockerfile that are not digest-pinned. An
-   * empty result means the Dockerfile satisfies the policy.
+   * Returns the external image references in the Dockerfile that are not digest-pinned. An empty
+   * result means the Dockerfile satisfies the policy.
    */
   public List<String> unpinnedExternalRefs(Path dockerfile) {
-    List<String> refs = new ArrayList<>();
+    List<String> unpinned = new ArrayList<>();
     Set<String> stageNames = new LinkedHashSet<>();
-    for (String line : readLines(dockerfile)) {
-      Matcher ref = FROM_REF.matcher(line);
-      if (!ref.find()) {
-        continue;
+    int priorStageCount = 0;
+    for (String instruction : logicalInstructions(readLines(dockerfile))) {
+      Matcher ref = FROM_REF.matcher(instruction);
+      if (ref.find()) {
+        addIfUnpinnedExternal(unpinned, stageNames, priorStageCount, ref.group(1), false);
+        priorStageCount++;
       }
-      refs.add(ref.group(1));
-      Matcher stage = AS_STAGE.matcher(line);
-      if (stage.find()) {
-        stageNames.add(stage.group(1).toLowerCase(Locale.ROOT));
+      Matcher stage = AS_STAGE.matcher(instruction);
+      if (stage.matches()) {
+        stageNames.add(normalizeStageName(stage.group(1)));
+      }
+      for (String sourceRef : imageSourceRefs(instruction)) {
+        addIfUnpinnedExternal(unpinned, stageNames, priorStageCount, sourceRef, true);
       }
     }
-    return refs.stream()
-        .filter(ref -> isExternalImage(ref, stageNames))
-        .filter(ref -> !isDigestPinned(ref))
-        .toList();
+    return unpinned;
   }
 
-  private static boolean isExternalImage(String ref, Set<String> stageNames) {
+  private void addIfUnpinnedExternal(
+      List<String> unpinned,
+      Set<String> stageNames,
+      int priorStageCount,
+      String imageRef,
+      boolean allowPriorStageIndex) {
+    if (isExternalImage(imageRef, stageNames, priorStageCount, allowPriorStageIndex)
+        && !isDigestPinned(imageRef)) {
+      unpinned.add(imageRef);
+    }
+  }
+
+  private static List<String> imageSourceRefs(String instruction) {
+    Matcher instructionWithArgs = INSTRUCTION_WITH_ARGS.matcher(instruction);
+    if (!instructionWithArgs.matches()) {
+      return List.of();
+    }
+    String name = instructionWithArgs.group(1).toUpperCase(Locale.ROOT);
+    String args = instructionWithArgs.group(2);
+    if ("COPY".equals(name)) {
+      return copyFromRefs(args);
+    }
+    if ("RUN".equals(name)) {
+      return runMountFromRefs(args);
+    }
+    return List.of();
+  }
+
+  private static List<String> copyFromRefs(String args) {
+    List<String> refs = new ArrayList<>();
+    for (String option : leadingOptions(args)) {
+      if (option.startsWith("--from=")) {
+        refs.add(option.substring("--from=".length()));
+      }
+    }
+    return refs;
+  }
+
+  private static List<String> runMountFromRefs(String args) {
+    List<String> refs = new ArrayList<>();
+    for (String option : leadingOptions(args)) {
+      if (!option.startsWith("--mount=")) {
+        continue;
+      }
+      String mountOptions = option.substring("--mount=".length());
+      for (String field : mountOptions.split(",")) {
+        if (field.startsWith("from=")) {
+          refs.add(field.substring("from=".length()));
+        }
+      }
+    }
+    return refs;
+  }
+
+  private static List<String> leadingOptions(String args) {
+    List<String> options = new ArrayList<>();
+    int index = skipWhitespace(args, 0);
+    while (args.startsWith("--", index)) {
+      int start = index;
+      index = nextWhitespace(args, index);
+      options.add(args.substring(start, index));
+      index = skipWhitespace(args, index);
+    }
+    return options;
+  }
+
+  private static int skipWhitespace(String value, int index) {
+    int current = index;
+    while (current < value.length() && Character.isWhitespace(value.charAt(current))) {
+      current++;
+    }
+    return current;
+  }
+
+  private static int nextWhitespace(String value, int index) {
+    int current = index;
+    while (current < value.length() && !Character.isWhitespace(value.charAt(current))) {
+      current++;
+    }
+    return current;
+  }
+
+  private static List<String> logicalInstructions(List<String> physicalLines) {
+    List<String> instructions = new ArrayList<>();
+    StringBuilder current = new StringBuilder();
+    char escape = dockerfileEscape(physicalLines);
+    for (String physicalLine : physicalLines) {
+      if (isCommentLine(physicalLine)) {
+        continue;
+      }
+      String line = physicalLine.stripTrailing();
+      if (line.isBlank()) {
+        continue;
+      }
+      boolean continued = line.charAt(line.length() - 1) == escape;
+      String segment = continued ? line.substring(0, line.length() - 1) : line;
+      appendInstructionSegment(current, segment);
+      if (!continued && current.length() > 0) {
+        String instruction = current.toString().strip();
+        if (!instruction.isEmpty()) {
+          instructions.add(instruction);
+        }
+        current.setLength(0);
+      }
+    }
+    if (current.length() > 0) {
+      String instruction = current.toString().strip();
+      if (!instruction.isEmpty()) {
+        instructions.add(instruction);
+      }
+    }
+    return instructions;
+  }
+
+  private static boolean isCommentLine(String line) {
+    return line.stripLeading().startsWith("#");
+  }
+
+  private static char dockerfileEscape(List<String> physicalLines) {
+    for (String physicalLine : physicalLines) {
+      String line = physicalLine.strip();
+      if (line.isEmpty()) {
+        return DEFAULT_ESCAPE;
+      }
+      if (!line.startsWith("#")) {
+        return DEFAULT_ESCAPE;
+      }
+      String comment = line.substring(1).strip();
+      int separator = comment.indexOf('=');
+      if (separator < 0) {
+        return DEFAULT_ESCAPE;
+      }
+      String key = comment.substring(0, separator).strip();
+      if ("escape".equalsIgnoreCase(key)) {
+        return escapeDirectiveValue(comment.substring(separator + 1).strip());
+      }
+      if (isParserDirectiveKey(key)) {
+        continue;
+      }
+      return DEFAULT_ESCAPE;
+    }
+    return DEFAULT_ESCAPE;
+  }
+
+  private static char escapeDirectiveValue(String value) {
+    return "`".equals(value) ? '`' : DEFAULT_ESCAPE;
+  }
+
+  private static boolean isParserDirectiveKey(String key) {
+    return "syntax".equalsIgnoreCase(key) || "check".equalsIgnoreCase(key);
+  }
+
+  private static void appendInstructionSegment(StringBuilder current, String segment) {
+    if (segment.isBlank()) {
+      return;
+    }
+    current.append(segment);
+  }
+
+  private static boolean isExternalImage(
+      String ref, Set<String> stageNames, int priorStageCount, boolean allowPriorStageIndex) {
     String normalized = ref.toLowerCase(Locale.ROOT);
-    return !"scratch".equals(normalized) && !stageNames.contains(normalized);
+    return !"scratch".equals(normalized)
+        && !stageNames.contains(normalized)
+        && (!allowPriorStageIndex || !isPriorStageIndex(ref, priorStageCount));
+  }
+
+  private static String normalizeStageName(String ref) {
+    return ref.toLowerCase(Locale.ROOT);
+  }
+
+  private static boolean isPriorStageIndex(String ref, int priorStageCount) {
+    try {
+      int stageIndex = Integer.parseInt(ref);
+      return stageIndex >= 0 && stageIndex < priorStageCount;
+    } catch (NumberFormatException ex) {
+      return false;
+    }
   }
 
   private static List<String> readLines(Path dockerfile) {

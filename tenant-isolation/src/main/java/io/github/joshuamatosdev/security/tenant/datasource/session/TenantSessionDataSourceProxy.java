@@ -36,6 +36,9 @@ import org.springframework.jdbc.datasource.AbstractDataSource;
  *
  * <p>Fail-closed: if no {@link TenantContext} is populated at borrow time, borrowing throws
  * {@link IllegalStateException} before any SQL can run.
+ *
+ * <p>Why this exists: database-enforced isolation depends on stamping every borrowed connection
+ * with a signed tenant claim before application SQL runs.
  */
 @SystemTenantBoundary
 public final class TenantSessionDataSourceProxy extends AbstractDataSource implements TenantPoolInspection, AutoCloseable {
@@ -113,9 +116,9 @@ public final class TenantSessionDataSourceProxy extends AbstractDataSource imple
             final String poolName,
             final TenantClaimSigner claimSigner,
             final TenantBindingObserver observer,
-            final TenantPoolInspection poolInspection) {
+        final TenantPoolInspection poolInspection) {
         this.delegate = Objects.requireNonNull(delegate, "delegate");
-        this.poolName = Objects.requireNonNull(poolName, "poolName");
+        this.poolName = requireNonBlankWithoutEdgeWhitespace(poolName, "poolName");
         this.claimSigner = Objects.requireNonNull(claimSigner, "claimSigner");
         this.observer = Objects.requireNonNull(observer, "observer");
         this.poolInspection = Objects.requireNonNull(poolInspection, "poolInspection");
@@ -243,7 +246,7 @@ public final class TenantSessionDataSourceProxy extends AbstractDataSource imple
     private static void closeQuietly(final Connection raw) {
         try {
             raw.close();
-        } catch (SQLException suppressed) {
+        } catch (SQLException | RuntimeException suppressed) {
             // ignore; we are already failing fast
         }
     }
@@ -259,7 +262,7 @@ public final class TenantSessionDataSourceProxy extends AbstractDataSource imple
     private static void abortQuietly(final Connection raw) {
         try {
             raw.abort(DIRECT_EXECUTOR);
-        } catch (SQLException suppressed) {
+        } catch (SQLException | RuntimeException suppressed) {
             closeQuietly(raw);
         }
     }
@@ -295,6 +298,21 @@ public final class TenantSessionDataSourceProxy extends AbstractDataSource imple
         } catch (RuntimeException suppressed) {
             // Observability must not change tenant-binding behavior.
         }
+    }
+
+    private static String requireNonBlankWithoutEdgeWhitespace(final String value, final String field) {
+        Objects.requireNonNull(value, field + " must not be null");
+        if (value.isBlank()) {
+            throw new IllegalArgumentException(field + " must not be blank");
+        }
+        if (!value.equals(value.strip())) {
+            throw new IllegalArgumentException(
+                    field + " must not include leading or trailing whitespace");
+        }
+        if (value.chars().anyMatch(Character::isISOControl)) {
+            throw new IllegalArgumentException(field + " must not contain control characters");
+        }
+        return value;
     }
 
     /**
@@ -424,6 +442,12 @@ public final class TenantSessionDataSourceProxy extends AbstractDataSource imple
                 handleClose();
                 return null;
             }
+            if ("isClosed".equals(methodName) && hasNoArgs(args)) {
+                return closed || Boolean.TRUE.equals(invokeDelegate(method, args));
+            }
+            if (closed && method.getDeclaringClass() != Object.class) {
+                throw new SQLException("tenant-guarded connection is closed");
+            }
             if ("isWrapperFor".equals(methodName) && hasSingleArg(args)) {
                 return handleIsWrapperFor(proxy, args);
             }
@@ -469,6 +493,9 @@ public final class TenantSessionDataSourceProxy extends AbstractDataSource imple
             }
             try {
                 delegate.close();
+            } catch (SQLException | RuntimeException ex) {
+                abortQuietly(delegate);
+                throw ex;
             } finally {
                 closed = true;
             }

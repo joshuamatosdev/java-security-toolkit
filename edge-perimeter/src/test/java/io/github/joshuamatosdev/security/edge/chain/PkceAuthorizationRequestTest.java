@@ -13,6 +13,9 @@ import org.springframework.test.web.reactive.server.WebTestClient;
  * a redirect to the IdP whose query carries a {@code code_challenge} and {@code
  * code_challenge_method=S256} — the binding that makes a stolen authorization code useless to anyone
  * without the verifier this public client holds.
+ *
+ * <p>Why this is important to test: browser sessions and service JWTs are separate credential
+ * planes, and validator drift could accept the wrong token.
  */
 @SpringBootTest
 @AutoConfigureWebTestClient

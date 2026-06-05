@@ -18,6 +18,9 @@ import javax.sql.DataSource;
 
 /**
  * Builds the tenant-aware datasource strategy selected by {@link TenantIsolationMode}.
+ *
+ * <p>Why this exists: factory-owned composition keeps placement mode, runtime credentials, and
+ * signed-claim wiring in one auditable construction path.
  */
 @SystemTenantBoundary
 final class TenantDataSourceFactory {

@@ -8,6 +8,9 @@ import org.slf4j.LoggerFactory;
  * the structured facts an investigation needs. A real deployment would additionally (or instead)
  * write to an append-only store; the {@link AuthorizationAuditSink} interface keeps the audit
  * destination swappable.
+ *
+ * <p>Why this exists: audit types capture who did what, to which resource, where, when, and why so
+ * authorization can be investigated after the request.
  */
 public final class Slf4jAuthorizationAuditSink implements AuthorizationAuditSink {
 

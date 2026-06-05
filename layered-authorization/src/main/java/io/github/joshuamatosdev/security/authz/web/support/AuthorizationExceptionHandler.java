@@ -16,6 +16,9 @@ import java.util.Map;
  * io.github.joshuamatosdev.security.authz.decision.DenialReason} is recorded on the server-side audit
  * path (see {@code AuthorizationService.enforce}) and is deliberately NOT returned, so a caller cannot
  * map the policy boundary by reading denial responses.
+ *
+ * <p>Why this exists: web support isolates header parsing, demo identity resolution, and exception
+ * translation at the request boundary.
  */
 @RestControllerAdvice
 public class AuthorizationExceptionHandler {

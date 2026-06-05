@@ -10,6 +10,9 @@ import java.util.List;
  * A test double for the {@link AuthorizationAuditSink} port that captures every record, so a test can
  * assert that a decision — in particular a denial — was written before the guard threw. This is a
  * fake of a <em>secondary</em> port (the audit destination), not of the system under test.
+ *
+ * <p>Why this is important to test: shared fixtures must encode the same tenant assumptions in
+ * every isolation test, or passing tests could exercise different boundaries.
  */
 public final class CapturingAuditSink implements AuthorizationAuditSink {
 

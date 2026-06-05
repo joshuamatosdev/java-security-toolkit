@@ -22,12 +22,16 @@ import javax.crypto.spec.SecretKeySpec;
  *
  * <p>The TTL must exceed the longest single connection borrow: the claim is re-minted on every borrow
  * and verified per statement, so it must stay valid for that borrow's whole duration.
+ *
+ * <p>Why this exists: database-enforced isolation depends on stamping every borrowed connection
+ * with a signed tenant claim before application SQL runs.
  */
 public final class TenantClaimSigner {
 
     private static final String VERSION = "v2";
     private static final String HMAC_ALGORITHM = "HmacSHA256";
     private static final int MIN_SECRET_BYTES = 32;
+    private static final Duration MIN_CLAIM_TTL = Duration.ofSeconds(1);
 
     private final byte[] secret;
     private final Duration claimTtl;
@@ -48,6 +52,13 @@ public final class TenantClaimSigner {
         if (secret == null || secret.isBlank()) {
             throw new IllegalArgumentException("tenant claim secret must be populated");
         }
+        if (!secret.equals(secret.strip())) {
+            throw new IllegalArgumentException(
+                    "tenant claim secret must not include leading or trailing whitespace");
+        }
+        if (secret.chars().anyMatch(Character::isISOControl)) {
+            throw new IllegalArgumentException("tenant claim secret must not contain control characters");
+        }
         final byte[] secretBytes = secret.getBytes(StandardCharsets.UTF_8);
         if (secretBytes.length < MIN_SECRET_BYTES) {
             throw new IllegalArgumentException("tenant claim secret must be at least 32 bytes");
@@ -55,6 +66,10 @@ public final class TenantClaimSigner {
         this.claimTtl = Objects.requireNonNull(claimTtl, "claimTtl");
         if (claimTtl.isZero() || claimTtl.isNegative()) {
             throw new IllegalArgumentException("tenant claim TTL must be positive");
+        }
+        if (claimTtl.compareTo(MIN_CLAIM_TTL) < 0) {
+            throw new IllegalArgumentException(
+                    "tenant claim TTL must be at least 1 second because claims are serialized in epoch seconds");
         }
         this.clock = Objects.requireNonNull(clock, "clock");
         this.secret = secretBytes.clone();
@@ -96,4 +111,3 @@ public final class TenantClaimSigner {
         }
     }
 }
-

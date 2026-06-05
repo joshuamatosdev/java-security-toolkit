@@ -8,6 +8,8 @@ import io.github.joshuamatosdev.security.authz.policy.Roles;
 import io.github.joshuamatosdev.security.authz.policy.rule.EffectivePolicy;
 import io.github.joshuamatosdev.security.authz.policy.rule.PolicyRule;
 import io.github.joshuamatosdev.security.authz.principal.PolicyPrincipal;
+import io.github.joshuamatosdev.security.authz.principal.PrincipalType;
+import io.github.joshuamatosdev.security.authz.principal.ServicePrincipal;
 import io.github.joshuamatosdev.security.authz.principal.UserPrincipal;
 import io.github.joshuamatosdev.security.authz.request.ProtectedResource;
 import io.github.joshuamatosdev.security.authz.request.RequestContext;
@@ -27,6 +29,9 @@ import static org.assertj.core.api.Assertions.assertThat;
  * Exercises every branch of the {@link AuthorizationPolicy} decision in isolation — no Spring, no
  * I/O. Each test pins one access variant (or the deny-by-default tail) so a regression points at the
  * exact branch that changed.
+ *
+ * <p>Why this is important to test: authorization is a privilege boundary, so the documented
+ * route, policy, and audit contracts need executable proof.
  */
 class AuthorizationPolicyTest {
 
@@ -104,12 +109,25 @@ class AuthorizationPolicyTest {
     @Test
     void resourceOwnerIsAllowed() {
         final RequestContext owner = context(ACME, ENGINEERING, Set.of(), user(OWNER_SUBJECT));
-        final ProtectedResource ownedByAlice = new ProtectedResource(DOC, ACME, ENGINEERING, OWNER_SUBJECT);
+        final ProtectedResource ownedByAlice =
+            new ProtectedResource(DOC, ACME, ENGINEERING, PrincipalType.USER, OWNER_SUBJECT);
 
         final Decision decision = policy.decide(owner, ownedByAlice, Action.DELETE, SANE_POLICY);
 
         // Owner is granted even DELETE, which no role rule allows.
         assertThat(decision).isEqualTo(new Allow(GrantBasis.RESOURCE_OWNER));
+    }
+
+    @Test
+    void ownerGrantDoesNotCrossPrincipalTypeNamespaces() {
+        final RequestContext serviceWithCollidingKey =
+            context(ACME, ENGINEERING, Set.of(), new ServicePrincipal(OWNER_SUBJECT, 1L));
+        final ProtectedResource userOwnedResource =
+            new ProtectedResource(DOC, ACME, ENGINEERING, PrincipalType.USER, OWNER_SUBJECT);
+
+        final Decision decision = policy.decide(serviceWithCollidingKey, userOwnedResource, Action.DELETE, SANE_POLICY);
+
+        assertThat(decision).isEqualTo(new Deny(DenialReason.NO_MATCHING_RULE));
     }
 
     @Test

@@ -9,6 +9,9 @@ import org.springframework.web.bind.annotation.RestController;
  * {@code /api/admin/audit-export} is the narrow exception auditors may also reach. Whether a
  * request reaches these methods is decided entirely by the route map in
  * {@code BrowserSecurityChainConfig}; the handlers exist only so an allowed request yields 200.
+ *
+ * <p>Why this exists: small controllers expose the exact browser, admin, public, and service
+ * surfaces that the security chains protect.
  */
 @RestController
 public class AdminController {

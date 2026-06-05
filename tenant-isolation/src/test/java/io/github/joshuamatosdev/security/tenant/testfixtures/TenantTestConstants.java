@@ -2,6 +2,9 @@ package io.github.joshuamatosdev.security.tenant.testfixtures;
 
 /**
  * Shared fixture values for tenant-isolation tests.
+ *
+ * <p>Why this is important to test: shared fixtures must encode the same tenant assumptions in
+ * every isolation test, or passing tests could exercise different boundaries.
  */
 public final class TenantTestConstants {
 

@@ -21,6 +21,9 @@ import reactor.core.publisher.Mono;
  * edge.hsts.unconditional}: true where TLS terminates at an upstream proxy and a stripped {@code
  * X-Forwarded-Proto} must not silently suppress transport pinning; false for plain-HTTP local runs
  * that cannot serve the HTTPS the header would pin browsers to.
+ *
+ * <p>Why this exists: browser hardening headers are centralized so every response receives the
+ * same perimeter baseline.
  */
 public class SecurityHeadersFilter implements WebFilter, Ordered {
 
@@ -50,8 +53,20 @@ public class SecurityHeadersFilter implements WebFilter, Ordered {
       "camera=(), microphone=(), geolocation=(), payment=()";
 
   public static final String CONTENT_SECURITY_POLICY_HEADER = "Content-Security-Policy";
+  // script-src is set explicitly (not left to the default-src fallback) for clarity, and form-action
+  // is added because it has no default-src fallback — without it a form could POST to any origin.
   public static final String CONTENT_SECURITY_POLICY_VALUE =
-      "default-src 'self'; frame-ancestors 'none'; object-src 'none'; base-uri 'self'";
+      "default-src 'self'; script-src 'self'; object-src 'none'; base-uri 'self'; "
+          + "form-action 'self'; frame-ancestors 'none'";
+
+  // Browsing-context and resource isolation: COOP severs cross-origin window.opener references and
+  // puts this origin in its own browsing-context group; CORP blocks other origins from embedding this
+  // perimeter's responses as no-cors sub-resources.
+  public static final String CROSS_ORIGIN_OPENER_POLICY_HEADER = "Cross-Origin-Opener-Policy";
+  public static final String CROSS_ORIGIN_OPENER_POLICY_VALUE = "same-origin";
+
+  public static final String CROSS_ORIGIN_RESOURCE_POLICY_HEADER = "Cross-Origin-Resource-Policy";
+  public static final String CROSS_ORIGIN_RESOURCE_POLICY_VALUE = "same-origin";
 
   public static final String STRICT_TRANSPORT_SECURITY_HEADER = "Strict-Transport-Security";
   public static final String STRICT_TRANSPORT_SECURITY_VALUE =
@@ -70,6 +85,8 @@ public class SecurityHeadersFilter implements WebFilter, Ordered {
               headers.set(X_XSS_PROTECTION_HEADER, X_XSS_PROTECTION_VALUE);
               headers.set(PERMISSIONS_POLICY_HEADER, PERMISSIONS_POLICY_VALUE);
               headers.set(CONTENT_SECURITY_POLICY_HEADER, CONTENT_SECURITY_POLICY_VALUE);
+              headers.set(CROSS_ORIGIN_OPENER_POLICY_HEADER, CROSS_ORIGIN_OPENER_POLICY_VALUE);
+              headers.set(CROSS_ORIGIN_RESOURCE_POLICY_HEADER, CROSS_ORIGIN_RESOURCE_POLICY_VALUE);
               if (unconditionalHsts || isHttps(exchange)) {
                 headers.set(STRICT_TRANSPORT_SECURITY_HEADER, STRICT_TRANSPORT_SECURITY_VALUE);
               }
@@ -79,13 +96,14 @@ public class SecurityHeadersFilter implements WebFilter, Ordered {
   }
 
   private boolean isHttps(ServerWebExchange exchange) {
+    boolean requestSchemeHttps = "https".equalsIgnoreCase(exchange.getRequest().getURI().getScheme());
     String forwardedProto = exchange.getRequest().getHeaders().getFirst("X-Forwarded-Proto");
     if (forwardedProto != null) {
       // A comma-joined chain (proxy1, proxy2) lists the client-facing proto first.
       String firstProto = forwardedProto.split(",", 2)[0].trim();
-      return "https".equalsIgnoreCase(firstProto);
+      return requestSchemeHttps || "https".equalsIgnoreCase(firstProto);
     }
-    return "https".equalsIgnoreCase(exchange.getRequest().getURI().getScheme());
+    return requestSchemeHttps;
   }
 
   @Override

@@ -30,6 +30,9 @@ import org.junit.jupiter.api.Test;
  *
  * <p>Test code may mint UUIDs freely (deterministic fixtures); only {@code src/main/java} is scanned.
  * See the module README for the rationale. Ceiling is zero — there is no allowlist.
+ *
+ * <p>Why this is important to test: static audits catch future code that moves UUID ownership or
+ * signed-claim verification out of the database boundary.
  */
 class DatabaseOwnsUuidCreationArchTest {
 

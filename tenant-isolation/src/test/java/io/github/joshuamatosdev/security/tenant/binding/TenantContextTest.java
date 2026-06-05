@@ -23,6 +23,9 @@ import org.springframework.transaction.support.TransactionSynchronizationManager
  *   <li>the "tenant transaction active" check is configurable, so a multi-datasource deployment can
  *       scope it to the tenant datasource.
  * </ol>
+ *
+ * <p>Why this is important to test: tenant context leaks or late binding can put the next request
+ * under the wrong tenant.
  */
 class TenantContextTest {
 

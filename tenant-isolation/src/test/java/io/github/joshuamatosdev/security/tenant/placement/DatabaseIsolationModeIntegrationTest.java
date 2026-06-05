@@ -29,6 +29,12 @@ import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
 import org.testcontainers.containers.PostgreSQLContainer;
 
+/**
+ * Database Isolation Mode Integration test coverage.
+ *
+ * <p>Why this is important to test: the placement modes only satisfy the design when real database
+ * containers keep tenant data separated.
+ */
 @SpringBootTest
 class DatabaseIsolationModeIntegrationTest {
 

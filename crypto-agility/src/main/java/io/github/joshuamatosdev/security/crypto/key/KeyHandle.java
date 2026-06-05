@@ -14,6 +14,9 @@ import io.github.joshuamatosdev.security.crypto.registry.SignatureAlgorithm;
  * <p>The {@link #algorithm()} is part of the handle's identity, so a call site that asks the handle
  * which algorithm it is gets an answer without naming any algorithm itself — the basis of the
  * agility property.
+ *
+ * <p>Why this exists: key handles hide private material while letting signing call sites stay
+ * algorithm-agnostic.
  */
 public interface KeyHandle {
 

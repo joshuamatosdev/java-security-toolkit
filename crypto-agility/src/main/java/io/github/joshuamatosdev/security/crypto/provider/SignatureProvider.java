@@ -11,6 +11,8 @@ import io.github.joshuamatosdev.security.crypto.registry.SignatureAlgorithm;
  * {@link #algorithm()}; the {@code SignatureProviderRegistry} selects the provider for an algorithm,
  * and the call site never knows which one it received. Signing happens through the {@link KeyHandle}
  * (which binds the private material); the provider mints handles and verifies against a public key.
+ *
+ * <p>Why this exists: providers isolate algorithm-specific JCA details behind one signature seam.
  */
 public interface SignatureProvider {
 

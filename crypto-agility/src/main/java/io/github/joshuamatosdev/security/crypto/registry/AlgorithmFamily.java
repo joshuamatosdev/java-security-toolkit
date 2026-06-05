@@ -7,6 +7,9 @@ package io.github.joshuamatosdev.security.crypto.registry;
  * {@link #CLASSICAL} today and adds a {@link #POST_QUANTUM} algorithm alongside it without changing
  * any signing or verifying call site. The family is metadata for policy and reporting — the agility
  * seam itself dispatches on the algorithm, not the family.
+ *
+ * <p>Why this exists: registry types make algorithm identity and provider lookup explicit so
+ * migrations change configuration rather than callers.
  */
 public enum AlgorithmFamily {
 

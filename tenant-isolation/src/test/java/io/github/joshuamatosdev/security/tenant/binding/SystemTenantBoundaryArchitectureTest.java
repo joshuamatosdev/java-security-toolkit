@@ -13,6 +13,12 @@ import java.util.Set;
 import java.util.stream.Collectors;
 import org.junit.jupiter.api.Test;
 
+/**
+ * System Tenant Boundary Architecture test coverage.
+ *
+ * <p>Why this is important to test: tenant context leaks or late binding can put the next request
+ * under the wrong tenant.
+ */
 class SystemTenantBoundaryArchitectureTest {
 
     private static final String DATA_SOURCE_CONFIG_SOURCE =
@@ -56,6 +62,7 @@ class SystemTenantBoundaryArchitectureTest {
                 "io/github/joshuamatosdev/security/tenant/TenantIds.java",
                 "io/github/joshuamatosdev/security/tenant/binding/TenantContext.java",
                 "io/github/joshuamatosdev/security/tenant/binding/SystemTenantBoundary.java",
+                "io/github/joshuamatosdev/security/tenant/config/TenantIsolationProperties.java",
                 DATA_SOURCE_CONFIG_SOURCE,
                 "io/github/joshuamatosdev/security/tenant/datasource/routing/SystemOpsRoutingDataSource.java",
                 "io/github/joshuamatosdev/security/tenant/datasource/routing/TenantDatabaseRoutingDataSource.java",

@@ -20,6 +20,9 @@ import org.springframework.boot.context.properties.EnableConfigurationProperties
  * <p>The two planes never blur: a bearer token presented on the browser plane is stripped and
  * flagged ({@code filter.BrowserCredentialIsolationFilter}), and the service plane carries no
  * session, no CSRF, and no CORS surface.
+ *
+ * <p>Why this exists: a runnable Spring boundary keeps the edge-perimeter pattern executable and
+ * testable as a real WebFlux application.
  */
 @SpringBootApplication
 @EnableConfigurationProperties(EdgePerimeterProperties.class)

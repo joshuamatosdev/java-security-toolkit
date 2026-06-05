@@ -1,6 +1,7 @@
 package io.github.joshuamatosdev.security.edge;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.springframework.security.test.web.reactive.server.SecurityMockServerConfigurers.csrf;
 import static org.springframework.security.test.web.reactive.server.SecurityMockServerConfigurers.mockOAuth2Login;
 
 import org.junit.jupiter.api.Test;
@@ -16,6 +17,9 @@ import org.springframework.test.web.reactive.server.WebTestClient;
  * observable — a request that reaches a controller returns 200; one the route map rejects is
  * short-circuited (302 to login for anonymous, 403 for an authenticated-but-unauthorized caller)
  * before any handler runs.
+ *
+ * <p>Why this is important to test: the edge is the first externally reachable request boundary,
+ * so regressions become observable access-control behavior.
  */
 @SpringBootTest
 @AutoConfigureWebTestClient
@@ -37,6 +41,30 @@ class RouteAuthorizationTest {
   @Test
   void actuatorHealthIsReachableAnonymously() {
     webClient.get().uri("/actuator/health").exchange().expectStatus().isOk();
+  }
+
+  @Test
+  void publicStatusOnlyPermitsGet() {
+    webClient
+        .mutateWith(mockOAuth2Login())
+        .mutateWith(csrf())
+        .post()
+        .uri("/api/public/status")
+        .exchange()
+        .expectStatus()
+        .isForbidden();
+  }
+
+  @Test
+  void actuatorHealthOnlyPermitsGet() {
+    webClient
+        .mutateWith(mockOAuth2Login())
+        .mutateWith(csrf())
+        .post()
+        .uri("/actuator/health")
+        .exchange()
+        .expectStatus()
+        .isForbidden();
   }
 
   @Test
@@ -65,6 +93,17 @@ class RouteAuthorizationTest {
         .exchange()
         .expectStatus()
         .isOk();
+  }
+
+  @Test
+  void authenticatedSessionCannotReachUnmatchedBrowserRoute() {
+    webClient
+        .mutateWith(mockOAuth2Login())
+        .get()
+        .uri("/api/not-a-mapped-route")
+        .exchange()
+        .expectStatus()
+        .isForbidden();
   }
 
   @Test

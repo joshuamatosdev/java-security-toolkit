@@ -6,6 +6,13 @@ import org.springframework.web.server.session.CookieWebSessionIdResolver;
 import org.springframework.web.server.session.WebSessionIdResolver;
 
 /** Applies the same browser-cookie transport policy to the reactive session cookie. */
+
+/**
+ * Cookie Policy Config for the edge-perimeter module.
+ *
+ * <p>Why this exists: CORS and cookie policy are credentialed browser trust decisions, so their
+ * allow-lists need to be explicit and auditable.
+ */
 @Configuration
 public class CookiePolicyConfig {
 

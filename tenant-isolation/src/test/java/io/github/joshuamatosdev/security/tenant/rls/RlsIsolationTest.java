@@ -31,6 +31,9 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 /**
  * Proves tenant isolation is enforced by the database, not by query predicates: the repository has
  * no tenant filter anywhere, yet reads, writes, and the unbound case all behave correctly.
+ *
+ * <p>Why this is important to test: RLS and transaction ordering only prove isolation when
+ * PostgreSQL enforces them, not when application code merely assumes them.
  */
 class RlsIsolationTest extends AbstractRlsTest {
 
@@ -250,8 +253,96 @@ class RlsIsolationTest extends AbstractRlsTest {
         }
     }
 
+    @Test
+    void claimAtTheCurrentDatabaseEpochIsAlreadyExpired() throws Exception {
+        seedAsSuperuser(UUID.randomUUID(), TenantIds.ACME,
+                TenantTestConstants.ACME_DOCUMENT_TITLE, TenantTestConstants.DOCUMENT_BODY_X);
+
+        try (Connection c = DriverManager.getConnection(POSTGRES.getJdbcUrl(), RUNTIME_USERNAME, DEV_PASSWORD);
+                Statement st = c.createStatement()) {
+            c.setAutoCommit(false);
+
+            final long currentDatabaseEpoch;
+            try (var rs = st.executeQuery("SELECT extract(epoch FROM clock_timestamp())::bigint")) {
+                rs.next();
+                currentDatabaseEpoch = rs.getLong(1);
+            }
+            st.execute(SET_TENANT_CLAIM_SQL_PREFIX + signedClaim(TenantIds.ACME, currentDatabaseEpoch) + "'");
+
+            assertThat(countDocuments(st))
+                    .as("a claim expiring at the current database epoch must not remain valid")
+                    .isZero();
+
+            c.rollback();
+        }
+    }
+
+    @Test
+    void claimExpiresAgainstWallClockInsideALongTransaction() throws Exception {
+        seedAsSuperuser(UUID.randomUUID(), TenantIds.ACME,
+                TenantTestConstants.ACME_DOCUMENT_TITLE, TenantTestConstants.DOCUMENT_BODY_X);
+
+        try (Connection c = DriverManager.getConnection(POSTGRES.getJdbcUrl(), RUNTIME_USERNAME, DEV_PASSWORD);
+                Statement st = c.createStatement()) {
+            c.setAutoCommit(false);
+
+            final long transactionEpoch;
+            try (var rs = st.executeQuery("SELECT extract(epoch FROM now())::bigint")) {
+                rs.next();
+                transactionEpoch = rs.getLong(1);
+            }
+            final long exp = Math.max(transactionEpoch, currentWallClockEpoch(st)) + 2;
+            st.execute(SET_TENANT_CLAIM_SQL_PREFIX + signedClaim(TenantIds.ACME, exp) + "'");
+
+            assertThat(countDocuments(st))
+                    .as("the signed claim is valid at transaction start")
+                    .isEqualTo(1L);
+
+            while (currentWallClockEpoch(st) < exp) {
+                Thread.sleep(100);
+            }
+
+            assertThat(countDocuments(st))
+                    .as("claim expiry must use wall-clock time, not transaction-start time")
+                    .isZero();
+
+            c.rollback();
+        }
+    }
+
+    @Test
+    void claimVerifierReevaluatesExpiryInsideASingleLongRunningStatement() throws Exception {
+        try (Connection c = DriverManager.getConnection(POSTGRES.getJdbcUrl(), RUNTIME_USERNAME, DEV_PASSWORD);
+                Statement st = c.createStatement()) {
+            final long exp = currentWallClockEpoch(st) + 2;
+            st.execute(SET_TENANT_CLAIM_SQL_PREFIX + signedClaim(TenantIds.ACME, exp) + "'");
+
+            try (var rs = st.executeQuery("""
+                    SELECT
+                        tenant_security.current_tenant_id() AS before_expiry,
+                        pg_sleep(3),
+                        tenant_security.current_tenant_id() AS after_expiry
+                    """)) {
+                assertThat(rs.next()).isTrue();
+                assertThat((UUID) rs.getObject("before_expiry"))
+                        .as("the signed claim starts valid")
+                        .isEqualTo(TenantIds.ACME.value());
+                assertThat(rs.getObject("after_expiry"))
+                        .as("the verifier must not cache a STABLE result past the claim expiry")
+                        .isNull();
+            }
+        }
+    }
+
     private static long countDocuments(final Statement st) throws Exception {
         try (var rs = st.executeQuery(COUNT_DOCUMENTS_SQL)) {
+            rs.next();
+            return rs.getLong(1);
+        }
+    }
+
+    private static long currentWallClockEpoch(final Statement st) throws Exception {
+        try (var rs = st.executeQuery("SELECT extract(epoch FROM clock_timestamp())::bigint")) {
             rs.next();
             return rs.getLong(1);
         }

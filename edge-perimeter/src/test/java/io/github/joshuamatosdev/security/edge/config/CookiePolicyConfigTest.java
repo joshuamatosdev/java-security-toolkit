@@ -6,6 +6,12 @@ import org.junit.jupiter.api.Test;
 import org.springframework.mock.http.server.reactive.MockServerHttpRequest;
 import org.springframework.mock.web.server.MockServerWebExchange;
 
+/**
+ * Cookie Policy Config test coverage.
+ *
+ * <p>Why this is important to test: credentialed CORS and cookie defaults can accidentally widen
+ * browser access to protected routes.
+ */
 class CookiePolicyConfigTest {
 
   private final CookiePolicyConfig config = new CookiePolicyConfig();

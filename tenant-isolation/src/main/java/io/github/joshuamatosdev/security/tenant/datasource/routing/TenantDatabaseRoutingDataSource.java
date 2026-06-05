@@ -11,10 +11,12 @@ import java.sql.ConnectionBuilder;
 import java.sql.SQLException;
 import java.sql.SQLFeatureNotSupportedException;
 import java.sql.ShardingKeyBuilder;
-import java.util.LinkedHashSet;
+import java.util.Collections;
+import java.util.IdentityHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Set;
 import javax.sql.DataSource;
 import org.jspecify.annotations.NonNull;
 import org.springframework.jdbc.datasource.AbstractDataSource;
@@ -26,6 +28,9 @@ import org.springframework.jdbc.datasource.AbstractDataSource;
  * The selected tenant pool is the primary isolation boundary. {@link TenantDataSourceFactory} wraps
  * this router in {@link TenantSessionDataSourceProxy} so each selected database also receives the
  * signed tenant claim used by database defaults, checks, or RLS policies.
+ *
+ * <p>Why this exists: tenant placement routing is the boundary that chooses the physical schema or
+ * database, so it must be explicit and auditable.
  */
 @SystemTenantBoundary
 public final class TenantDatabaseRoutingDataSource extends AbstractDataSource implements TenantPoolInspection, AutoCloseable {
@@ -36,7 +41,7 @@ public final class TenantDatabaseRoutingDataSource extends AbstractDataSource im
     public TenantDatabaseRoutingDataSource(
             final Map<TenantId, ? extends DataSource> dataSourceByTenant,
             final TenantPoolInspection poolInspection) {
-        this.dataSourceByTenant = Map.copyOf(Objects.requireNonNull(dataSourceByTenant, "dataSourceByTenant"));
+        this.dataSourceByTenant = validateDatabasePlacements(dataSourceByTenant);
         this.poolInspection = Objects.requireNonNull(poolInspection, "poolInspection");
     }
 
@@ -85,7 +90,11 @@ public final class TenantDatabaseRoutingDataSource extends AbstractDataSource im
     @Override
     public void close() throws Exception {
         Exception failure = null;
-        for (DataSource dataSource : new LinkedHashSet<>(dataSourceByTenant.values())) {
+        final Set<DataSource> closedPools = Collections.newSetFromMap(new IdentityHashMap<>());
+        for (DataSource dataSource : dataSourceByTenant.values()) {
+            if (!closedPools.add(dataSource)) {
+                continue;
+            }
             if (dataSource instanceof AutoCloseable closeable) {
                 try {
                     closeable.close();
@@ -115,5 +124,18 @@ public final class TenantDatabaseRoutingDataSource extends AbstractDataSource im
         }
         return dataSource;
     }
-}
 
+    private static Map<TenantId, DataSource> validateDatabasePlacements(
+            final Map<TenantId, ? extends DataSource> placements) {
+        Objects.requireNonNull(placements, "dataSourceByTenant");
+        final Set<DataSource> seenPools = Collections.newSetFromMap(new IdentityHashMap<>());
+        placements.forEach((tenant, dataSource) -> {
+            Objects.requireNonNull(tenant, "database tenant must not be null");
+            Objects.requireNonNull(dataSource, "database pool must not be null");
+            if (!seenPools.add(dataSource)) {
+                throw new IllegalArgumentException("duplicate database pool for tenant " + tenant);
+            }
+        });
+        return Map.copyOf(placements);
+    }
+}

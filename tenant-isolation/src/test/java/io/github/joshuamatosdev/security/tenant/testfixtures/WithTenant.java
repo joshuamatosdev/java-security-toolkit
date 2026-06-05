@@ -8,6 +8,9 @@ import java.util.function.Supplier;
 /**
  * Scopes a {@link TenantId} into {@link TenantContext} for the duration of a unit of work, then
  * restores the prior binding. Mirrors the production test fixture.
+ *
+ * <p>Why this is important to test: shared fixtures must encode the same tenant assumptions in
+ * every isolation test, or passing tests could exercise different boundaries.
  */
 public final class WithTenant {
 

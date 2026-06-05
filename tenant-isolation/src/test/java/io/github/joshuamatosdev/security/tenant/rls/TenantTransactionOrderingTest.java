@@ -25,6 +25,9 @@ import org.springframework.transaction.annotation.Transactional;
  *
  * <p>The default single-datasource check ({@code isActualTransactionActive}) is in force here, which
  * is correct: the tenant-bound proxy is the only datasource on the thread.
+ *
+ * <p>Why this is important to test: RLS and transaction ordering only prove isolation when
+ * PostgreSQL enforces them, not when application code merely assumes them.
  */
 @Import(TenantTransactionOrderingTest.Fixture.class)
 class TenantTransactionOrderingTest extends AbstractRlsTest {

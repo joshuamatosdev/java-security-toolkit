@@ -2,6 +2,9 @@ package io.github.joshuamatosdev.security.authz.web.document;
 
 /**
  * Document HTTP route templates.
+ *
+ * <p>Why this exists: document web components provide the resource-backed endpoint used to
+ * demonstrate route gates plus fine-grained policy.
  */
 public final class DocumentRoutes {
 

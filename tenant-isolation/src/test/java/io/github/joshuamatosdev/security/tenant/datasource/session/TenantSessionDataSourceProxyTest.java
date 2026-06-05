@@ -5,6 +5,7 @@ import static org.assertj.core.api.Assertions.assertThatCode;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.inOrder;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
@@ -33,6 +34,12 @@ import org.junit.jupiter.api.Test;
 import org.mockito.InOrder;
 import org.springframework.jdbc.datasource.DelegatingDataSource;
 
+/**
+ * Tenant Session Data Source Proxy test coverage.
+ *
+ * <p>Why this is important to test: every borrowed connection must carry a valid tenant claim, or
+ * database policies cannot reliably isolate tenant data.
+ */
 class TenantSessionDataSourceProxyTest {
 
     private static final String DELEGATE_EXPOSURE_MESSAGE = "does not expose its delegate";
@@ -163,6 +170,21 @@ class TenantSessionDataSourceProxyTest {
     }
 
     @Test
+    void constructorRejectsBlankOrMalformedPoolName() {
+        final DataSource delegate = mock(DataSource.class);
+
+        assertThatThrownBy(() -> new TenantSessionDataSourceProxy(delegate, " ", CLAIM_SIGNER))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessage("poolName must not be blank");
+        assertThatThrownBy(() -> new TenantSessionDataSourceProxy(delegate, " tenant", CLAIM_SIGNER))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessage("poolName must not include leading or trailing whitespace");
+        assertThatThrownBy(() -> new TenantSessionDataSourceProxy(delegate, "tenant\nforged", CLAIM_SIGNER))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessage("poolName must not contain control characters");
+    }
+
+    @Test
     void observerFailureAfterBindingDoesNotLeakTheBorrowedConnection() throws Exception {
         final DataSource delegate = mock(DataSource.class);
         final Connection raw = mock(Connection.class);
@@ -202,6 +224,49 @@ class TenantSessionDataSourceProxyTest {
 
         assertThatCode(wrapped::close).doesNotThrowAnyException();
         verify(raw).abort(any());
+    }
+
+    @Test
+    void closeFailureAfterResetStillAbortsTheConnection() throws Exception {
+        final DataSource delegate = mock(DataSource.class);
+        final Connection raw = mock(Connection.class);
+        final PreparedStatement bindingStatement = mock(PreparedStatement.class);
+        final PreparedStatement resetStatement = mock(PreparedStatement.class);
+        final TenantSessionDataSourceProxy proxy =
+                new TenantSessionDataSourceProxy(delegate, POOL_NAME, CLAIM_SIGNER);
+        when(delegate.getConnection()).thenReturn(raw);
+        when(raw.prepareStatement(anyString())).thenReturn(bindingStatement, resetStatement);
+        when(raw.getAutoCommit()).thenReturn(true);
+        doThrow(new SQLException("close failed")).when(raw).close();
+
+        final Connection wrapped = supplyAsAcme(proxy::getConnection);
+
+        assertThatThrownBy(wrapped::close)
+                .isInstanceOf(SQLException.class)
+                .hasMessageContaining("close failed");
+        verify(raw).abort(any());
+    }
+
+    @Test
+    void closedGuardedConnectionRejectsFurtherSqlWithoutReachingDelegate() throws Exception {
+        final DataSource delegate = mock(DataSource.class);
+        final Connection raw = mock(Connection.class);
+        final PreparedStatement bindingStatement = mock(PreparedStatement.class);
+        final PreparedStatement resetStatement = mock(PreparedStatement.class);
+        final TenantSessionDataSourceProxy proxy =
+                new TenantSessionDataSourceProxy(delegate, POOL_NAME, CLAIM_SIGNER);
+        when(delegate.getConnection()).thenReturn(raw);
+        when(raw.prepareStatement(anyString())).thenReturn(bindingStatement, resetStatement);
+        when(raw.getAutoCommit()).thenReturn(true);
+
+        final Connection wrapped = supplyAsAcme(proxy::getConnection);
+        wrapped.close();
+
+        assertThat(wrapped.isClosed()).isTrue();
+        assertThatThrownBy(() -> wrapped.prepareStatement("SELECT 1"))
+                .isInstanceOf(SQLException.class)
+                .hasMessageContaining("closed");
+        verify(raw, never()).prepareStatement("SELECT 1");
     }
 
     @Test

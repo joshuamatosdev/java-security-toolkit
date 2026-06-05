@@ -17,6 +17,12 @@ import javax.sql.DataSource;
 import org.junit.jupiter.api.Test;
 import org.springframework.boot.autoconfigure.jdbc.DataSourceProperties;
 
+/**
+ * Data Source Config test coverage.
+ *
+ * <p>Why this is important to test: pool construction wires credentials, routing, and claim signing
+ * together, where a small regression can bypass least privilege.
+ */
 class DataSourceConfigTest {
 
     private static final String TENANT_USER = "tenant_user";
@@ -90,6 +96,128 @@ class DataSourceConfigTest {
                 .hasMessageContaining("tenant.binding.system-ops-password");
     }
 
+    @Test
+    void idModeRejectsPrivilegedRuntimePoolUsername() {
+        final DataSourceConfig config = new DataSourceConfig(
+                new TenantIsolationProperties(TenantIsolationMode.ID, null, null),
+                new TenantBindingProperties(
+                        TenantTestConstants.CLAIM_SECRET, TenantTestConstants.DEV_PASSWORD));
+
+        assertThatThrownBy(() -> config.dataSource(
+                        sharedDataSourceProperties(TenantTestConstants.POSTGRES_USERNAME),
+                        TenantPoolInspection.NONE))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining("spring.datasource.username")
+                .hasMessageContaining("privileged or system-ops identity");
+    }
+
+    @Test
+    void idModeRejectsNonPostgresRuntimePoolJdbcUrl() {
+        final DataSourceConfig config = new DataSourceConfig(
+                new TenantIsolationProperties(TenantIsolationMode.ID, null, null),
+                new TenantBindingProperties(
+                        TenantTestConstants.CLAIM_SECRET, TenantTestConstants.DEV_PASSWORD));
+
+        assertThatThrownBy(() -> config.dataSource(
+                        sharedDataSourceProperties(TENANT_USER, "jdbc:h2:mem:shared"),
+                        TenantPoolInspection.NONE))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining("spring.datasource.url")
+                .hasMessageContaining("PostgreSQL");
+    }
+
+    @Test
+    void idModeRejectsRuntimePoolJdbcUrlCredentialParameters() {
+        final DataSourceConfig config = new DataSourceConfig(
+                new TenantIsolationProperties(TenantIsolationMode.ID, null, null),
+                new TenantBindingProperties(
+                        TenantTestConstants.CLAIM_SECRET, TenantTestConstants.DEV_PASSWORD));
+
+        assertThatThrownBy(() -> config.dataSource(
+                        sharedDataSourceProperties(TENANT_USER, SHARED_JDBC_URL + "?user=postgres"),
+                        TenantPoolInspection.NONE))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining("spring.datasource.url")
+                .hasMessageContaining("credential parameters");
+
+        assertThatThrownBy(() -> config.dataSource(
+                        sharedDataSourceProperties(TENANT_USER, SHARED_JDBC_URL + "?password=secret"),
+                        TenantPoolInspection.NONE))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining("spring.datasource.url")
+                .hasMessageContaining("credential parameters");
+    }
+
+    @Test
+    void schemaModeRejectsSystemOpsRuntimePoolUsername() {
+        final DataSourceConfig config = new DataSourceConfig(
+                schemaIsolationProperties(),
+                new TenantBindingProperties(TenantTestConstants.CLAIM_SECRET, null));
+
+        assertThatThrownBy(() -> config.dataSource(
+                        sharedDataSourceProperties(TenantTestConstants.SYSTEM_OPS_USERNAME),
+                        TenantPoolInspection.NONE))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining("spring.datasource.username")
+                .hasMessageContaining("privileged or system-ops identity");
+    }
+
+    @Test
+    void schemaModeRejectsRuntimePoolPasswordWithLeadingOrTrailingWhitespace() {
+        final DataSourceConfig config = new DataSourceConfig(
+                schemaIsolationProperties(),
+                new TenantBindingProperties(TenantTestConstants.CLAIM_SECRET, null));
+
+        assertThatThrownBy(() -> config.dataSource(
+                        sharedDataSourceProperties(TENANT_USER, SHARED_JDBC_URL, TENANT_PASSWORD + " "),
+                        TenantPoolInspection.NONE))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining("spring.datasource.password")
+                .hasMessageContaining("leading or trailing whitespace");
+    }
+
+    @Test
+    void schemaModeRejectsRuntimePoolPasswordWithControlCharacters() {
+        final DataSourceConfig config = new DataSourceConfig(
+                schemaIsolationProperties(),
+                new TenantBindingProperties(TenantTestConstants.CLAIM_SECRET, null));
+
+        assertThatThrownBy(() -> config.dataSource(
+                        sharedDataSourceProperties(TENANT_USER, SHARED_JDBC_URL, TENANT_PASSWORD + "\nforged"),
+                        TenantPoolInspection.NONE))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining("spring.datasource.password")
+                .hasMessageContaining("control characters");
+    }
+
+    @Test
+    void schemaModeRejectsNonPostgresRuntimePoolJdbcUrl() {
+        final DataSourceConfig config = new DataSourceConfig(
+                schemaIsolationProperties(),
+                new TenantBindingProperties(TenantTestConstants.CLAIM_SECRET, null));
+
+        assertThatThrownBy(() -> config.dataSource(
+                        sharedDataSourceProperties(TENANT_USER, "jdbc:mysql://db.example/shared"),
+                        TenantPoolInspection.NONE))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining("spring.datasource.url")
+                .hasMessageContaining("PostgreSQL");
+    }
+
+    @Test
+    void schemaModeRejectsRuntimePoolPostgresJdbcUrlPrefixWithDriverInvalidCase() {
+        final DataSourceConfig config = new DataSourceConfig(
+                schemaIsolationProperties(),
+                new TenantBindingProperties(TenantTestConstants.CLAIM_SECRET, null));
+
+        assertThatThrownBy(() -> config.dataSource(
+                        sharedDataSourceProperties(TENANT_USER, "jdbc:POSTGRESQL://db.example/shared"),
+                        TenantPoolInspection.NONE))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining("spring.datasource.url")
+                .hasMessageContaining("PostgreSQL");
+    }
+
     private static TenantIsolationProperties schemaIsolationProperties() {
         return new TenantIsolationProperties(
                 TenantIsolationMode.SCHEMA,
@@ -118,10 +246,27 @@ class DataSourceConfigTest {
     }
 
     private static DataSourceProperties sharedDataSourceProperties() {
+        return sharedDataSourceProperties(TENANT_USER);
+    }
+
+    private static DataSourceProperties sharedDataSourceProperties(final String username) {
+        return sharedDataSourceProperties(username, SHARED_JDBC_URL);
+    }
+
+    private static DataSourceProperties sharedDataSourceProperties(
+            final String username,
+            final String jdbcUrl) {
+        return sharedDataSourceProperties(username, jdbcUrl, TENANT_PASSWORD);
+    }
+
+    private static DataSourceProperties sharedDataSourceProperties(
+            final String username,
+            final String jdbcUrl,
+            final String password) {
         final DataSourceProperties properties = new DataSourceProperties();
-        properties.setUrl(SHARED_JDBC_URL);
-        properties.setUsername(TENANT_USER);
-        properties.setPassword(TENANT_PASSWORD);
+        properties.setUrl(jdbcUrl);
+        properties.setUsername(username);
+        properties.setPassword(password);
         return properties;
     }
 
@@ -131,5 +276,3 @@ class DataSourceConfigTest {
         }
     }
 }
-
-

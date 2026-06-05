@@ -14,6 +14,9 @@ import java.util.UUID;
  * guard: it makes the decision, records it (allow or deny), and throws on a deny — so a caller that
  * forgets to check the return value still cannot proceed past a denial. {@link #decide} exposes the
  * raw outcome for callers that need to branch without throwing.
+ *
+ * <p>Why this exists: the service layer is the single authorization decision point, preventing
+ * callers from skipping audit or fine-grained resource checks.
  */
 public interface AuthorizationService {
 

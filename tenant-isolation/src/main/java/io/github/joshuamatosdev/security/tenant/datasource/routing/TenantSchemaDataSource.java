@@ -10,9 +10,11 @@ import io.github.joshuamatosdev.security.tenant.datasource.session.TenantSession
 import java.sql.Connection;
 import java.sql.SQLException;
 import java.sql.SQLFeatureNotSupportedException;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.regex.Pattern;
 import javax.sql.DataSource;
 import org.jspecify.annotations.NonNull;
 import org.springframework.jdbc.datasource.AbstractDataSource;
@@ -27,9 +29,15 @@ import org.springframework.jdbc.datasource.AbstractDataSource;
  * <p>This class owns physical schema placement only. The datasource factory wraps it in {@link
  * TenantSessionDataSourceProxy} so the selected connection also receives the signed tenant claim
  * used by database defaults, checks, or RLS policies.
+ *
+ * <p>Why this exists: tenant placement routing is the boundary that chooses the physical schema or
+ * database, so it must be explicit and auditable.
  */
 @SystemTenantBoundary
-public final class TenantSchemaDataSource extends AbstractDataSource implements TenantPoolInspection {
+public final class TenantSchemaDataSource extends AbstractDataSource implements TenantPoolInspection, AutoCloseable {
+
+    private static final Pattern POSTGRES_IDENTIFIER =
+            Pattern.compile("[A-Za-z_][A-Za-z0-9_]{0,62}");
 
     private final DataSource delegate;
     private final Map<TenantId, String> schemaByTenant;
@@ -40,7 +48,7 @@ public final class TenantSchemaDataSource extends AbstractDataSource implements 
             final Map<TenantId, String> schemaByTenant,
             final TenantPoolInspection poolInspection) {
         this.delegate = Objects.requireNonNull(delegate, "delegate");
-        this.schemaByTenant = Map.copyOf(Objects.requireNonNull(schemaByTenant, "schemaByTenant"));
+        this.schemaByTenant = validateSchemaPlacements(schemaByTenant);
         this.poolInspection = Objects.requireNonNull(poolInspection, "poolInspection");
     }
 
@@ -70,6 +78,13 @@ public final class TenantSchemaDataSource extends AbstractDataSource implements 
                 "tenant schema datasource does not allow caller-supplied credentials");
     }
 
+    @Override
+    public void close() throws Exception {
+        if (delegate instanceof AutoCloseable closeable) {
+            closeable.close();
+        }
+    }
+
     private String requireSchemaForCurrentTenant() {
         final TenantId tenant = TenantContext.requireCurrent();
         if (TenantIds.SYSTEM_OPS.equals(tenant)) {
@@ -81,5 +96,22 @@ public final class TenantSchemaDataSource extends AbstractDataSource implements 
             throw new SecurityException("no schema placement configured for tenant " + tenant);
         }
         return schema;
+    }
+
+    private static Map<TenantId, String> validateSchemaPlacements(final Map<TenantId, String> placements) {
+        Objects.requireNonNull(placements, "schemaByTenant");
+        final Map<String, TenantId> schemaOwners = new LinkedHashMap<>();
+        placements.forEach((tenant, schema) -> {
+            Objects.requireNonNull(tenant, "schema tenant must not be null");
+            Objects.requireNonNull(schema, "schema name must not be null");
+            if (!POSTGRES_IDENTIFIER.matcher(schema).matches()) {
+                throw new IllegalArgumentException("invalid schema name for tenant " + tenant + ": " + schema);
+            }
+            final TenantId priorOwner = schemaOwners.putIfAbsent(schema, tenant);
+            if (priorOwner != null) {
+                throw new IllegalArgumentException("duplicate schema name " + schema);
+            }
+        });
+        return Map.copyOf(placements);
     }
 }

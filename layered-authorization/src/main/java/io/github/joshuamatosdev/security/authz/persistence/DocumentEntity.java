@@ -9,6 +9,7 @@ import jakarta.persistence.Entity;
 import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.Id;
 import jakarta.persistence.Table;
+import java.util.Objects;
 import java.util.UUID;
 import org.hibernate.annotations.Generated;
 import org.hibernate.generator.EventType;
@@ -20,6 +21,9 @@ import org.jspecify.annotations.Nullable;
  * <p>The primary key is database-owned. PostgreSQL 18 mints a UUIDv7 through the {@code id_v7}
  * domain default ({@code uuidv7()}); Hibernate reads the inserted value back instead of generating a
  * UUID in application code.
+ *
+ * <p>Why this exists: document persistence gives the policy database-backed owner and organization
+ * facts rather than synthetic in-memory resources.
  */
 @Entity
 @Table(name = "document")
@@ -48,9 +52,9 @@ public class DocumentEntity {
         final TenantId tenantId,
         @Nullable final OrganizationId organizationId,
         @Nullable final String ownerPrincipalKey) {
-        this.tenantId = tenantId.value();
+        this.tenantId = Objects.requireNonNull(tenantId, "tenantId must not be null").value();
         this.organizationId = organizationId == null ? null : organizationId.value();
-        this.ownerPrincipalKey = ownerPrincipalKey;
+        this.ownerPrincipalKey = requireValidOwnerPrincipalKey(ownerPrincipalKey);
     }
 
     public UUID getId() {
@@ -63,5 +67,21 @@ public class DocumentEntity {
             new TenantId(tenantId),
             organizationId == null ? null : new OrganizationId(organizationId),
             ownerPrincipalKey);
+    }
+
+    private static @Nullable String requireValidOwnerPrincipalKey(@Nullable final String ownerPrincipalKey) {
+        if (ownerPrincipalKey == null) {
+            return null;
+        }
+        if (ownerPrincipalKey.isBlank()) {
+            throw new IllegalArgumentException("ownerPrincipalKey must not be blank");
+        }
+        if (!ownerPrincipalKey.equals(ownerPrincipalKey.strip())) {
+            throw new IllegalArgumentException("ownerPrincipalKey must not include leading or trailing whitespace");
+        }
+        if (ownerPrincipalKey.chars().anyMatch(Character::isISOControl)) {
+            throw new IllegalArgumentException("ownerPrincipalKey must not contain control characters");
+        }
+        return ownerPrincipalKey;
     }
 }

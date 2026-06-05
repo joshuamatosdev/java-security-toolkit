@@ -15,6 +15,12 @@ import org.springframework.web.server.ServerWebExchange;
 import org.springframework.web.server.WebFilterChain;
 import reactor.core.publisher.Mono;
 
+/**
+ * Browser Credential Isolation Matcher test coverage.
+ *
+ * <p>Why this is important to test: browser-supplied bearer headers must not leak into service
+ * authorization decisions.
+ */
 class BrowserCredentialIsolationMatcherTest {
 
   private final BrowserCredentialIsolationFilter filter = new BrowserCredentialIsolationFilter();
@@ -24,6 +30,8 @@ class BrowserCredentialIsolationMatcherTest {
       strings = {
         "/api/service",
         "/api/service/",
+        "/api/service;v=1",
+        "/api/service;v=1/reports",
         "/api/service/reports",
         "/api/serviceish",
         "/api/service%2Freports",

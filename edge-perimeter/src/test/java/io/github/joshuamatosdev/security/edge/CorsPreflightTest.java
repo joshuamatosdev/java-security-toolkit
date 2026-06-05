@@ -1,5 +1,6 @@
 package io.github.joshuamatosdev.security.edge;
 
+import java.util.List;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -18,6 +19,9 @@ import org.springframework.test.web.reactive.server.WebTestClient;
  * ({@code CorsUtils.isSameOrigin}) asserts the request URI has a non-null host; the default
  * application-context-bound client synthesizes hostless relative URIs, which a real HTTP request
  * never does.
+ *
+ * <p>Why this is important to test: the edge is the first externally reachable request boundary,
+ * so regressions become observable access-control behavior.
  */
 @SpringBootTest
 @AutoConfigureWebTestClient
@@ -49,6 +53,24 @@ class CorsPreflightTest {
         .valueEquals(HttpHeaders.ACCESS_CONTROL_ALLOW_ORIGIN, ALLOWED_ORIGIN)
         .expectHeader()
         .valueEquals(HttpHeaders.ACCESS_CONTROL_ALLOW_CREDENTIALS, "true");
+  }
+
+  @Test
+  void preflightForGetOnlyBrowserSurfacesDoesNotAdvertiseMutatingMethods() {
+    for (String path : List.of("/api/public/status", "/api/admin/dashboard", "/actuator/health")) {
+      webClient
+          .options()
+          .uri(path)
+          .header(HttpHeaders.ORIGIN, ALLOWED_ORIGIN)
+          .header(HttpHeaders.ACCESS_CONTROL_REQUEST_METHOD, "POST")
+          .exchange()
+          .expectStatus()
+          .isForbidden()
+          .expectHeader()
+          .doesNotExist(HttpHeaders.ACCESS_CONTROL_ALLOW_ORIGIN)
+          .expectHeader()
+          .doesNotExist(HttpHeaders.ACCESS_CONTROL_ALLOW_CREDENTIALS);
+    }
   }
 
   @Test
