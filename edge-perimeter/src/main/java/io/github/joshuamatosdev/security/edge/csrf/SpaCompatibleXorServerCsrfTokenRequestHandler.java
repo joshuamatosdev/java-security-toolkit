@@ -18,6 +18,9 @@ import reactor.core.publisher.Mono;
  * the {@code X-XSRF-TOKEN} header. So token resolution tries the XOR path first (the masked value a
  * compliant client computed), then falls back to accepting the raw cookie value — but only when it
  * constant-time matches the repository token. Response attributes stay XOR-masked either way.
+ *
+ * <p>Why this exists: CSRF wiring keeps the SPA request flow compatible with Spring token masking
+ * while preserving same-site request protection.
  */
 public final class SpaCompatibleXorServerCsrfTokenRequestHandler
     implements ServerCsrfTokenRequestHandler {

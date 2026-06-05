@@ -7,6 +7,12 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.config.YamlPropertiesFactoryBean;
 import org.springframework.core.io.ClassPathResource;
 
+/**
+ * Demo Identity Default Config test coverage.
+ *
+ * <p>Why this is important to test: authorization bugs become route-level privilege bugs, so the
+ * web boundary must prove deny-by-default and scoped access behavior.
+ */
 class DemoIdentityDefaultConfigTest {
 
     @Test

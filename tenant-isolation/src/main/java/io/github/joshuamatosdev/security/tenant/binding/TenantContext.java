@@ -37,6 +37,9 @@ import org.springframework.transaction.support.TransactionSynchronizationManager
  * tenant datasource is the only one enlisted on the thread. Deployments with additional datasources
  * should install a narrower check via {@link #useTenantTransactionActiveCheck} so that a transaction
  * on an unrelated datasource does not block tenant binding.
+ *
+ * <p>Why this exists: tenant binding is the handoff from request identity to database/session
+ * controls and must be centralized rather than rebuilt ad hoc.
  */
 @SystemTenantBoundary
 public final class TenantContext {

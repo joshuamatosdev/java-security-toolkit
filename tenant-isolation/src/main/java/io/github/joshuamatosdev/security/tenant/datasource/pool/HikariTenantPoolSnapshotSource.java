@@ -7,6 +7,9 @@ import java.util.Objects;
 
 /**
  * Adapts one Hikari pool to the module's stable read-only pool snapshot shape.
+ *
+ * <p>Why this exists: pool inspection makes runtime pool identity observable so tests can prove
+ * least-privilege tenant connections are really in use.
  */
 @SystemTenantBoundary
 final class HikariTenantPoolSnapshotSource implements TenantPoolSnapshotSource {

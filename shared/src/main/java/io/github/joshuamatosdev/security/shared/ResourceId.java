@@ -6,6 +6,9 @@ import org.jspecify.annotations.NonNull;
 
 /**
  * Typed identifier of the resource an action is being authorized against.
+ *
+ * <p>Why this exists: resource identifiers are policy inputs, and a dedicated type prevents
+ * resource ownership facts from being confused with actor or tenant identity.
  */
 public record ResourceId(UUID value) {
 
@@ -14,7 +17,7 @@ public record ResourceId(UUID value) {
     }
 
     public static ResourceId fromString(final String raw) {
-        return new ResourceId(UUID.fromString(raw));
+        return new ResourceId(CanonicalUuid.parse(raw, "ResourceId"));
     }
 
     @Override

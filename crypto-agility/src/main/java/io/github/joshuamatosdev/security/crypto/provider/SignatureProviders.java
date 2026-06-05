@@ -8,6 +8,8 @@ import java.security.spec.ECGenParameterSpec;
  * JcaSignatureProvider} configured for one registry algorithm; together they are the hybrid set a
  * deployment wires into the registry — two classical algorithms and one post-quantum slot, all
  * behind the same {@link SignatureProvider} interface.
+ *
+ * <p>Why this exists: providers isolate algorithm-specific JCA details behind one signature seam.
  */
 public final class SignatureProviders {
 
@@ -25,7 +27,7 @@ public final class SignatureProviders {
                 SignatureAlgorithm.ECDSA_P256,
                 "EC",
                 new ECGenParameterSpec("secp256r1"),
-                "SHA256withECDSA",
+                "SHA256withECDSAinP1363Format",
                 "EC");
     }
 

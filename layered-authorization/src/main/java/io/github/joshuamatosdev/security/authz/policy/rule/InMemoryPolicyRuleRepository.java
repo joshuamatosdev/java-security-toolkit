@@ -21,6 +21,9 @@ import java.util.List;
  * </ul>
  * <p>
  * The same rule set is returned for every tenant here; a real adapter would load the tenant's rows.
+ *
+ * <p>Why this exists: policy rules keep role-to-action grants data-shaped so deny-overrides
+ * behavior can change without controller rewrites.
  */
 public final class InMemoryPolicyRuleRepository implements PolicyRuleRepository {
 

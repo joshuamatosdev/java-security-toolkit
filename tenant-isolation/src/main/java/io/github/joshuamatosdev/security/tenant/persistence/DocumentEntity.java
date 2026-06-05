@@ -21,6 +21,9 @@ import org.hibernate.generator.EventType;
  * database stamps it from the session claim ({@code app.tenant_claim}) on insert after verifying its
  * HMAC, so a caller cannot write a row for another tenant through the entity. The RLS policy's
  * {@code WITH CHECK} backstops any raw write action that tries.
+ *
+ * <p>Why this exists: the module needs a tiny tenant-owned resource so RLS and placement behavior
+ * can be demonstrated against real persisted rows.
  */
 @Entity
 @Table(name = "document")

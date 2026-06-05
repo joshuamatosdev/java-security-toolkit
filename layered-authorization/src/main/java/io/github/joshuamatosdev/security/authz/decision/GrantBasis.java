@@ -2,6 +2,9 @@ package io.github.joshuamatosdev.security.authz.decision;
 
 /**
  * Why an access was granted — recorded in the audit trail so an allow is never unexplained.
+ *
+ * <p>Why this exists: sealed decision types make allow and deny outcomes carry their enforcement
+ * and audit rationale explicitly.
  */
 public enum GrantBasis {
     /**

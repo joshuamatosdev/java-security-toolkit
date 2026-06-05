@@ -20,6 +20,9 @@ import org.springframework.security.oauth2.client.web.server.ServerOAuth2Authori
  * <p>Spring Boot 3.x does not expose {@code ClientSettings.requireProofKey} through configuration
  * properties for a reactive public client, so the PKCE customizer is applied directly to the
  * authorization-request resolver.
+ *
+ * <p>Why this exists: separate security chains encode browser-session and service-token
+ * authentication so one credential model cannot authorize the other.
  */
 @Configuration
 public class PkceRelaySupport {

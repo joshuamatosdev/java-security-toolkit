@@ -15,10 +15,13 @@ import org.springframework.security.oauth2.jwt.Jwt;
  * slice tests authenticate with {@code mockJwt().authorities(...)}, which injects authorities
  * directly and bypasses this converter; this test exercises the real converter so the mapping from
  * a {@code roles} claim to {@code ROLE_*} authorities is actually proven.
+ *
+ * <p>Why this is important to test: browser sessions and service JWTs are separate credential
+ * planes, and validator drift could accept the wrong token.
  */
 class ServiceApiRolesConverterTest {
 
-  private static Jwt jwtWithRoles(List<String> roles) {
+  private static Jwt jwtWithRoles(Object roles) {
     return new Jwt(
         "token-value",
         Instant.now(),
@@ -47,6 +50,31 @@ class ServiceApiRolesConverterTest {
     assertThat(authoritiesFor(jwtWithRoles(List.of("ROLE_service"))))
         .containsExactly("ROLE_ROLE_service")
         .doesNotContain("ROLE_service");
+  }
+
+  @Test
+  void scalarRolesClaimYieldsNoAuthorities() {
+    assertThat(authoritiesFor(jwtWithRoles("service"))).isEmpty();
+  }
+
+  @Test
+  void rolesClaimWithNonStringElementYieldsNoAuthorities() {
+    assertThat(authoritiesFor(jwtWithRoles(List.of("service", 7)))).isEmpty();
+  }
+
+  @Test
+  void rolesClaimWithBlankElementYieldsNoAuthorities() {
+    assertThat(authoritiesFor(jwtWithRoles(List.of("service", " ")))).isEmpty();
+  }
+
+  @Test
+  void rolesClaimWithWhitespacePaddedElementYieldsNoAuthorities() {
+    assertThat(authoritiesFor(jwtWithRoles(List.of("service", " admin")))).isEmpty();
+  }
+
+  @Test
+  void rolesClaimWithControlCharacterElementYieldsNoAuthorities() {
+    assertThat(authoritiesFor(jwtWithRoles(List.of("service", "admin\nforged")))).isEmpty();
   }
 
   @Test

@@ -71,7 +71,7 @@ REVOKE ALL ON ALL TABLES IN SCHEMA tenant_security FROM PUBLIC;
 CREATE OR REPLACE FUNCTION tenant_security.current_tenant_id()
 RETURNS uuid
 LANGUAGE plpgsql
-STABLE
+VOLATILE
 SECURITY DEFINER
 SET search_path = pg_catalog, tenant_security
 AS $$
@@ -131,10 +131,10 @@ BEGIN
         RETURN NULL;
     END IF;
 
-    -- Signature verified, so the exp field is authentic. Reject a claim past its lifetime so a
-    -- captured claim cannot be replayed once expired. now() (transaction start) keeps the check
-    -- stable across a transaction: a claim valid at begin stays valid for that transaction.
-    IF claim_exp_text::bigint < extract(epoch FROM now())::bigint THEN
+    -- Signature verified, so the exp field is authentic. Reject a claim at or past its lifetime
+    -- using wall-clock time, not transaction-start time, so a long transaction cannot continue to
+    -- use a claim after it has expired.
+    IF claim_exp_text::bigint <= extract(epoch FROM clock_timestamp())::bigint THEN
         RETURN NULL;
     END IF;
 

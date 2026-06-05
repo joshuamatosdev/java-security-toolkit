@@ -59,8 +59,10 @@ edge:
     allowed-origins:
       - https://app.acme.example
   cookie:
-    # Set true wherever TLS terminates upstream; false only for plain-HTTP local runs.
-    secure: false
+    # Secure by default: session and XSRF-TOKEN cookies carry the Secure attribute, consistent with
+    # the unconditional HSTS below. Plain-HTTP local runs opt out via the `local` profile
+    # (application-local.yaml), which relaxes this together with HSTS.
+    secure: true
   hsts:
     # When true, Strict-Transport-Security is emitted on every response regardless of
     # X-Forwarded-Proto — for deployments where a stripped proxy header must not silently

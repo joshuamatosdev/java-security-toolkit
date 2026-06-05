@@ -2,6 +2,9 @@ package io.github.joshuamatosdev.security.tenant.config;
 
 /**
  * Supported tenant placement strategies.
+ *
+ * <p>Why this exists: tenant placement is a security boundary, so validation rejects ambiguous or
+ * unsafe configuration before any datasource can route traffic.
  */
 public enum TenantIsolationMode {
     /**

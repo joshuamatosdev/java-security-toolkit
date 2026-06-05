@@ -10,6 +10,9 @@ package io.github.joshuamatosdev.security.edge.chain;
  * first-match-wins: if the broad admin-only rule were registered first, an auditor hitting
  * {@code /api/admin/audit-export} would match the admin rule, be denied, and never reach its own
  * exception. Narrow-before-broad is the whole lesson.
+ *
+ * <p>Why this exists: separate security chains encode browser-session and service-token
+ * authentication so one credential model cannot authorize the other.
  */
 public final class RouteAuthorities {
 
@@ -17,6 +20,9 @@ public final class RouteAuthorities {
 
   /** Anonymous surface: liveness/status the SPA polls before login. */
   public static final String[] PUBLIC_PATHS = {"/api/public/**"};
+
+  /** Generic authenticated browser surface. */
+  public static final String[] DOCUMENT_PATHS = {"/api/documents", "/api/documents/**"};
 
   /**
    * Audit export — a narrow exception under {@code /api/admin} that auditors may reach too. MUST be

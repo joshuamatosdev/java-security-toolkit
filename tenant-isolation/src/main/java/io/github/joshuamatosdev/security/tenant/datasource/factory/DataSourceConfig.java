@@ -6,6 +6,8 @@ import io.github.joshuamatosdev.security.tenant.config.TenantBindingProperties;
 import io.github.joshuamatosdev.security.tenant.config.TenantIsolationProperties;
 import io.github.joshuamatosdev.security.tenant.datasource.pool.TenantPoolInspection;
 import javax.sql.DataSource;
+
+import io.github.joshuamatosdev.security.tenant.datasource.session.TenantSessionDataSourceProxy;
 import org.springframework.boot.autoconfigure.jdbc.DataSourceProperties;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.context.annotation.Bean;
@@ -19,8 +21,11 @@ import org.springframework.context.annotation.Primary;
  * <p>The concrete datasource strategy is selected by {@code tenant.isolation.mode}. ID isolation
  * wraps the shared runtime pool with {@link TenantSessionDataSourceProxy}; schema isolation selects
  * a configured schema on borrow; database isolation routes to a tenant-specific JDBC pool. Every
- * mode still binds the signed tenant claim so database defaults, checks, or RLS policies can verify
+ * mode still binds the signed tenant claim, so database defaults, checks, or RLS policies can verify
  * the application-selected tenant as defense in depth.
+ *
+ * <p>Why this exists: factory-owned composition keeps placement mode, runtime credentials, and
+ * signed-claim wiring in one auditable construction path.
  */
 @SystemTenantBoundary
 @Configuration

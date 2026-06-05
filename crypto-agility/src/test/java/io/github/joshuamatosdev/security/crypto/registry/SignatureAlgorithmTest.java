@@ -5,6 +5,12 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import org.junit.jupiter.api.Test;
 
+/**
+ * Signature Algorithm test coverage.
+ *
+ * <p>Why this is important to test: algorithm migration depends on identical signing semantics
+ * across providers and robust rejection of invalid key or signature material.
+ */
 class SignatureAlgorithmTest {
 
     @Test

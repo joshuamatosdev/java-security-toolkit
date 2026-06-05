@@ -1,5 +1,6 @@
 package io.github.joshuamatosdev.security.edge.config;
 
+import java.net.URI;
 import java.util.List;
 import org.springframework.boot.context.properties.ConfigurationProperties;
 import org.springframework.boot.context.properties.bind.ConstructorBinding;
@@ -15,6 +16,9 @@ import org.springframework.boot.context.properties.bind.ConstructorBinding;
  * @param hsts Strict-Transport-Security emission policy
  * @param identity trusted identity-provider issuer
  * @param serviceJwt service-plane JWT boundary
+ *
+ * <p>Why this exists: CORS and cookie policy are credentialed browser trust decisions, so their
+ * allow-lists need to be explicit and auditable.
  */
 @ConfigurationProperties(prefix = "edge")
 public record EdgePerimeterProperties(
@@ -77,8 +81,18 @@ public record EdgePerimeterProperties(
    */
   public record Identity(String issuerUri) {
     public Identity {
-      issuerUri =
-          issuerUri == null || issuerUri.isBlank() ? DEFAULT_ISSUER_URI : issuerUri.trim();
+      if (issuerUri == null) {
+        issuerUri = DEFAULT_ISSUER_URI;
+      } else if (issuerUri.isBlank()) {
+        throw new IllegalArgumentException("edge.identity.issuer-uri must not be blank");
+      } else if (!issuerUri.equals(issuerUri.strip())) {
+        throw new IllegalArgumentException(
+            "edge.identity.issuer-uri must not include leading or trailing whitespace");
+      } else if (containsControlCharacter(issuerUri)) {
+        throw new IllegalArgumentException(
+            "edge.identity.issuer-uri must not contain control characters");
+      }
+      validateIssuerUri(issuerUri);
     }
   }
 
@@ -91,13 +105,73 @@ public record EdgePerimeterProperties(
       if (audiences == null) {
         audiences = List.of(DEFAULT_SERVICE_AUDIENCE);
       } else {
-        audiences =
-            audiences.stream().map(String::trim).filter(audience -> !audience.isBlank()).toList();
         if (audiences.isEmpty()) {
           throw new IllegalArgumentException("edge.service-jwt.audiences must not be empty");
+        }
+        if (audiences.stream().anyMatch(audience -> audience == null || audience.isBlank())) {
+          throw new IllegalArgumentException(
+              "edge.service-jwt.audiences must not contain blank entries");
+        }
+        if (audiences.stream().anyMatch(audience -> !audience.equals(audience.strip()))) {
+          throw new IllegalArgumentException(
+              "edge.service-jwt.audiences must not include leading or trailing whitespace");
+        }
+        if (audiences.stream().anyMatch(EdgePerimeterProperties::containsControlCharacter)) {
+          throw new IllegalArgumentException(
+              "edge.service-jwt.audiences must not contain control characters");
         }
         audiences = List.copyOf(audiences);
       }
     }
+  }
+
+  private static boolean containsControlCharacter(String value) {
+    return value.chars().anyMatch(Character::isISOControl);
+  }
+
+  private static void validateIssuerUri(String issuerUri) {
+    final URI parsed;
+    try {
+      parsed = URI.create(issuerUri);
+    } catch (IllegalArgumentException ex) {
+      throw new IllegalArgumentException(
+          "edge.identity.issuer-uri must be an absolute HTTP(S) URI: " + issuerUri, ex);
+    }
+    String scheme = parsed.getScheme();
+    if (!"https".equalsIgnoreCase(scheme) && !"http".equalsIgnoreCase(scheme)
+        || parsed.getHost() == null) {
+      throw new IllegalArgumentException(
+          "edge.identity.issuer-uri must be an absolute HTTP(S) URI: " + issuerUri);
+    }
+    if (!hasValidExplicitHttpPort(parsed)) {
+      throw new IllegalArgumentException(
+          "edge.identity.issuer-uri must include a valid HTTP(S) port when a port is explicit: "
+              + issuerUri);
+    }
+    if ("http".equalsIgnoreCase(scheme) && !isLoopbackHost(parsed.getHost())) {
+      throw new IllegalArgumentException(
+          "edge.identity.issuer-uri must use HTTPS except for loopback local development: "
+              + issuerUri);
+    }
+    if (parsed.getRawUserInfo() != null) {
+      throw new IllegalArgumentException(
+          "edge.identity.issuer-uri must not include user-info credentials: " + issuerUri);
+    }
+    if (parsed.getRawQuery() != null || parsed.getRawFragment() != null) {
+      throw new IllegalArgumentException(
+          "edge.identity.issuer-uri must not include query or fragment components: " + issuerUri);
+    }
+  }
+
+  private static boolean isLoopbackHost(String host) {
+    return "localhost".equalsIgnoreCase(host)
+        || "127.0.0.1".equals(host)
+        || "::1".equals(host)
+        || "[::1]".equals(host);
+  }
+
+  private static boolean hasValidExplicitHttpPort(URI parsed) {
+    String rawAuthority = parsed.getRawAuthority();
+    return parsed.getPort() <= 65535 && (rawAuthority == null || !rawAuthority.endsWith(":"));
   }
 }

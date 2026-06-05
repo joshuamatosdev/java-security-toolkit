@@ -21,6 +21,9 @@ import java.util.Set;
  * <p>This is what distinguishes resource-aware authorization from role-only checks: the same role
  * grants different access depending on whether it is held tenant-wide or only inside the owning
  * organization, and per action.
+ *
+ * <p>Why this exists: policy rules keep role-to-action grants data-shaped so deny-overrides
+ * behavior can change without controller rewrites.
  */
 public final class EffectivePolicy {
 

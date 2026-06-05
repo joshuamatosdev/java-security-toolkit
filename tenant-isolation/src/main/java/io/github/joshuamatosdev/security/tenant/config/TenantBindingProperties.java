@@ -11,6 +11,9 @@ import org.springframework.boot.context.properties.ConfigurationProperties;
  *
  * @param claimSecret HMAC secret shared with the PostgreSQL verifier
  * @param systemOpsPassword password for the read-only system-ops pool
+ *
+ * <p>Why this exists: tenant placement is a security boundary, so validation rejects ambiguous or
+ * unsafe configuration before any datasource can route traffic.
  */
 @ConfigurationProperties("tenant.binding")
 public record TenantBindingProperties(String claimSecret, String systemOpsPassword) {
@@ -21,7 +24,10 @@ public record TenantBindingProperties(String claimSecret, String systemOpsPasswo
      * @return populated claim secret
      */
     public String requireClaimSecret() {
-        return requireNonBlank(claimSecret, "tenant.binding.claim-secret is required for tenant session binding");
+        return requireNonBlank(
+                claimSecret,
+                "tenant.binding.claim-secret",
+                "tenant.binding.claim-secret is required for tenant session binding");
     }
 
     /**
@@ -32,6 +38,7 @@ public record TenantBindingProperties(String claimSecret, String systemOpsPasswo
     public String requireSystemOpsPasswordForIdMode() {
         return requireNonBlank(
                 systemOpsPassword,
+                "tenant.binding.system-ops-password",
                 "tenant.binding.system-ops-password is required when tenant.isolation.mode=id");
     }
 
@@ -44,9 +51,16 @@ public record TenantBindingProperties(String claimSecret, String systemOpsPasswo
         return systemOpsPassword == null ? "" : systemOpsPassword;
     }
 
-    private static String requireNonBlank(final String value, final String message) {
+    private static String requireNonBlank(
+            final String value, final String property, final String missingMessage) {
         if (value == null || value.isBlank()) {
-            throw new IllegalStateException(message);
+            throw new IllegalStateException(missingMessage);
+        }
+        if (!value.equals(value.strip())) {
+            throw new IllegalStateException(property + " must not include leading or trailing whitespace");
+        }
+        if (value.chars().anyMatch(Character::isISOControl)) {
+            throw new IllegalStateException(property + " must not contain control characters");
         }
         return value;
     }

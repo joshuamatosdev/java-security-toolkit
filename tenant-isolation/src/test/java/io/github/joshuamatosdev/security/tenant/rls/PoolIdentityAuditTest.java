@@ -25,6 +25,9 @@ import org.springframework.context.ConfigurableApplicationContext;
  * ships with the artifact: an integration test connects as the test database's bootstrap superuser
  * and would pass while production stayed vulnerable. Here the runtime pool is deliberately wired as
  * the non-superuser {@code tenant_user}, so a live runtime assertion is the truthful check.
+ *
+ * <p>Why this is important to test: RLS and transaction ordering only prove isolation when
+ * PostgreSQL enforces them, not when application code merely assumes them.
  */
 class PoolIdentityAuditTest extends AbstractRlsTest {
 

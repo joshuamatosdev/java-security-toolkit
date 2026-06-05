@@ -8,6 +8,12 @@ import io.github.joshuamatosdev.security.crypto.provider.SignatureProviders;
 import java.util.List;
 import org.junit.jupiter.api.Test;
 
+/**
+ * Signature Provider Registry test coverage.
+ *
+ * <p>Why this is important to test: algorithm migration depends on identical signing semantics
+ * across providers and robust rejection of invalid key or signature material.
+ */
 class SignatureProviderRegistryTest {
 
     private final SignatureProviderRegistry registry =

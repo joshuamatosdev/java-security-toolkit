@@ -16,6 +16,9 @@ import org.jspecify.annotations.Nullable;
  * @param specVersion the CycloneDX schema version the bill was written against
  * @param serialNumber the unique identifier of this bill (a {@code urn:uuid:...})
  * @param components the enumerated dependency set
+ *
+ * <p>Why this exists: SBOM parsing turns generated build evidence into assertions so dependency
+ * inventory drift breaks tests instead of reviews.
  */
 public record SbomDocument(
     @Nullable String bomFormat,

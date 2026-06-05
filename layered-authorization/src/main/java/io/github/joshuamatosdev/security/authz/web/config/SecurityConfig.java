@@ -3,6 +3,7 @@ package io.github.joshuamatosdev.security.authz.web.config;
 import io.github.joshuamatosdev.security.authz.policy.Roles;
 import io.github.joshuamatosdev.security.authz.web.document.DocumentController;
 import io.github.joshuamatosdev.security.authz.web.support.DemoAccounts;
+import io.github.joshuamatosdev.security.authz.web.support.RequestContextResolver;
 import io.github.joshuamatosdev.security.authz.web.gate.AccessRule;
 import io.github.joshuamatosdev.security.authz.web.gate.SecurityUrlGroup;
 import jakarta.servlet.DispatcherType;
@@ -26,6 +27,9 @@ import org.springframework.security.web.SecurityFilterChain;
  *
  * <p>Fine-grained, resource-aware decisions are NOT made here (the gate cannot see the resource);
  * they are made in the service via {@code AuthorizationService.enforce} — see {@link DocumentController}.
+ *
+ * <p>Why this exists: security configuration wires the demo route gate and identities in one
+ * Spring boundary that is easy to review.
  */
 @Configuration
 public class SecurityConfig {
@@ -53,8 +57,13 @@ public class SecurityConfig {
     }
 
     /**
-     * Two demo accounts so the module is runnable end-to-end. The passwords are obvious local-only
+     * Demo accounts so the module is runnable end-to-end. The passwords are obvious local-only
      * placeholders ({@code {noop}} = no hashing) — never a real or production-shaped credential.
+     *
+     * <p>Two are human members/operators; the third ({@code svc-report}) is a non-interactive machine
+     * caller carrying the {@link RequestContextResolver#SERVICE_CALLER_AUTHORITY} marker, so the
+     * boundary resolves it to a {@code ServicePrincipal} (audited by client id) rather than a user —
+     * the running showcase exercises both kinds of the sealed principal model.
      *
      * <p>Gated behind {@code showcase.demo-identity=true}, which defaults to off. A deployment that
      * does not explicitly opt in gets no in-memory users, so this demo credential source can never
@@ -67,6 +76,11 @@ public class SecurityConfig {
             User.withUsername(DemoAccounts.MEMBER_USERNAME).password(DemoAccounts.PASSWORD).roles(Roles.MEMBER).build();
         final UserDetails admin =
             User.withUsername(DemoAccounts.ADMIN_USERNAME).password(DemoAccounts.PASSWORD).roles(Roles.PLATFORM_ADMIN).build();
-        return new InMemoryUserDetailsManager(member, admin);
+        final UserDetails service =
+            User.withUsername(DemoAccounts.SERVICE_USERNAME)
+                .password(DemoAccounts.PASSWORD)
+                .authorities("ROLE_" + Roles.MEMBER, RequestContextResolver.SERVICE_CALLER_AUTHORITY)
+                .build();
+        return new InMemoryUserDetailsManager(member, admin, service);
     }
 }

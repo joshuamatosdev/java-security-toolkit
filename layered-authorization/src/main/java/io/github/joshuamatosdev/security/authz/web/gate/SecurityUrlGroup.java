@@ -12,6 +12,9 @@ import java.util.Objects;
  * classification. This is the cheap first gate that runs before any domain code. It is
  * <em>necessary but not sufficient</em> — it can see the route and the caller's roles, but not the
  * resource, so object-level access is decided later by the fine-grained policy.
+ *
+ * <p>Why this exists: the route gate is the coarse deny-by-default layer that blocks impossible
+ * requests before resource policy work begins.
  */
 public enum SecurityUrlGroup {
     PUBLIC_HEALTH(Access.PUBLIC_GET, HealthRoutes.HEALTH_PATH),

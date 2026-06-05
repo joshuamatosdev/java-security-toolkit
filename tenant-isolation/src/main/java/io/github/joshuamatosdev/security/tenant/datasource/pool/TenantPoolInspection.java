@@ -8,6 +8,9 @@ import java.util.List;
  * <p>This interface exists so health and metrics code can observe pool state without unwrapping the
  * tenant-scoped {@link javax.sql.DataSource} to a raw vendor pool that can borrow unguarded
  * connections.
+ *
+ * <p>Why this exists: pool inspection makes runtime pool identity observable so tests can prove
+ * least-privilege tenant connections are really in use.
  */
 public interface TenantPoolInspection {
 

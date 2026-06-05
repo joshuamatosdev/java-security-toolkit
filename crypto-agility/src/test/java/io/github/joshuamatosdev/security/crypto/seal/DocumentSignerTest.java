@@ -1,8 +1,10 @@
 package io.github.joshuamatosdev.security.crypto.seal;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import io.github.joshuamatosdev.security.crypto.key.KeyHandle;
+import io.github.joshuamatosdev.security.crypto.provider.SignatureProvider;
 import io.github.joshuamatosdev.security.crypto.provider.SignatureProviders;
 import io.github.joshuamatosdev.security.crypto.registry.SignatureAlgorithm;
 import io.github.joshuamatosdev.security.crypto.registry.SignatureProviderRegistry;
@@ -15,6 +17,9 @@ import org.junit.jupiter.params.provider.EnumSource;
 /**
  * The agility property under test: one {@link DocumentSigner} call site seals and verifies under
  * every algorithm — classical and post-quantum — with no per-algorithm code.
+ *
+ * <p>Why this is important to test: algorithm migration depends on identical signing semantics
+ * across providers and robust rejection of invalid key or signature material.
  */
 class DocumentSignerTest {
 
@@ -87,5 +92,148 @@ class DocumentSignerTest {
                         sealed.signature());
 
         assertThat(signer.verify(relabeled)).isFalse();
+    }
+
+    @Test
+    void verifyRejectsADocumentWhoseKeyIdWasTampered() {
+        final SignedDocument sealed = signer.seal(keyFor(SignatureAlgorithm.ED25519), DOCUMENT);
+        final SignedDocument tamperedKeyId =
+                new SignedDocument(
+                        sealed.alg(),
+                        "attacker-key-id",
+                        sealed.publicKey(),
+                        sealed.payload(),
+                        sealed.signature());
+
+        assertThat(signer.verify(tamperedKeyId)).isFalse();
+    }
+
+    @Test
+    void signedDocumentEqualityUsesByteContentRatherThanArrayIdentity() {
+        final SignedDocument sealed = signer.seal(keyFor(SignatureAlgorithm.ED25519), DOCUMENT);
+        final SignedDocument sameEnvelope =
+                new SignedDocument(
+                        sealed.alg(),
+                        sealed.keyId(),
+                        sealed.publicKey(),
+                        sealed.payload(),
+                        sealed.signature());
+
+        assertThat(sameEnvelope).isEqualTo(sealed);
+        assertThat(sameEnvelope.hashCode()).isEqualTo(sealed.hashCode());
+    }
+
+    @Test
+    void verifyRejectsUnknownAlgLabelWithoutThrowing() {
+        final SignedDocument sealed = signer.seal(keyFor(SignatureAlgorithm.ED25519), DOCUMENT);
+        final SignedDocument unknownAlgorithm =
+                new SignedDocument(
+                        "none",
+                        sealed.keyId(),
+                        sealed.publicKey(),
+                        sealed.payload(),
+                        sealed.signature());
+
+        assertThat(signer.verify(unknownAlgorithm)).isFalse();
+    }
+
+    @Test
+    void verifyRejectsKnownAlgLabelWhenNoProviderIsRegisteredWithoutThrowing() {
+        final SignedDocument sealed = signer.seal(keyFor(SignatureAlgorithm.ECDSA_P256), DOCUMENT);
+        final DocumentSigner classicalOnlySigner =
+                new DocumentSigner(new SignatureProviderRegistry(List.of(SignatureProviders.ed25519())));
+
+        assertThat(classicalOnlySigner.verify(sealed)).isFalse();
+    }
+
+    @Test
+    void constructorRejectsANullRegistry() {
+        assertThatThrownBy(() -> new DocumentSigner(null))
+                .isInstanceOf(NullPointerException.class)
+                .hasMessage("registry must not be null");
+    }
+
+    @Test
+    void verifyDoesNotHideProviderProgrammingErrors() {
+        final SignedDocument sealed = signer.seal(keyFor(SignatureAlgorithm.ED25519), DOCUMENT);
+        final SignatureProvider brokenProvider =
+                new SignatureProvider() {
+                    @Override
+                    public SignatureAlgorithm algorithm() {
+                        return SignatureAlgorithm.ED25519;
+                    }
+
+                    @Override
+                    public KeyHandle generateKey(final String keyId) {
+                        throw new UnsupportedOperationException("not needed");
+                    }
+
+                    @Override
+                    public boolean verify(
+                            final byte[] publicKey, final byte[] payload, final byte[] signature) {
+                        throw new IllegalArgumentException("provider invariant failed");
+                    }
+                };
+        final DocumentSigner brokenSigner =
+                new DocumentSigner(new SignatureProviderRegistry(List.of(brokenProvider)));
+
+        assertThatThrownBy(() -> brokenSigner.verify(sealed))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessage("provider invariant failed");
+    }
+
+    @Test
+    void verifyRejectsANullOrMalformedEnvelopeWithoutThrowing() {
+        assertThat(signer.verify(null)).isFalse();
+
+        assertThatThrownBy(
+                        () ->
+                                new SignedDocument(
+                                        null,
+                                        "k1",
+                                        new byte[] {1},
+                                        DOCUMENT,
+                                        new byte[] {2}))
+                .isInstanceOf(NullPointerException.class)
+                .hasMessageContaining("alg must not be null");
+    }
+
+    @Test
+    void signedDocumentRejectsBlankRequiredMetadata() {
+        assertThatThrownBy(
+                        () -> new SignedDocument(" ", "k1", new byte[] {1}, DOCUMENT, new byte[] {2}))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessage("alg must not be blank");
+
+        assertThatThrownBy(
+                        () -> new SignedDocument("EdDSA", " ", new byte[] {1}, DOCUMENT, new byte[] {2}))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessage("keyId must not be blank");
+    }
+
+    @Test
+    void signedDocumentRejectsEdgePaddedRequiredMetadata() {
+        assertThatThrownBy(
+                        () -> new SignedDocument(" EdDSA", "k1", new byte[] {1}, DOCUMENT, new byte[] {2}))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessage("alg must not contain leading or trailing whitespace");
+
+        assertThatThrownBy(
+                        () -> new SignedDocument("EdDSA", "k1 ", new byte[] {1}, DOCUMENT, new byte[] {2}))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessage("keyId must not contain leading or trailing whitespace");
+    }
+
+    @Test
+    void signedDocumentRejectsControlCharactersInRequiredMetadata() {
+        assertThatThrownBy(
+                        () -> new SignedDocument("EdDSA\nforged", "k1", new byte[] {1}, DOCUMENT, new byte[] {2}))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessage("alg must not contain control characters");
+
+        assertThatThrownBy(
+                        () -> new SignedDocument("EdDSA", "k1\rforged", new byte[] {1}, DOCUMENT, new byte[] {2}))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessage("keyId must not contain control characters");
     }
 }

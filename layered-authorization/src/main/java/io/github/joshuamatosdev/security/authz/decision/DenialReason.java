@@ -2,6 +2,9 @@ package io.github.joshuamatosdev.security.authz.decision;
 
 /**
  * Why an access was denied — recorded in the audit trail and surfaced as the deny cause.
+ *
+ * <p>Why this exists: sealed decision types make allow and deny outcomes carry their enforcement
+ * and audit rationale explicitly.
  */
 public enum DenialReason {
     /**

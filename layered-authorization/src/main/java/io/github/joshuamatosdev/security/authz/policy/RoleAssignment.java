@@ -13,11 +13,14 @@ import java.util.Objects;
  *   <li>{@code TENANT} scope — {@code scopeId} is {@code null}; the role is held tenant-wide.
  *   <li>{@code ORGANIZATION} scope — {@code scopeId} is the organization the role is held in.
  * </ul>
+ *
+ * <p>Why this exists: the policy vocabulary names actions, effects, roles, and scopes once so
+ * route and resource checks use the same language.
  */
 public record RoleAssignment(String roleKey, PolicyScopeType scopeType, @Nullable OrganizationId scopeId) {
 
     public RoleAssignment {
-        Objects.requireNonNull(roleKey, "roleKey must not be null");
+        roleKey = requireNonBlank(roleKey);
         Objects.requireNonNull(scopeType, "scopeType must not be null");
         if (scopeType == PolicyScopeType.ORGANIZATION && scopeId == null) {
             throw new IllegalArgumentException("an ORGANIZATION-scoped assignment requires a scopeId");
@@ -39,5 +42,19 @@ public record RoleAssignment(String roleKey, PolicyScopeType scopeType, @Nullabl
      */
     public static RoleAssignment organization(final String roleKey, final OrganizationId organization) {
         return new RoleAssignment(roleKey, PolicyScopeType.ORGANIZATION, organization);
+    }
+
+    private static String requireNonBlank(final String value) {
+        Objects.requireNonNull(value, "roleKey must not be null");
+        if (value.isBlank()) {
+            throw new IllegalArgumentException("roleKey must not be blank");
+        }
+        if (!value.equals(value.strip())) {
+            throw new IllegalArgumentException("roleKey must not include leading or trailing whitespace");
+        }
+        if (value.chars().anyMatch(Character::isISOControl)) {
+            throw new IllegalArgumentException("roleKey must not contain control characters");
+        }
+        return value;
     }
 }

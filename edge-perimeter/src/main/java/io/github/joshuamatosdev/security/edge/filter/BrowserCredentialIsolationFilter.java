@@ -1,11 +1,14 @@
 package io.github.joshuamatosdev.security.edge.filter;
 
+import io.github.joshuamatosdev.security.edge.chain.ServiceApiSecurityChainConfig;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.core.Ordered;
 import org.springframework.core.annotation.Order;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.server.reactive.ServerHttpRequest;
+import org.springframework.security.web.server.util.matcher.ServerWebExchangeMatcher;
+import org.springframework.security.web.server.util.matcher.ServerWebExchangeMatchers;
 import org.springframework.stereotype.Component;
 import org.springframework.web.server.ServerWebExchange;
 import org.springframework.web.server.WebFilter;
@@ -26,6 +29,9 @@ import reactor.core.publisher.Mono;
  * <p>The service plane is explicitly exempt — that plane's whole contract is to accept bearer
  * tokens, so stripping there would break it. Runs at {@link Ordered#HIGHEST_PRECEDENCE} so the
  * header is gone before the security chains run.
+ *
+ * <p>Why this exists: browser and service credential planes must not merge through an
+ * attacker-supplied Authorization header.
  */
 @Component
 @Order(Ordered.HIGHEST_PRECEDENCE)
@@ -33,24 +39,30 @@ public class BrowserCredentialIsolationFilter implements WebFilter {
 
   private static final Logger log = LoggerFactory.getLogger(BrowserCredentialIsolationFilter.class);
 
-  /** Base path of the service plane (no trailing slash). */
-  public static final String SERVICE_PLANE_BASE = "/api/service";
-
-  /** Path prefix of the service plane, whose contract legitimately accepts bearer tokens. */
-  public static final String SERVICE_PLANE_PREFIX = SERVICE_PLANE_BASE + "/";
+  private static final ServerWebExchangeMatcher SERVICE_PLANE_MATCHER =
+      ServerWebExchangeMatchers.pathMatchers(ServiceApiSecurityChainConfig.SERVICE_MATCHER);
 
   @Override
   public Mono<Void> filter(ServerWebExchange exchange, WebFilterChain chain) {
     ServerHttpRequest request = exchange.getRequest();
     String path = request.getURI().getPath();
 
-    // Match the service security chain's /api/service/** matcher exactly, which owns the bare
-    // /api/service base as well as everything under it. If this predicate were narrower, the filter
-    // would strip the credential of a request the service plane then tries to authenticate.
-    if (path.equals(SERVICE_PLANE_BASE) || path.startsWith(SERVICE_PLANE_PREFIX)) {
-      return chain.filter(exchange);
-    }
+    // Match the service security chain's /api/service/** matcher exactly, including Spring's path
+    // parsing rules for matrix parameters and encoded separators. A hand-written prefix check can
+    // diverge from that matcher and strip a credential from a request the service plane owns.
+    return SERVICE_PLANE_MATCHER
+        .matches(exchange)
+        .flatMap(
+            match -> {
+              if (match.isMatch()) {
+                return chain.filter(exchange);
+              }
+              return filterBrowserPlane(exchange, chain, request, path);
+            });
+  }
 
+  private Mono<Void> filterBrowserPlane(
+      ServerWebExchange exchange, WebFilterChain chain, ServerHttpRequest request, String path) {
     if (request.getHeaders().containsKey(HttpHeaders.AUTHORIZATION)) {
       log.warn(
           "inbound_credential_header_stripped header={} method={} path={} remote={}",

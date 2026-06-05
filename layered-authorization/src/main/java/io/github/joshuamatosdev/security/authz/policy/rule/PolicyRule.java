@@ -14,11 +14,14 @@ import java.util.Objects;
  * {@link RoleAssignment}s and the resource's organization (see {@link EffectivePolicy}).
  *
  * <p>Changing what a role may do is a change to this rule set — data, not code.
+ *
+ * <p>Why this exists: policy rules keep role-to-action grants data-shaped so deny-overrides
+ * behavior can change without controller rewrites.
  */
 public record PolicyRule(String roleKey, Action action, PolicyEffect effect, PolicyScopeType scopeType) {
 
     public PolicyRule {
-        Objects.requireNonNull(roleKey, "roleKey must not be null");
+        roleKey = requireNonBlank(roleKey);
         Objects.requireNonNull(action, "action must not be null");
         Objects.requireNonNull(effect, "effect must not be null");
         Objects.requireNonNull(scopeType, "scopeType must not be null");
@@ -30,5 +33,19 @@ public record PolicyRule(String roleKey, Action action, PolicyEffect effect, Pol
 
     public static PolicyRule deny(final String roleKey, final Action action, final PolicyScopeType scopeType) {
         return new PolicyRule(roleKey, action, PolicyEffect.DENY, scopeType);
+    }
+
+    private static String requireNonBlank(final String value) {
+        Objects.requireNonNull(value, "roleKey must not be null");
+        if (value.isBlank()) {
+            throw new IllegalArgumentException("roleKey must not be blank");
+        }
+        if (!value.equals(value.strip())) {
+            throw new IllegalArgumentException("roleKey must not include leading or trailing whitespace");
+        }
+        if (value.chars().anyMatch(Character::isISOControl)) {
+            throw new IllegalArgumentException("roleKey must not contain control characters");
+        }
+        return value;
     }
 }

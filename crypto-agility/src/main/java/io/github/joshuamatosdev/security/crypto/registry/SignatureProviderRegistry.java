@@ -15,6 +15,9 @@ import java.util.Map;
  *
  * <p>The registry is immutable after construction and rejects wiring two providers for the same
  * algorithm, so the algorithm-to-provider mapping is unambiguous and fixed at startup.
+ *
+ * <p>Why this exists: registry types make algorithm identity and provider lookup explicit so
+ * migrations change configuration rather than callers.
  */
 public final class SignatureProviderRegistry {
 

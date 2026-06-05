@@ -40,7 +40,8 @@ facts use database-owned UUIDv7 identifiers.
 - Deny-by-default route protection.
 - Typed principals instead of bare strings.
 - Immutable request context resolved once at the web boundary.
-- Resource-aware policy for `READ`, `UPDATE`, and `DELETE`.
+- Resource-aware policy for `READ`, `UPDATE`, and `DELETE`. `UPDATE` is modeled
+  in the policy layer; the HTTP surface exposes `READ` and `DELETE`.
 - Tenant, organization, owner, and role-scope checks.
 - Deny-overrides behavior.
 - Audit records for every allow and deny.

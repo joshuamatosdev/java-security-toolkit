@@ -5,6 +5,9 @@ import org.springframework.boot.autoconfigure.SpringBootApplication;
 
 /**
  * Boots the layered-authorization showcase. Component-scans the {@code authz} package and its web shell.
+ *
+ * <p>Why this exists: a runnable Spring boundary keeps the layered authorization pattern
+ * executable and easy to test end to end.
  */
 @SpringBootApplication
 public class LayeredAuthorizationApplication {

@@ -16,6 +16,9 @@ import java.time.Clock;
  * Composition root for the framework-free decision core. The pure classes carry no Spring
  * annotations so they stay independently testable and liftable; this configuration is the single
  * place that wires them together as beans.
+ *
+ * <p>Why this exists: security configuration wires the demo route gate and identities in one
+ * Spring boundary that is easy to review.
  */
 @Configuration
 public class AuthorizationConfig {

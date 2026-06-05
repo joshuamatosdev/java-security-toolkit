@@ -13,6 +13,8 @@ import reactor.core.publisher.Mono;
  * Unit-level proof of the one conditional header, HSTS. The always-on headers are asserted once;
  * the matrix that matters is when {@code Strict-Transport-Security} is emitted: unconditionally
  * when configured, on a forwarded HTTPS proto, and never on plain HTTP by default.
+ *
+ * <p>Why this is important to test: header regressions weaken browser hardening on every route.
  */
 class SecurityHeadersFilterTest {
 
@@ -42,6 +44,19 @@ class SecurityHeadersFilterTest {
         .isEqualTo(SecurityHeadersFilter.CONTENT_SECURITY_POLICY_VALUE);
     assertThat(headers.getFirst(SecurityHeadersFilter.X_XSS_PROTECTION_HEADER))
         .isEqualTo(SecurityHeadersFilter.X_XSS_PROTECTION_VALUE);
+  }
+
+  @Test
+  void isolationHeadersAndTightenedCspAreAlwaysSet() {
+    HttpHeaders headers = runFilter(new SecurityHeadersFilter(false), plainHttpExchange());
+
+    assertThat(headers.getFirst(SecurityHeadersFilter.CROSS_ORIGIN_OPENER_POLICY_HEADER))
+        .isEqualTo(SecurityHeadersFilter.CROSS_ORIGIN_OPENER_POLICY_VALUE);
+    assertThat(headers.getFirst(SecurityHeadersFilter.CROSS_ORIGIN_RESOURCE_POLICY_HEADER))
+        .isEqualTo(SecurityHeadersFilter.CROSS_ORIGIN_RESOURCE_POLICY_VALUE);
+    assertThat(headers.getFirst(SecurityHeadersFilter.CONTENT_SECURITY_POLICY_HEADER))
+        .contains("script-src 'self'")
+        .contains("form-action 'self'");
   }
 
   @Test
@@ -85,5 +100,17 @@ class SecurityHeadersFilterTest {
     HttpHeaders headers = runFilter(new SecurityHeadersFilter(false), exchange);
 
     assertThat(headers.getFirst(SecurityHeadersFilter.STRICT_TRANSPORT_SECURITY_HEADER)).isNull();
+  }
+
+  @Test
+  void actualHttpsSchemeStillGetsHstsWhenForwardedProtoIsHttp() {
+    MockServerWebExchange exchange =
+        MockServerWebExchange.from(
+            MockServerHttpRequest.get("https://edge.local/x").header("X-Forwarded-Proto", "http"));
+
+    HttpHeaders headers = runFilter(new SecurityHeadersFilter(false), exchange);
+
+    assertThat(headers.getFirst(SecurityHeadersFilter.STRICT_TRANSPORT_SECURITY_HEADER))
+        .isEqualTo(SecurityHeadersFilter.STRICT_TRANSPORT_SECURITY_VALUE);
   }
 }

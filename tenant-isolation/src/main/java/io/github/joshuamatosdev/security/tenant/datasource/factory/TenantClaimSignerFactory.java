@@ -8,14 +8,19 @@ import java.util.Objects;
 
 /**
  * Creates tenant claim signers for database-enforced tenant checks.
+ *
+ * <p>Why this exists: factory-owned composition keeps placement mode, runtime credentials, and
+ * signed-claim wiring in one auditable construction path.
  */
 final class TenantClaimSignerFactory {
 
     /**
      * Tenant claim lifetime. The claim is re-minted on every connection borrow and verified per
-     * statement, so this must exceed the longest single borrow.
+     * statement, so it need only exceed the longest single borrow — kept short so a captured claim
+     * has a narrow replay window. Two minutes is generous headroom over any realistic borrow while
+     * being far tighter than the prior thirty.
      */
-    private static final Duration CLAIM_TTL = Duration.ofMinutes(30);
+    private static final Duration CLAIM_TTL = Duration.ofSeconds(120);
 
     private final TenantBindingProperties bindingProperties;
 

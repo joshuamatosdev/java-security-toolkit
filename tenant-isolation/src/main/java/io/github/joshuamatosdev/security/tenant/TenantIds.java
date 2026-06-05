@@ -12,6 +12,9 @@ import io.github.joshuamatosdev.security.tenant.binding.TenantContext;
  * platform-level observability and cross-tenant rollups can read across tenants. It is never an
  * ordinary request identity — {@link TenantContext} rejects it from the normal {@code runAs}/{@code
  * supplyAs} paths.
+ *
+ * <p>Why this exists: stable fictional tenant IDs let configuration and tests prove isolation
+ * behavior without using production identifiers.
  */
 @SystemTenantBoundary
 public final class TenantIds {

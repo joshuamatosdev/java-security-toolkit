@@ -13,6 +13,12 @@ import org.springframework.security.oauth2.core.ClientAuthenticationMethod;
 import org.springframework.security.oauth2.core.oidc.IdTokenClaimNames;
 import org.springframework.security.oauth2.jwt.Jwt;
 
+/**
+ * Oidc Id Token Boundary Validator test coverage.
+ *
+ * <p>Why this is important to test: browser sessions and service JWTs are separate credential
+ * planes, and validator drift could accept the wrong token.
+ */
 class OidcIdTokenBoundaryValidatorTest {
 
   private static final String ISSUER = EdgePerimeterProperties.DEFAULT_ISSUER_URI;

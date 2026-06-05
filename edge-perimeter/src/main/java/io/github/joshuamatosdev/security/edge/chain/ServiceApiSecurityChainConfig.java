@@ -13,6 +13,7 @@ import org.springframework.security.authentication.AbstractAuthenticationToken;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.config.web.server.ServerHttpSecurity;
 import org.springframework.security.core.GrantedAuthority;
+import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.security.oauth2.core.DelegatingOAuth2TokenValidator;
 import org.springframework.security.oauth2.core.OAuth2TokenValidator;
 import org.springframework.security.oauth2.jwt.JwtClaimNames;
@@ -20,7 +21,6 @@ import org.springframework.security.oauth2.jwt.JwtClaimValidator;
 import org.springframework.security.oauth2.jwt.JwtIssuerValidator;
 import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.security.oauth2.server.resource.authentication.JwtAuthenticationConverter;
-import org.springframework.security.oauth2.server.resource.authentication.JwtGrantedAuthoritiesConverter;
 import org.springframework.security.oauth2.server.resource.authentication.JwtAuthenticationToken;
 import org.springframework.security.oauth2.server.resource.authentication.ReactiveJwtAuthenticationConverterAdapter;
 import org.springframework.security.web.server.SecurityWebFilterChain;
@@ -42,12 +42,17 @@ import reactor.core.publisher.Mono;
  * <p>A missing or invalid token yields {@code 401} with a {@code WWW-Authenticate: Bearer}
  * challenge (resource-server default); a valid token lacking the required role yields {@code 403}.
  * That 401-vs-403 split is the authn-vs-authz boundary made observable.
+ *
+ * <p>Why this exists: separate security chains encode browser-session and service-token
+ * authentication so one credential model cannot authorize the other.
  */
 @Configuration
 public class ServiceApiSecurityChainConfig {
 
   /** Path prefix this chain owns. */
   public static final String SERVICE_MATCHER = "/api/service/**";
+  private static final String ROLES_CLAIM = "roles";
+  private static final String ROLE_AUTHORITY_PREFIX = "ROLE_";
 
   @Bean
   @Order(1)
@@ -108,11 +113,21 @@ public class ServiceApiSecurityChainConfig {
 
   private static boolean hasAcceptedAudience(Object aud, List<String> audiences) {
     if (aud instanceof String audience) {
+      if (hasInvalidClaimText(audience)) {
+        return false;
+      }
       return audiences.contains(audience);
     }
     if (aud instanceof Collection<?> audienceValues) {
+      if (audienceValues.stream().anyMatch(audience -> !(audience instanceof String))) {
+        return false;
+      }
+      if (audienceValues.stream()
+          .map(String.class::cast)
+          .anyMatch(ServiceApiSecurityChainConfig::hasInvalidClaimText)) {
+        return false;
+      }
       return audienceValues.stream()
-          .filter(String.class::isInstance)
           .map(String.class::cast)
           .anyMatch(audiences::contains);
     }
@@ -131,16 +146,34 @@ public class ServiceApiSecurityChainConfig {
    * accepting both shapes would mask an issuer minting the wrong claim format.
    */
   static Converter<Jwt, Mono<AbstractAuthenticationToken>> reactiveRolesConverter() {
-    var authorities = new JwtGrantedAuthoritiesConverter();
-    authorities.setAuthorityPrefix("ROLE_");
-    authorities.setAuthoritiesClaimName("roles");
-
     var jwtConverter = new JwtAuthenticationConverter();
     jwtConverter.setJwtGrantedAuthoritiesConverter(
-        jwt -> {
-          Collection<GrantedAuthority> mapped = authorities.convert(jwt);
-          return mapped == null ? List.<GrantedAuthority>of() : mapped;
-        });
+        ServiceApiSecurityChainConfig::serviceRoleAuthorities);
     return new ReactiveJwtAuthenticationConverterAdapter(jwtConverter);
+  }
+
+  private static Collection<GrantedAuthority> serviceRoleAuthorities(Jwt jwt) {
+    Object rawRoles = jwt.getClaim(ROLES_CLAIM);
+    if (!(rawRoles instanceof Collection<?> roles)) {
+      return List.of();
+    }
+    if (roles.stream().anyMatch(role -> !(role instanceof String))) {
+      return List.of();
+    }
+    if (roles.stream()
+        .map(String.class::cast)
+        .anyMatch(ServiceApiSecurityChainConfig::hasInvalidClaimText)) {
+      return List.of();
+    }
+    return roles.stream()
+        .map(String.class::cast)
+        .map(role -> (GrantedAuthority) new SimpleGrantedAuthority(ROLE_AUTHORITY_PREFIX + role))
+        .toList();
+  }
+
+  private static boolean hasInvalidClaimText(String value) {
+    return value.isBlank()
+        || !value.equals(value.strip())
+        || value.chars().anyMatch(Character::isISOControl);
   }
 }

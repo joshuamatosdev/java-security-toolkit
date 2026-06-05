@@ -13,6 +13,9 @@ import io.github.joshuamatosdev.security.authz.policy.rule.PolicyRule;
  * DENY therefore revokes tenant-wide holders, not organization-scoped holders — mirroring the rule that
  * an organization-scoped grant is not tenant-wide access. To revoke a role across both scopes, author a
  * DENY at each scope.
+ *
+ * <p>Why this exists: the policy vocabulary names actions, effects, roles, and scopes once so
+ * route and resource checks use the same language.
  */
 public enum PolicyEffect {
     ALLOW,

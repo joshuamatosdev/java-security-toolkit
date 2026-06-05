@@ -67,9 +67,11 @@ leaves it untouched on `/api/service/**`, whose contract is to accept bearer tok
 
 ### Deny-by-default routing, narrow exception before broad gate
 
-The browser route map ends in `anyExchange().authenticated()` with no permit-all
-fallthrough. Within it, a **narrow exception is registered before the broad gate it
-sits under**, because Spring Security evaluates matchers first-match-wins:
+The browser route map ends in `anyExchange().denyAll()` with no implicit
+authenticated catch-all. Ordinary browser endpoints, such as `/api/documents`, are
+registered explicitly before that fallback. Within the explicit map, a **narrow
+exception is registered before the broad gate it sits under**, because Spring
+Security evaluates matchers first-match-wins:
 
 ```
 /api/admin/audit-export   →  hasAnyAuthority(ROLE_auditor, ROLE_admin)   // narrow, first

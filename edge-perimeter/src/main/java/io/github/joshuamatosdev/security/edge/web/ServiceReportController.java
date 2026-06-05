@@ -8,6 +8,9 @@ import org.springframework.web.bind.annotation.RestController;
  * Service-plane surface under {@code /api/service/**}, reachable only with a valid bearer JWT
  * carrying {@code ROLE_service}. No session, no CSRF: the token is the whole credential. Reaching
  * this handler proves the resource-server chain authenticated the token and the role mapped.
+ *
+ * <p>Why this exists: small controllers expose the exact browser, admin, public, and service
+ * surfaces that the security chains protect.
  */
 @RestController
 public class ServiceReportController {

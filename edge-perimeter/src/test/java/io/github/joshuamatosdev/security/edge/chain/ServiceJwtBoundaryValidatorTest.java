@@ -10,6 +10,12 @@ import org.junit.jupiter.api.Test;
 import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.security.oauth2.jwt.JwtClaimNames;
 
+/**
+ * Service Jwt Boundary Validator test coverage.
+ *
+ * <p>Why this is important to test: browser sessions and service JWTs are separate credential
+ * planes, and validator drift could accept the wrong token.
+ */
 class ServiceJwtBoundaryValidatorTest {
 
   private static final String ISSUER = EdgePerimeterProperties.DEFAULT_ISSUER_URI;
@@ -57,5 +63,29 @@ class ServiceJwtBoundaryValidatorTest {
     var validator = ServiceApiSecurityChainConfig.serviceJwtBoundaryValidator(ISSUER, List.of(AUDIENCE));
 
     assertThat(validator.validate(jwt(ISSUER, List.of("other-service"))).hasErrors()).isTrue();
+  }
+
+  @Test
+  void rejectsMalformedAudienceListEvenWhenItContainsAcceptedAudience() {
+    var validator = ServiceApiSecurityChainConfig.serviceJwtBoundaryValidator(ISSUER, List.of(AUDIENCE));
+
+    assertThat(validator.validate(jwt(ISSUER, List.of(AUDIENCE, 7))).hasErrors()).isTrue();
+  }
+
+  @Test
+  void rejectsAudienceListWithBlankOrWhitespacePaddedEntryEvenWhenItContainsAcceptedAudience() {
+    var validator = ServiceApiSecurityChainConfig.serviceJwtBoundaryValidator(ISSUER, List.of(AUDIENCE));
+
+    assertThat(validator.validate(jwt(ISSUER, List.of(AUDIENCE, " "))).hasErrors()).isTrue();
+    assertThat(validator.validate(jwt(ISSUER, List.of(AUDIENCE, " other-service"))).hasErrors())
+        .isTrue();
+  }
+
+  @Test
+  void rejectsAudienceListWithControlCharacterEntryEvenWhenItContainsAcceptedAudience() {
+    var validator = ServiceApiSecurityChainConfig.serviceJwtBoundaryValidator(ISSUER, List.of(AUDIENCE));
+
+    assertThat(validator.validate(jwt(ISSUER, List.of(AUDIENCE, "other-service\nforged"))).hasErrors())
+        .isTrue();
   }
 }

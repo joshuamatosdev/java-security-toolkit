@@ -5,6 +5,7 @@ import io.github.joshuamatosdev.security.authz.decision.DenialReason;
 import io.github.joshuamatosdev.security.authz.decision.GrantBasis;
 import io.github.joshuamatosdev.security.authz.policy.Action;
 import io.github.joshuamatosdev.security.authz.policy.Roles;
+import io.github.joshuamatosdev.security.authz.principal.PrincipalType;
 import io.github.joshuamatosdev.security.authz.request.ProtectedResource;
 import io.github.joshuamatosdev.security.authz.testfixtures.CapturingAuditSink;
 import io.github.joshuamatosdev.security.authz.web.document.DocumentDirectory;
@@ -12,6 +13,7 @@ import io.github.joshuamatosdev.security.authz.web.document.DocumentRoutes;
 import io.github.joshuamatosdev.security.authz.web.health.HealthRoutes;
 import io.github.joshuamatosdev.security.authz.web.config.SecurityConfig;
 import io.github.joshuamatosdev.security.authz.web.support.DemoAccounts;
+import io.github.joshuamatosdev.security.authz.web.support.RequestContextResolver;
 import io.github.joshuamatosdev.security.authz.web.support.RequestHeaders;
 import io.github.joshuamatosdev.security.shared.ResourceId;
 import io.github.joshuamatosdev.security.shared.TenantId;
@@ -25,6 +27,7 @@ import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Primary;
 import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
+import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.test.web.servlet.MockMvc;
 import org.testcontainers.containers.PostgreSQLContainer;
 
@@ -34,10 +37,12 @@ import java.sql.PreparedStatement;
 import java.sql.Statement;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.httpBasic;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.user;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.header;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
@@ -46,6 +51,9 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
  * authentication and deny-by-default at the route; the fine-grained {@code AuthorizationService}
  * decides resource access and surfaces a denial as 403. Tenant and organization arrive as the
  * headers a gateway would inject.
+ *
+ * <p>Why this is important to test: authorization bugs become route-level privilege bugs, so the
+ * web boundary must prove deny-by-default and scoped access behavior.
  */
 @SpringBootTest
 @AutoConfigureMockMvc
@@ -73,6 +81,9 @@ class DocumentControllerSecurityTest {
     private static final String MISSING_DOCUMENT = "55555555-5555-5555-5555-555555555555";
     private static final String OTHER_OWNER = "someone-else";
     private static final String UNMATCHED_ROUTE = "/api/not-a-mapped-route";
+    // An organization header a client may try to supply. Authorization never reads it — org comes
+    // from the trusted profile and the resource — so these tests send it only to prove it is ignored.
+    private static final String UNTRUSTED_ORG_HEADER = "X-Org-Id";
     private static final String ERROR_JSON_PATH = "$.error";
     private static final String FORBIDDEN_ERROR = "forbidden";
     private static final String HEALTH_STATUS_JSON_PATH = "$." + HealthRoutes.STATUS_FIELD;
@@ -123,6 +134,10 @@ class DocumentControllerSecurityTest {
         }
     }
 
+    private static String rawDemoPassword() {
+        return DemoAccounts.PASSWORD.substring("{noop}".length());
+    }
+
     @TestConfiguration
     static class AuditTestConfig {
 
@@ -137,6 +152,30 @@ class DocumentControllerSecurityTest {
     void unauthenticatedRequestIsRejected() throws Exception {
         mockMvc.perform(get(DocumentRoutes.DOCUMENT_ID_ROUTE, OWNED_BY_MEMBER).header(RequestHeaders.TENANT_ID, ACME))
             .andExpect(status().isUnauthorized());
+    }
+
+    @Test
+    void nonCanonicalDocumentIdIsRejectedBeforeItCanNormalizeToAnotherUuid() throws Exception {
+        mockMvc.perform(get(DocumentRoutes.DOCUMENT_ID_ROUTE, "1-1-1-1-1")
+                .with(user(DemoAccounts.MEMBER_USERNAME).roles(Roles.MEMBER))
+                .header(RequestHeaders.TENANT_ID, ACME))
+            .andExpect(status().isBadRequest());
+    }
+
+    @Test
+    void nonCanonicalTenantHeaderIsRejectedBeforeTenantComparison() throws Exception {
+        mockMvc.perform(get(DocumentRoutes.DOCUMENT_ID_ROUTE, OWNED_BY_MEMBER)
+                .with(user(DemoAccounts.MEMBER_USERNAME).roles(Roles.MEMBER))
+                .header(RequestHeaders.TENANT_ID, "1-1-1-1-1"))
+            .andExpect(status().isBadRequest());
+    }
+
+    @Test
+    void duplicateTenantHeadersAreRejectedRatherThanChoosingOneBoundaryClaim() throws Exception {
+        mockMvc.perform(get(DocumentRoutes.DOCUMENT_ID_ROUTE, OWNED_BY_MEMBER)
+                .with(user(DemoAccounts.MEMBER_USERNAME).roles(Roles.MEMBER))
+                .header(RequestHeaders.TENANT_ID, ACME, GLOBEX))
+            .andExpect(status().isBadRequest());
     }
 
     @Test
@@ -159,11 +198,20 @@ class DocumentControllerSecurityTest {
     }
 
     @Test
+    void basicAuthenticatedRequestDoesNotMintASessionCookie() throws Exception {
+        mockMvc.perform(get(DocumentRoutes.DOCUMENT_ID_ROUTE, OWNED_BY_MEMBER)
+                .with(httpBasic(DemoAccounts.MEMBER_USERNAME, rawDemoPassword()))
+                .header(RequestHeaders.TENANT_ID, ACME))
+            .andExpect(status().isOk())
+            .andExpect(header().doesNotExist("Set-Cookie"));
+    }
+
+    @Test
     void memberReadingTheirOwnDocumentIsAllowed() throws Exception {
         mockMvc.perform(get(DocumentRoutes.DOCUMENT_ID_ROUTE, OWNED_BY_MEMBER)
                 .with(user(DemoAccounts.MEMBER_USERNAME).roles(Roles.MEMBER))
                 .header(RequestHeaders.TENANT_ID, ACME)
-                .header(RequestHeaders.ORGANIZATION_ID, ENGINEERING))
+                .header(UNTRUSTED_ORG_HEADER, ENGINEERING))
             .andExpect(status().isOk());
     }
 
@@ -180,7 +228,7 @@ class DocumentControllerSecurityTest {
         mockMvc.perform(get(DocumentRoutes.DOCUMENT_ID_ROUTE, OWNED_BY_OTHER)
                 .with(user(DemoAccounts.ADMIN_USERNAME).roles(Roles.PLATFORM_ADMIN))
                 .header(RequestHeaders.TENANT_ID, ACME)
-                .header(RequestHeaders.ORGANIZATION_ID, ENGINEERING))
+                .header(UNTRUSTED_ORG_HEADER, ENGINEERING))
             .andExpect(status().isOk());
     }
 
@@ -191,7 +239,7 @@ class DocumentControllerSecurityTest {
         mockMvc.perform(get(DocumentRoutes.DOCUMENT_ID_ROUTE, OWNED_BY_OTHER)
                 .with(user(DemoAccounts.MEMBER_USERNAME).roles(Roles.MEMBER))
                 .header(RequestHeaders.TENANT_ID, ACME)
-                .header(RequestHeaders.ORGANIZATION_ID, ENGINEERING))
+                .header(UNTRUSTED_ORG_HEADER, ENGINEERING))
             .andExpect(status().isOk())
             .andExpect(jsonPath("$.resourceId.value").value(OWNED_BY_OTHER))
             .andExpect(jsonPath("$.ownerPrincipalKey").doesNotExist());
@@ -243,7 +291,7 @@ class DocumentControllerSecurityTest {
         mockMvc.perform(get(DocumentRoutes.DOCUMENT_ID_ROUTE, OWNED_BY_MEMBER)
                 .with(user(DemoAccounts.MEMBER_USERNAME).roles(Roles.MEMBER))
                 .header(RequestHeaders.TENANT_ID, GLOBEX)
-                .header(RequestHeaders.ORGANIZATION_ID, ENGINEERING))
+                .header(UNTRUSTED_ORG_HEADER, ENGINEERING))
             .andExpect(status().isForbidden())
             .andExpect(jsonPath(ERROR_JSON_PATH).value(FORBIDDEN_ERROR));
 
@@ -259,7 +307,7 @@ class DocumentControllerSecurityTest {
         mockMvc.perform(get(DocumentRoutes.DOCUMENT_ID_ROUTE, MISSING_DOCUMENT)
                 .with(user(DemoAccounts.MEMBER_USERNAME).roles(Roles.MEMBER))
                 .header(RequestHeaders.TENANT_ID, GLOBEX)
-                .header(RequestHeaders.ORGANIZATION_ID, ENGINEERING))
+                .header(UNTRUSTED_ORG_HEADER, ENGINEERING))
             .andExpect(status().isForbidden())
             .andExpect(jsonPath(ERROR_JSON_PATH).value(FORBIDDEN_ERROR));
 
@@ -278,7 +326,7 @@ class DocumentControllerSecurityTest {
         mockMvc.perform(get(DocumentRoutes.DOCUMENT_ID_ROUTE, OWNED_BY_OTHER)
                 .with(user(DemoAccounts.MEMBER_USERNAME).roles(Roles.MEMBER))
                 .header(RequestHeaders.TENANT_ID, ACME)
-                .header(RequestHeaders.ORGANIZATION_ID, SALES))
+                .header(UNTRUSTED_ORG_HEADER, SALES))
             .andExpect(status().isOk());
 
         final AuthorizationAuditRecord record = auditSink.only();
@@ -293,7 +341,7 @@ class DocumentControllerSecurityTest {
         mockMvc.perform(get(DocumentRoutes.DOCUMENT_ID_ROUTE, OWNED_BY_OTHER)
                 .with(user(DemoAccounts.MALICIOUS_USERNAME).roles(Roles.MEMBER))
                 .header(RequestHeaders.TENANT_ID, ACME)
-                .header(RequestHeaders.ORGANIZATION_ID, ENGINEERING))
+                .header(UNTRUSTED_ORG_HEADER, ENGINEERING))
             .andExpect(status().isForbidden())
             .andExpect(jsonPath(ERROR_JSON_PATH).value(FORBIDDEN_ERROR));
 
@@ -309,7 +357,7 @@ class DocumentControllerSecurityTest {
         mockMvc.perform(get(DocumentRoutes.DOCUMENT_ID_ROUTE, MISSING_DOCUMENT)
                 .with(user(DemoAccounts.MALICIOUS_USERNAME).roles(Roles.MEMBER))
                 .header(RequestHeaders.TENANT_ID, ACME)
-                .header(RequestHeaders.ORGANIZATION_ID, ENGINEERING))
+                .header(UNTRUSTED_ORG_HEADER, ENGINEERING))
             .andExpect(status().isForbidden())
             .andExpect(jsonPath(ERROR_JSON_PATH).value(FORBIDDEN_ERROR));
 
@@ -322,17 +370,53 @@ class DocumentControllerSecurityTest {
     }
 
     @Test
+    void aServiceCallerIsAuditedAsAServicePrincipalKeyedByClientId() throws Exception {
+        // A non-interactive caller carrying the service marker is resolved to a ServicePrincipal at
+        // the boundary, so the audit record names it by client id and principal type SERVICE — not a
+        // UserPrincipal with a fabricated email. It has no trusted profile, so it is denied; the point
+        // is the principal kind on the audit trail, not the outcome.
+        mockMvc.perform(get(DocumentRoutes.DOCUMENT_ID_ROUTE, OWNED_BY_OTHER)
+                .with(user(DemoAccounts.SERVICE_USERNAME)
+                    .authorities(
+                        new SimpleGrantedAuthority("ROLE_" + Roles.MEMBER),
+                        new SimpleGrantedAuthority(RequestContextResolver.SERVICE_CALLER_AUTHORITY)))
+                .header(RequestHeaders.TENANT_ID, ACME))
+            .andExpect(status().isForbidden());
+
+        final AuthorizationAuditRecord record = auditSink.only();
+        assertThat(record.principalType()).isEqualTo(PrincipalType.SERVICE);
+        assertThat(record.principalKey()).isEqualTo(DemoAccounts.SERVICE_USERNAME);
+    }
+
+    @Test
+    void aServiceCallerNamedLikeDemoAdminDoesNotInheritTheUserAdminProfile() throws Exception {
+        mockMvc.perform(get(DocumentRoutes.DOCUMENT_ID_ROUTE, OWNED_BY_OTHER)
+                .with(user(DemoAccounts.ADMIN_USERNAME)
+                    .authorities(
+                        new SimpleGrantedAuthority("ROLE_" + Roles.PLATFORM_ADMIN),
+                        new SimpleGrantedAuthority(RequestContextResolver.SERVICE_CALLER_AUTHORITY)))
+                .header(RequestHeaders.TENANT_ID, ACME))
+            .andExpect(status().isForbidden());
+
+        final AuthorizationAuditRecord record = auditSink.only();
+        assertThat(record.principalType()).isEqualTo(PrincipalType.SERVICE);
+        assertThat(record.principalKey()).isEqualTo(DemoAccounts.ADMIN_USERNAME);
+        assertThat(record.tenantId()).isNull();
+        assertThat(record.denialReason()).isEqualTo(DenialReason.NO_MATCHING_RULE);
+    }
+
+    @Test
     void memberDeletingTheirOwnDocumentRemovesIt() throws Exception {
         mockMvc.perform(delete(DocumentRoutes.DOCUMENT_ID_ROUTE, OWNED_BY_MEMBER)
                 .with(user(DemoAccounts.MEMBER_USERNAME).roles(Roles.MEMBER))
                 .header(RequestHeaders.TENANT_ID, ACME)
-                .header(RequestHeaders.ORGANIZATION_ID, ENGINEERING))
+                .header(UNTRUSTED_ORG_HEADER, ENGINEERING))
             .andExpect(status().isNoContent());
 
         mockMvc.perform(get(DocumentRoutes.DOCUMENT_ID_ROUTE, OWNED_BY_MEMBER)
                 .with(user(DemoAccounts.MEMBER_USERNAME).roles(Roles.MEMBER))
                 .header(RequestHeaders.TENANT_ID, ACME)
-                .header(RequestHeaders.ORGANIZATION_ID, ENGINEERING))
+                .header(UNTRUSTED_ORG_HEADER, ENGINEERING))
             .andExpect(status().isNotFound());
     }
 
@@ -344,7 +428,7 @@ class DocumentControllerSecurityTest {
         mockMvc.perform(delete(DocumentRoutes.DOCUMENT_ID_ROUTE, OWNED_BY_MEMBER)
                 .with(user(DemoAccounts.MEMBER_USERNAME).roles(Roles.MEMBER))
                 .header(RequestHeaders.TENANT_ID, ACME)
-                .header(RequestHeaders.ORGANIZATION_ID, SALES))
+                .header(UNTRUSTED_ORG_HEADER, SALES))
             .andExpect(status().isNoContent());
     }
 
@@ -353,7 +437,7 @@ class DocumentControllerSecurityTest {
         mockMvc.perform(delete(DocumentRoutes.DOCUMENT_ID_ROUTE, OWNED_BY_OTHER)
                 .with(user(DemoAccounts.MEMBER_USERNAME).roles(Roles.MEMBER))
                 .header(RequestHeaders.TENANT_ID, ACME)
-                .header(RequestHeaders.ORGANIZATION_ID, ENGINEERING))
+                .header(UNTRUSTED_ORG_HEADER, ENGINEERING))
             .andExpect(status().isForbidden())
             .andExpect(jsonPath(ERROR_JSON_PATH).value(FORBIDDEN_ERROR));
 

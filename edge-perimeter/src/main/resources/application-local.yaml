@@ -1,0 +1,12 @@
+# Plain-HTTP local profile. Activate with `--spring.profiles.active=local` (or
+# SPRING_PROFILES_ACTIVE=local) to run the edge perimeter without TLS for local development.
+#
+# This is the single, explicit place that relaxes transport hardening: cookies drop the Secure
+# attribute (so a browser sends them over http://localhost) and HSTS is no longer emitted
+# unconditionally. The two are relaxed together on purpose — shipping non-Secure cookies while HSTS
+# still pins HTTPS would be self-contradictory. The shipped default profile stays hardened.
+edge:
+  cookie:
+    secure: false
+  hsts:
+    unconditional: false

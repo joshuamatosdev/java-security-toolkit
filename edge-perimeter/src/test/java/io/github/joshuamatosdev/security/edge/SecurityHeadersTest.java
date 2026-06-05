@@ -16,6 +16,9 @@ import org.springframework.test.web.reactive.server.WebTestClient;
  * headers must appear on both a 200 from a controller and a 403 the authorization layer produces —
  * not just proxied responses. The detailed HSTS conditional matrix is unit-tested separately in
  * {@code headers.SecurityHeadersFilterTest}.
+ *
+ * <p>Why this is important to test: the edge is the first externally reachable request boundary,
+ * so regressions become observable access-control behavior.
  */
 @SpringBootTest
 @AutoConfigureWebTestClient

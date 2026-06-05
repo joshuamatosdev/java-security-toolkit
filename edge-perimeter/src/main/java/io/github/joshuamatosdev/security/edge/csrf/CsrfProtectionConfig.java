@@ -16,6 +16,9 @@ import reactor.core.publisher.Mono;
  * CSRF wiring for the browser plane: a cookie-backed token repository plus the SPA-compatible
  * request handler, shared as beans so {@code BrowserSecurityChainConfig} and any logout handler
  * use the same instances (the clear-cookie attributes must match the cookie the browser holds).
+ *
+ * <p>Why this exists: CSRF wiring keeps the SPA request flow compatible with Spring token masking
+ * while preserving same-site request protection.
  */
 @Configuration
 public class CsrfProtectionConfig {
@@ -29,8 +32,11 @@ public class CsrfProtectionConfig {
    * is covered by a layered defense, each layer a different attack class:
    *
    * <ol>
-   *   <li><b>Strict CSP</b> (in {@code SecurityHeadersFilter}) stops same-origin XSS from running
-   *       at all. This is the only layer that covers the same-origin read-and-forge surface.
+   *   <li><b>Strict CSP</b> (in {@code SecurityHeadersFilter}: {@code script-src 'self'}, no
+   *       {@code 'unsafe-inline'}) blocks the common injected-script XSS vectors — inline and
+   *       remote-origin scripts — sharply shrinking the same-origin read-and-forge surface. It is
+   *       not absolute: a DOM-based gadget in an already-allowed same-origin script can still run, so
+   *       this layer reduces rather than eliminates that surface.
    *   <li><b>SameSite=Lax</b> on this cookie blocks third-party-context CSRF.
    *   <li>The perimeter's deny-by-default route map plus plane separation keep the blast radius of
    *       any forged request inside the authenticated browser surface.

@@ -8,6 +8,9 @@ import org.jspecify.annotations.NonNull;
  * Typed organization (team) identifier — a subtenant scope. An {@code ORGANIZATION}-scoped role
  * assignment grants a role only within the organization it names; a resource owned by an
  * organization can be reached by its members under an organization-scoped rule.
+ *
+ * <p>Why this exists: organization identifiers participate in scoped authorization, so a dedicated
+ * type prevents confusing organization scope with tenant or resource identity.
  */
 public record OrganizationId(UUID value) {
 
@@ -16,7 +19,7 @@ public record OrganizationId(UUID value) {
     }
 
     public static OrganizationId fromString(final String raw) {
-        return new OrganizationId(UUID.fromString(raw));
+        return new OrganizationId(CanonicalUuid.parse(raw, "OrganizationId"));
     }
 
     @Override

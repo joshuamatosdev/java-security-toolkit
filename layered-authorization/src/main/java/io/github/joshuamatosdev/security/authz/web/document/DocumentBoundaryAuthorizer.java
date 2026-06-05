@@ -11,11 +11,12 @@ import io.github.joshuamatosdev.security.shared.TenantId;
 import org.springframework.security.core.Authentication;
 import org.springframework.stereotype.Component;
 
-import java.util.UUID;
-
 /**
  * Validates caller-carried boundary facts before document lookup. Denials stay on the
  * {@link AuthorizationService} audit path even when the actual resource has not been loaded yet.
+ *
+ * <p>Why this exists: document web components provide the resource-backed endpoint used to
+ * demonstrate route gates plus fine-grained policy.
  */
 @Component
 public class DocumentBoundaryAuthorizer {
@@ -32,10 +33,9 @@ public class DocumentBoundaryAuthorizer {
 
     public RequestContext authorize(
         final Authentication authentication,
-        final UUID tenantId,
+        final TenantId requestedTenant,
         final ResourceId resourceId,
         final Action action) {
-        final TenantId requestedTenant = new TenantId(tenantId);
         final ProtectedResource attemptedResource = new ProtectedResource(resourceId, requestedTenant, null, null);
         final RequestContextResolver.ResolvedRequestContext resolved =
             requestContextResolver.resolve(authentication);

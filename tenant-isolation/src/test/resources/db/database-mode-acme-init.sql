@@ -45,7 +45,7 @@ REVOKE ALL ON ALL TABLES IN SCHEMA tenant_security FROM PUBLIC;
 CREATE OR REPLACE FUNCTION tenant_security.current_tenant_id()
 RETURNS uuid
 LANGUAGE plpgsql
-STABLE
+VOLATILE
 SECURITY DEFINER
 SET search_path = pg_catalog, tenant_security
 AS $$
@@ -101,7 +101,7 @@ BEGIN
         RETURN NULL;
     END IF;
 
-    IF claim_exp_text::bigint < extract(epoch FROM now())::bigint THEN
+    IF claim_exp_text::bigint <= extract(epoch FROM clock_timestamp())::bigint THEN
         RETURN NULL;
     END IF;
 
