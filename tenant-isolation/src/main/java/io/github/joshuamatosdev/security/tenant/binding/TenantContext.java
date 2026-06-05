@@ -2,6 +2,7 @@ package io.github.joshuamatosdev.security.tenant.binding;
 
 import io.github.joshuamatosdev.security.shared.TenantId;
 import io.github.joshuamatosdev.security.tenant.TenantIds;
+import io.github.joshuamatosdev.security.tenant.datasource.session.TenantSessionDataSourceProxy;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.function.BooleanSupplier;

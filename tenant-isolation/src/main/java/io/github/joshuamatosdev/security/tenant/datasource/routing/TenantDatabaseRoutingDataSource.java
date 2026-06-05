@@ -6,6 +6,7 @@ import io.github.joshuamatosdev.security.tenant.binding.SystemTenantBoundary;
 import io.github.joshuamatosdev.security.tenant.binding.TenantContext;
 import io.github.joshuamatosdev.security.tenant.datasource.pool.TenantPoolInspection;
 import io.github.joshuamatosdev.security.tenant.datasource.pool.TenantPoolSnapshot;
+import io.github.joshuamatosdev.security.tenant.datasource.session.TenantSessionDataSourceProxy;
 import java.sql.Connection;
 import java.sql.ConnectionBuilder;
 import java.sql.SQLException;
@@ -25,7 +26,7 @@ import org.springframework.jdbc.datasource.AbstractDataSource;
  * Tenant-aware datasource for database-per-tenant deployments.
  *
  * <p>The active {@link TenantContext} is resolved against an allowlisted tenant-to-datasource map.
- * The selected tenant pool is the primary isolation boundary. {@link TenantDataSourceFactory} wraps
+ * The selected tenant pool is the primary isolation boundary. {@code TenantDataSourceFactory} wraps
  * this router in {@link TenantSessionDataSourceProxy} so each selected database also receives the
  * signed tenant claim used by database defaults, checks, or RLS policies.
  *

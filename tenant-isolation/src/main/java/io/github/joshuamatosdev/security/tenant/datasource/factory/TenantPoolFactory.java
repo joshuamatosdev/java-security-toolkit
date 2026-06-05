@@ -32,7 +32,7 @@ final class TenantPoolFactory {
             Pattern.compile("jdbc:[A-Za-z][A-Za-z0-9._-]*:\\S+");
     private static final String POSTGRES_JDBC_URL_PREFIX = "jdbc:postgresql:";
     private static final Set<String> FORBIDDEN_RUNTIME_POOL_USERNAMES =
-            Set.of("postgres", "tenant_bypass", SYSTEM_OPS_USERNAME, "ttx");
+            Set.of("postgres", "ttx", "tenant_bypass", SYSTEM_OPS_USERNAME, "application_owner");
 
     private final TenantIsolationProperties isolationProperties;
     private final TenantBindingProperties bindingProperties;

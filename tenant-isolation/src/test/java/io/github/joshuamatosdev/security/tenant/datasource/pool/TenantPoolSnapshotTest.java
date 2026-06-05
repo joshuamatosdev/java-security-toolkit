@@ -15,6 +15,21 @@ class TenantPoolSnapshotTest {
     private static final String POOL_NAME = "tenant-runtime";
 
     @Test
+    void constructorRejectsMalformedPoolNames() {
+        assertThatThrownBy(() -> new TenantPoolSnapshot("", 0, 0, 0, 0, 0, 10))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessage("name must not be blank");
+
+        assertThatThrownBy(() -> new TenantPoolSnapshot(" tenant-runtime", 0, 0, 0, 0, 0, 10))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessage("name must not include leading or trailing whitespace");
+
+        assertThatThrownBy(() -> new TenantPoolSnapshot("tenant-runtime\nforged", 0, 0, 0, 0, 0, 10))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessage("name must not contain control characters");
+    }
+
+    @Test
     void constructorRejectsNegativeMetricCounts() {
         assertThatThrownBy(() -> new TenantPoolSnapshot(POOL_NAME, -1, 0, 0, 0, 0, 10))
                 .isInstanceOf(IllegalArgumentException.class)

@@ -171,6 +171,18 @@ class TenantIsolationPropertiesTest {
         assertThatThrownBy(() -> databaseModeProperties(new TenantIsolationProperties.DatabaseTenantProperties(
                         TenantIds.ACME.toString(),
                         ACME_JDBC_URL,
+                        "ttx",
+                        TENANT_PASSWORD,
+                        POSTGRES_DRIVER,
+                        STABLE_POOL_NAME,
+                        null,
+                        null)))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("username must not be a privileged or system-ops identity");
+
+        assertThatThrownBy(() -> databaseModeProperties(new TenantIsolationProperties.DatabaseTenantProperties(
+                        TenantIds.ACME.toString(),
+                        ACME_JDBC_URL,
                         "tenant_ops_user",
                         TENANT_PASSWORD,
                         POSTGRES_DRIVER,

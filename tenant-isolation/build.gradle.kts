@@ -1,5 +1,5 @@
 plugins {
-    java
+    `java-library`
     jacoco
     alias(libs.plugins.spring.boot)
     alias(libs.plugins.spring.dep.management)
@@ -10,7 +10,7 @@ java {
 }
 
 dependencies {
-    implementation(project(":shared"))
+    api(project(":shared"))
     implementation("org.springframework.boot:spring-boot-starter-data-jpa")
     implementation(libs.jspecify)
     runtimeOnly("org.postgresql:postgresql")
