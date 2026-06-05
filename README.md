@@ -34,12 +34,21 @@ Run focused modules:
 
 ```bash
 ./gradlew :tenant-isolation:test
+./gradlew :tenant-isolation-spring-boot-starter:test
+./gradlew :tenant-isolation-testkit:test
 ./gradlew :layered-authorization:test
+./gradlew :layered-authorization-spring-boot-starter:test
+./gradlew :layered-authorization-testkit:test
 ./gradlew :edge-perimeter:test
-./gradlew :supply-chain:test
+./gradlew :edge-perimeter-spring-boot-starter:test
+./gradlew :edge-perimeter-testkit:test
+./gradlew :supply-chain-core:test
+./gradlew :supply-chain-testkit:test
 ./gradlew :crypto-agility-core:test
 ./gradlew :crypto-agility-spring-boot-starter:test
 ./gradlew :crypto-agility-testkit:test
+./gradlew :shared:test
+./gradlew :shared-testkit:test
 ```
 
 The test suite starts PostgreSQL containers where a pattern depends on real
@@ -63,10 +72,19 @@ flowchart LR
 | Module | Security pattern | What the tests prove |
 |---|---|---|
 | `shared` | Typed identity kernel | Tenant, organization, and resource IDs cannot be casually mixed as raw UUIDs. |
+| `shared-testkit` | Typed identifier contracts | Adopters can reuse constructor, equality, and formatting contracts for shared identifier implementations. |
 | `tenant-isolation` | Tenant placement, signed PostgreSQL session claims, and RLS | Tenant context reaches the database boundary and isolation holds under real PostgreSQL behavior. |
+| `tenant-isolation-spring-boot-starter` | Spring Boot auto-configuration | A Spring app can import the tenant isolation configuration through one starter dependency. |
+| `tenant-isolation-testkit` | Tenant context contracts | Adopters can prove context binding, clearing, and cross-tenant rejection without copying reference tests. |
 | `layered-authorization` | Coarse route gate plus fine-grained resource policy | Route, resource, deny-overrides, and audit behavior are enforced from the same decision point. |
+| `layered-authorization-spring-boot-starter` | Spring Boot auto-configuration | A Spring app can auto-wire the reference authorization service and policies. |
+| `layered-authorization-testkit` | Authorization policy contracts | Policy implementers can reuse allow, deny, mismatch, and audit-oriented contract checks. |
 | `edge-perimeter` | Browser/service credential plane separation | Browser sessions, service JWTs, CORS, CSRF, and headers stay in their intended boundary. |
-| `supply-chain` | Build trust horizon | SBOM evidence and base-image pinning are executable checks, not review-only guidance. |
+| `edge-perimeter-spring-boot-starter` | Spring Boot auto-configuration | A WebFlux edge app can import the reference perimeter chains and properties through a starter. |
+| `edge-perimeter-testkit` | Edge policy contracts | Consumers can reuse property and perimeter policy checks around CORS, headers, and credential-plane defaults. |
+| `supply-chain-core` | Build trust horizon | SBOM evidence and base-image pinning are executable checks, not review-only guidance. |
+| `supply-chain` | Compatibility artifact | Existing consumers can keep the old artifact while moving to `supply-chain-core`. |
+| `supply-chain-testkit` | Supply-chain contracts | Build-policy implementers can reuse SBOM and base-image-pin contract tests. |
 | `crypto-agility-core` | Provider seam and algorithm registry | Signing call sites stay stable while algorithms and providers can change behind the seam. |
 | `crypto-agility-spring-boot-starter` | Spring Boot auto-configuration | A Spring app can inject `DocumentSigner` after wiring one provider/default key id. |
 | `crypto-agility-testkit` | Provider and signer contracts | Provider implementers can reuse contract tests instead of copying internal test code. |
@@ -95,10 +113,19 @@ contracts, replacement points, and module-by-module hardening notes.
 ```text
 modules/
 |-- shared/                  # typed cross-module identifiers
+|-- shared-testkit/          # reusable typed identifier contracts
 |-- tenant-isolation/        # tenant placement, session binding, PostgreSQL RLS
+|-- tenant-isolation-spring-boot-starter/ # optional Boot auto-configuration
+|-- tenant-isolation-testkit/ # reusable tenant context contracts
 |-- layered-authorization/   # coarse request gate + fine-grained policy
+|-- layered-authorization-spring-boot-starter/ # optional Boot auto-configuration
+|-- layered-authorization-testkit/ # reusable authorization contracts
 |-- edge-perimeter/          # BFF edge: dual credential planes, headers, CORS, CSRF
-|-- supply-chain/            # build trust horizon: SBOM, dependency scan, base-image pin
+|-- edge-perimeter-spring-boot-starter/ # optional Boot auto-configuration
+|-- edge-perimeter-testkit/  # reusable edge policy contracts
+|-- supply-chain/            # compatibility artifact for supply-chain-core
+|-- supply-chain-core/       # build trust horizon: SBOM, dependency scan, base-image pin
+|-- supply-chain-testkit/    # reusable supply-chain contracts
 |-- crypto-agility/          # compatibility artifact for crypto-agility-core
 |-- crypto-agility-core/     # stable API, JCA providers, signer, registry
 |-- crypto-agility-spring-boot-starter/ # optional Boot auto-configuration
@@ -167,7 +194,7 @@ Useful commands:
 ./gradlew :tenant-isolation:test --tests "*SchemaIsolationModeIntegrationTest"
 ./gradlew :layered-authorization:test --tests "*DocumentControllerSecurityTest"
 ./gradlew :edge-perimeter:test --tests "*RouteAuthorizationTest"
-./gradlew :supply-chain:test --tests "*SbomIntegrityTest"
+./gradlew :supply-chain-core:test --tests "*SbomIntegrityTest"
 ./gradlew :crypto-agility-core:test
 ```
 

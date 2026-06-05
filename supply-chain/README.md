@@ -1,8 +1,13 @@
-# Supply Chain
+# Supply Chain Compatibility Artifact
 
-A runnable reference for hardening the build's trust horizon: pin the build tool, verify
-dependencies, enumerate what ships, scan for known vulnerabilities, and pin the runtime base image.
-Every dependency, the build tool, and the base image is code that executes — this module treats
+This module is retained as a compatibility aggregate for existing consumers.
+The runnable implementation now lives in `supply-chain-core`, and reusable
+contract tests live in `supply-chain-testkit`.
+
+`supply-chain-core` is a runnable reference for hardening the build's trust
+horizon: pin the build tool, verify dependencies, enumerate what ships, scan
+for known vulnerabilities, and pin the runtime base image. Every dependency,
+the build tool, and the base image is code that executes, so the module treats
 them as such.
 
 It covers the cross-cutting supply-chain layer of the
@@ -27,7 +32,7 @@ Requirements:
   and the tests run offline)
 
 ```bash
-../gradlew :supply-chain:test
+../gradlew :supply-chain-core:test
 ```
 
 ## What It Demonstrates
@@ -36,7 +41,7 @@ Requirements:
 |---|---|
 | Build-tool pin | `gradle/wrapper/gradle-wrapper.properties` carries `distributionSha256Sum` |
 | CycloneDX SBOM on build | `build.gradle.kts` applies `org.cyclonedx.bom`; `cyclonedxBom` emits `build/reports/bom.json` |
-| SBOM integrity gate | `SbomReader` + `SbomIntegrityTest` assert on the real generated bill |
+| SBOM integrity gate | `supply-chain-core` `SbomReader` + `SbomIntegrityTest` assert on the real generated bill |
 | Dependency scan | `org.owasp.dependencycheck`, `failBuildOnCVSS = 7.0`, CI/on-demand |
 | Base-image-pin policy | `Dockerfile` digest-pinned; `BaseImagePolicy` + `BaseImagePolicyTest` enforce it |
 | Dependency verification | repo-global trust anchor — activation documented below |
@@ -53,9 +58,9 @@ and passes `-Dsbom.path`, so `SbomIntegrityTest` checks the **real** generated
 
 The runtime `Dockerfile` pins every external `FROM` by `@sha256` digest. A tag like `21-jre` is
 mutable — the registry can repoint it — so a tag-based build is not reproducible or tamper-evident.
-`BaseImagePolicy` parses the Dockerfile (excluding internal multi-stage references and `scratch`)
-and `BaseImagePolicyTest` fails the build if any external image uses a floating tag. Refresh a
-digest with:
+`BaseImagePolicy` parses the `supply-chain-core` Dockerfile (excluding internal
+multi-stage references and `scratch`) and `BaseImagePolicyTest` fails the build
+if any external image uses a floating tag. Refresh a digest with:
 
 ```bash
 docker buildx imagetools inspect eclipse-temurin:21-jre --format '{{.Manifest.Digest}}'
@@ -68,7 +73,7 @@ OWASP dependency-check is applied and configured to fail on any High-or-worse fi
 `NVD_API_KEY`, which would break the offline build contract. Run it on demand / in CI:
 
 ```bash
-NVD_API_KEY=... ../gradlew :supply-chain:dependencyCheckAnalyze
+NVD_API_KEY=... ../gradlew :supply-chain-core:dependencyCheckAnalyze
 ```
 
 ## Activation Procedures
@@ -90,8 +95,9 @@ committed into this multi-module showcase):
 ## Testing
 
 ```bash
-../gradlew :supply-chain:test --tests "*SbomIntegrityTest"
-../gradlew :supply-chain:test --tests "*BaseImagePolicyTest"
+../gradlew :supply-chain-core:test --tests "*SbomIntegrityTest"
+../gradlew :supply-chain-core:test --tests "*BaseImagePolicyTest"
+../gradlew :supply-chain-testkit:test
 ```
 
 Every claim is proven by an observable artifact — the generated SBOM and the Dockerfile — not by

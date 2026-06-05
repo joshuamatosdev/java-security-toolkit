@@ -12,6 +12,7 @@ decision record is
 ## Table of Contents
 
 - [Quick Start](#quick-start)
+- [Library Artifacts](#library-artifacts)
 - [What It Demonstrates](#what-it-demonstrates)
 - [Isolation Modes](#isolation-modes)
 - [Signed Tenant Claims](#signed-tenant-claims)
@@ -34,6 +35,30 @@ Run the module tests:
 
 The suite starts PostgreSQL 18 containers and verifies ID, schema, and database
 placement modes.
+
+## Library Artifacts
+
+Plain Java or custom Spring wiring:
+
+```kotlin
+implementation("io.github.joshuamatosdev.security:tenant-isolation:0.1.0-SNAPSHOT")
+testImplementation("io.github.joshuamatosdev.security:tenant-isolation-testkit:0.1.0-SNAPSHOT")
+```
+
+Spring Boot auto-configuration:
+
+```kotlin
+implementation("io.github.joshuamatosdev.security:tenant-isolation-spring-boot-starter:0.1.0-SNAPSHOT")
+```
+
+The starter imports the reference data-source configuration when
+`glyptodon.tenant-isolation.enabled` is true or absent. Disable it with:
+
+```yaml
+glyptodon:
+  tenant-isolation:
+    enabled: false
+```
 
 ## What It Demonstrates
 

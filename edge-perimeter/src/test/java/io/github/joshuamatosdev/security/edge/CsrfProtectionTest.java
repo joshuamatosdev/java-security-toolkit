@@ -74,6 +74,18 @@ class CsrfProtectionTest {
   }
 
   @Test
+  void browserDeleteMutationWithCsrfTokenSucceeds() {
+    webClient
+        .mutateWith(mockOAuth2Login())
+        .mutateWith(csrf())
+        .delete()
+        .uri("/api/documents/123")
+        .exchange()
+        .expectStatus()
+        .isOk();
+  }
+
+  @Test
   void serviceMutationIsNotBlockedByCsrf() {
     // The service plane disables CSRF. A tokenless POST therefore is not 403'd by a CSRF filter;
     // it passes the security chain and reaches routing, which has no POST mapping -> 405. The

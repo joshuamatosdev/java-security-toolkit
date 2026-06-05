@@ -1,9 +1,10 @@
 # Crypto Agility Plain Java Example
 
-Run from the repository root after publishing the library locally:
+Run from the repository root. The example includes the repository root as a
+composite build, so it uses the current checkout and does not require a local
+Maven publication:
 
 ```bash
-./gradlew publishToMavenLocal
 ./gradlew -p examples/crypto-agility-plain-java run
 ```
 

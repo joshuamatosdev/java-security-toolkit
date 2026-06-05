@@ -1,6 +1,7 @@
 package io.github.joshuamatosdev.security.crypto.spring;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import io.github.joshuamatosdev.security.crypto.api.DocumentSigner;
 import io.github.joshuamatosdev.security.crypto.api.SignatureAlgorithm;
@@ -57,6 +58,29 @@ class CryptoAgilityAutoConfigurationTest {
     }
 
     @Test
+    void blankDefaultKeyIdFailsStartup() {
+        contextRunner
+                .withPropertyValues("glyptodon.crypto.default-key-id= ")
+                .run(context -> assertThat(context.getStartupFailure())
+                        .hasMessageContaining("glyptodon.crypto.default-key-id must not be blank"));
+    }
+
+    @Test
+    void keyIdStrategyRejectsMalformedConfiguredDefaultKeyIds() {
+        final CryptoAgilityAutoConfiguration configuration = new CryptoAgilityAutoConfiguration();
+
+        assertThatThrownBy(() -> configuration.keyIdStrategy(propertiesWithDefaultKeyId(" local-ed25519-1")))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessage("glyptodon.crypto.default-key-id must not include leading or trailing whitespace");
+        assertThatThrownBy(() -> configuration.keyIdStrategy(propertiesWithDefaultKeyId("local-ed25519-1 ")))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessage("glyptodon.crypto.default-key-id must not include leading or trailing whitespace");
+        assertThatThrownBy(() -> configuration.keyIdStrategy(propertiesWithDefaultKeyId("local-ed25519-1\u0000")))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessage("glyptodon.crypto.default-key-id must not contain control characters");
+    }
+
+    @Test
     void duplicateProvidersFailStartup() {
         contextRunner
                 .withUserConfiguration(DuplicateProviderConfiguration.class)
@@ -70,5 +94,11 @@ class CryptoAgilityAutoConfigurationTest {
         SignatureProvider duplicateEd25519SignatureProvider() {
             return JcaSignatureProviders.ed25519();
         }
+    }
+
+    private static CryptoAgilityProperties propertiesWithDefaultKeyId(final String defaultKeyId) {
+        final CryptoAgilityProperties properties = new CryptoAgilityProperties();
+        properties.setDefaultKeyId(defaultKeyId);
+        return properties;
     }
 }

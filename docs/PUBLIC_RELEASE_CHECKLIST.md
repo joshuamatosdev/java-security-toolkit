@@ -42,8 +42,18 @@ and security documentation, so keyword hits are not automatically leaks.
 ```bash
 ./gradlew test
 ./gradlew build publishToMavenLocal
-./gradlew :crypto-agility-core:cyclonedxBom :crypto-agility-spring-boot-starter:cyclonedxBom :crypto-agility-testkit:cyclonedxBom
+./gradlew :supply-chain-core:cyclonedxBom :crypto-agility-core:cyclonedxBom :crypto-agility-spring-boot-starter:cyclonedxBom :crypto-agility-testkit:cyclonedxBom
 git diff --check
+```
+
+For starter and testkit changes, include focused verification for the affected
+artifacts before the full build:
+
+```bash
+./gradlew :tenant-isolation-spring-boot-starter:test :tenant-isolation-testkit:test
+./gradlew :layered-authorization-spring-boot-starter:test :layered-authorization-testkit:test
+./gradlew :edge-perimeter-spring-boot-starter:test :edge-perimeter-testkit:test
+./gradlew :shared-testkit:test :supply-chain-testkit:test
 ```
 
 For a clean-clone check, clone the repository into a temporary directory and run

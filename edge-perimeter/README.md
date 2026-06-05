@@ -14,6 +14,7 @@ record is [ADR-0004](../docs/adr/0004-edge-perimeter-dual-plane.md).
 ## Table of Contents
 
 - [Quick Start](#quick-start)
+- [Library Artifacts](#library-artifacts)
 - [What It Demonstrates](#what-it-demonstrates)
 - [The Two Credential Planes](#the-two-credential-planes)
 - [Route Map](#route-map)
@@ -36,6 +37,30 @@ Run the module tests:
 The application context boots fully offline: the OIDC provider endpoints are
 fictional and never contacted (no client-provider `issuer-uri` discovery; the JWT
 decoder fetches lazily), and tests authenticate with `spring-security-test` mutators.
+
+## Library Artifacts
+
+Plain Java or custom Spring wiring:
+
+```kotlin
+implementation("io.github.joshuamatosdev.security:edge-perimeter:0.1.0-SNAPSHOT")
+testImplementation("io.github.joshuamatosdev.security:edge-perimeter-testkit:0.1.0-SNAPSHOT")
+```
+
+Spring Boot auto-configuration:
+
+```kotlin
+implementation("io.github.joshuamatosdev.security:edge-perimeter-spring-boot-starter:0.1.0-SNAPSHOT")
+```
+
+The starter imports the reference WebFlux perimeter configuration when
+`glyptodon.edge-perimeter.enabled` is true or absent. Disable it with:
+
+```yaml
+glyptodon:
+  edge-perimeter:
+    enabled: false
+```
 
 ## What It Demonstrates
 

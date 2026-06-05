@@ -1,5 +1,5 @@
 plugins {
-    java
+    `java-library`
     alias(libs.plugins.spring.boot)
     alias(libs.plugins.spring.dep.management)
 }
@@ -9,11 +9,10 @@ java {
 }
 
 dependencies {
-    implementation("org.springframework.boot:spring-boot-starter-webflux")
-    implementation("org.springframework.boot:spring-boot-starter-oauth2-client")
-    implementation("org.springframework.boot:spring-boot-starter-oauth2-resource-server")
+    api("org.springframework.boot:spring-boot-starter-webflux")
+    api("org.springframework.boot:spring-boot-starter-oauth2-client")
+    api("org.springframework.boot:spring-boot-starter-oauth2-resource-server")
     implementation("org.springframework.boot:spring-boot-starter-actuator")
-    implementation(libs.jspecify)
 
     testImplementation("org.springframework.boot:spring-boot-starter-test")
     testImplementation("org.springframework.security:spring-security-test")

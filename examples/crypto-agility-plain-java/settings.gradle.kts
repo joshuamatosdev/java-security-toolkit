@@ -14,3 +14,5 @@ dependencyResolutionManagement {
 }
 
 rootProject.name = "crypto-agility-plain-java-example"
+
+includeBuild("../..")

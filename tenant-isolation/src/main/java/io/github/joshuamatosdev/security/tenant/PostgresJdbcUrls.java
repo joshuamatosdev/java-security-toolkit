@@ -15,7 +15,15 @@ import java.util.Set;
 public final class PostgresJdbcUrls {
 
     private static final Set<String> CREDENTIAL_QUERY_PARAMETERS =
-            Set.of("password", "service", "sslpassword", "sslpasswordcallback", "user", "username");
+            Set.of(
+                    "password",
+                    "service",
+                    "sslcert",
+                    "sslkey",
+                    "sslpassword",
+                    "sslpasswordcallback",
+                    "user",
+                    "username");
 
     private PostgresJdbcUrls() {}
 

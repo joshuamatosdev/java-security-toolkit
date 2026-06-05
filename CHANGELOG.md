@@ -18,6 +18,12 @@ once public version tags begin.
 - Crypto-agility library split into `crypto-agility-core`,
   `crypto-agility-spring-boot-starter`, and `crypto-agility-testkit`, with the
   original `crypto-agility` artifact retained as a compatibility aggregate.
+- Shared, tenant isolation, layered authorization, edge perimeter, and supply
+  chain now publish reusable testkit artifacts for adopters and implementers.
+- Tenant isolation, layered authorization, and edge perimeter now publish
+  optional Spring Boot starter artifacts.
+- Supply chain checks moved to `supply-chain-core`, with `supply-chain`
+  retained as a compatibility aggregate.
 
 ## [0.1.0] - 2026-06-05
 

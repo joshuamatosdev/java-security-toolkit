@@ -14,3 +14,5 @@ dependencyResolutionManagement {
 }
 
 rootProject.name = "crypto-agility-spring-boot-example"
+
+includeBuild("../..")
