@@ -109,6 +109,13 @@ class DataSourceConfigTest {
                 .isInstanceOf(IllegalStateException.class)
                 .hasMessageContaining("spring.datasource.username")
                 .hasMessageContaining("privileged or system-ops identity");
+
+        assertThatThrownBy(() -> config.dataSource(
+                        sharedDataSourceProperties("ttx"),
+                        TenantPoolInspection.NONE))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining("spring.datasource.username")
+                .hasMessageContaining("privileged or system-ops identity");
     }
 
     @Test

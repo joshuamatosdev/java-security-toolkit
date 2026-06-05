@@ -38,7 +38,9 @@ reserve a real, exercised slot for the post-quantum algorithm.
 
 `SignatureProvider` (`algorithm()`, `generateKey(keyId)`, `verify(publicKey, payload, signature)`)
 is the only place algorithm-specific logic lives. A provider is bound to exactly one
-`SignatureAlgorithm`. Callers depend on the interface, never a concrete provider.
+`SignatureAlgorithm`. Callers depend on the interface, never a concrete provider. The stable
+library surface now lives under `io.github.joshuamatosdev.security.crypto.api`; JCA-backed classes
+live under `io.github.joshuamatosdev.security.crypto.jca`.
 
 ### A registry, not a switch
 
@@ -55,14 +57,14 @@ new `keyId`. No call site holds, copies, or passes a private key.
 
 ### One call site, every algorithm
 
-`DocumentSigner.seal`/`verify` is the demonstration: it reads the algorithm off the handle when
+`DocumentSigner.sign`/`seal`/`verify` is the demonstration: it reads the algorithm off the handle when
 sealing and resolves the provider off the document's `alg` label when verifying, and it names no
 algorithm. The same two method bodies serve Ed25519, ECDSA P-256, and the post-quantum slot. The
 agility test parameterises over every algorithm through that single call site.
 
 ### A reserved, exercised post-quantum slot
 
-`SignatureAlgorithm.ML_DSA_44` and `SignatureProviders.postQuantumPlaceholder()` exist now. The
+`SignatureAlgorithm.ML_DSA_44` and `JcaSignatureProviders.postQuantumPlaceholder()` exist now. The
 placeholder reports the `ML-DSA-44` wire identifier and exercises the full registry / handle /
 call-site path with a **stand-in Ed25519 primitive**, because ML-DSA-44 is absent from JDK 21. It
 produces and verifies real signatures end-to-end; only the underlying primitive is a stand-in.
@@ -88,7 +90,7 @@ produces and verifies real signatures end-to-end; only the underlying primitive 
   registry, interface, handle, or call-site change. The activation procedure below is the whole
   migration.
 - Because the placeholder is **not** real ML-DSA, this module must never be read as ML-DSA
-  conformance or quantum resistance. The placeholder is loud in `SignatureProviders` and here so the
+  conformance or quantum resistance. The placeholder is loud in `JcaSignatureProviders` and here so the
   boundary is unmistakable.
 - A verifier never crashes on untrusted input: a malformed or relabeled public key, payload, or
   signature is a verification failure (`false`), and only a genuinely missing JCA algorithm — a
@@ -98,7 +100,7 @@ produces and verifies real signatures end-to-end; only the underlying primitive 
 
 ```text
 1. Add a real provider:  Signature.getInstance("ML-DSA")  (JDK 24)  or  BouncyCastlePQCProvider.
-2. Replace SignatureProviders.postQuantumPlaceholder() so its JcaSignatureProvider names the real
+2. Replace JcaSignatureProviders.postQuantumPlaceholder() so its JcaSignatureProvider names the real
    key-pair generator, signature, and key-factory algorithms. SignatureAlgorithm.ML_DSA_44 is
    unchanged (it already carries the ML-DSA-44 wire identifier).
 3. Register it. DocumentSigner and all call sites are untouched — that is the property under test.

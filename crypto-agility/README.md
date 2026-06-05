@@ -1,86 +1,178 @@
 # Crypto Agility
 
-A runnable reference for cryptographic agility: every algorithm-specific decision sits behind one
-provider interface, providers are resolved from a registry keyed by algorithm, and keys are
-referenced by versioned handles that sign without ever exposing their private material. The result
-is a signing call site that names no algorithm — so swapping Ed25519 for ECDSA P-256, or migrating
-to a post-quantum algorithm, is a configuration change, not a code change.
+Crypto-agility is now a small production-consumable Java library family:
 
-It covers the cross-cutting crypto-strategy layer of the
-[five-layer posture](../docs/adr/0001-five-layer-security-posture.md). The decision record is
-[ADR-0006](../docs/adr/0006-crypto-agility-provider-seam.md).
+- `crypto-agility-core` - plain Java 21 library, no Spring dependency.
+- `crypto-agility-spring-boot-starter` - optional Spring Boot auto-configuration.
+- `crypto-agility-testkit` - reusable contract tests and fakes for adopters and provider authors.
+- `crypto-agility` - compatibility artifact that depends on `crypto-agility-core`.
 
-## Table of Contents
+Stable integration contracts live in `io.github.joshuamatosdev.security.crypto.api`.
+Concrete local JCA providers live in `io.github.joshuamatosdev.security.crypto.jca` and are
+replaceable. The decision record remains [ADR-0006](../docs/adr/0006-crypto-agility-provider-seam.md).
 
-- [Quick Start](#quick-start)
-- [What It Demonstrates](#what-it-demonstrates)
-- [The Agility Property](#the-agility-property)
-- [The Post-Quantum Slot](#the-post-quantum-slot)
-- [Testing](#testing)
+## Install
 
-## Quick Start
-
-Requirements:
-
-- JDK 21 (no Docker, no network — every algorithm is a JDK platform primitive)
+Publish locally from the repository root:
 
 ```bash
-../gradlew :crypto-agility:test
+./gradlew build publishToMavenLocal
 ```
 
-## What It Demonstrates
+Plain Java consumers:
 
-| Concept | Where |
-|---|---|
-| Algorithm registry | `registry/SignatureAlgorithm` — the single authority for algorithm + `alg` wire id + family |
-| Provider seam | `provider/SignatureProvider` — `algorithm()` + `generateKey` + `verify`; all algorithm logic lives here |
-| Algorithm → provider dispatch | `registry/SignatureProviderRegistry` — immutable, rejects duplicate algorithms |
-| Versioned key handle | `key/KeyHandle` — `keyId` + `algorithm` + `publicKey` + `sign`; private material never exposed |
-| Algorithm-agnostic call site | `seal/DocumentSigner` — seals and verifies, names no algorithm |
-| Post-quantum slot | `provider/SignatureProviders.postQuantumPlaceholder()` — `ML-DSA-44`, reserved and exercised |
+```kotlin
+dependencies {
+    implementation("io.github.joshuamatosdev.security:crypto-agility-core:0.1.0-SNAPSHOT")
+}
+```
 
-## The Agility Property
+Spring Boot consumers:
 
-`DocumentSigner` is the call site, and these two method bodies serve every algorithm:
+```kotlin
+dependencies {
+    implementation("io.github.joshuamatosdev.security:crypto-agility-spring-boot-starter:0.1.0-SNAPSHOT")
+}
+```
+
+Provider implementers can add the reusable contracts:
+
+```kotlin
+dependencies {
+    testImplementation("io.github.joshuamatosdev.security:crypto-agility-testkit:0.1.0-SNAPSHOT")
+}
+```
+
+## Plain Java Setup
 
 ```java
-SignedDocument seal(KeyHandle key, byte[] document) {
-    byte[] signature = key.sign(document);                       // the handle knows its algorithm
-    return new SignedDocument(key.algorithm().joseAlg(), key.keyId(),
-                              key.publicKey(), document, signature);
-}
+import io.github.joshuamatosdev.security.crypto.api.DocumentSigner;
+import io.github.joshuamatosdev.security.crypto.api.KeyHandle;
+import io.github.joshuamatosdev.security.crypto.api.SignatureAlgorithm;
+import io.github.joshuamatosdev.security.crypto.api.SignatureProviderRegistry;
+import io.github.joshuamatosdev.security.crypto.api.SignedDocument;
+import io.github.joshuamatosdev.security.crypto.jca.JcaSignatureProviders;
+import java.nio.charset.StandardCharsets;
+import java.util.List;
 
-boolean verify(SignedDocument document) {
-    SignatureAlgorithm algorithm = SignatureAlgorithm.fromJoseAlg(document.alg());
-    return registry.resolve(algorithm)                           // the registry picks the provider
-                   .verify(document.publicKey(), document.payload(), document.signature());
+var registry = new SignatureProviderRegistry(List.of(JcaSignatureProviders.ed25519()));
+var signer = new DocumentSigner(registry);
+KeyHandle key = registry.resolve(SignatureAlgorithm.ED25519).generateKey("local-ed25519-1");
+
+SignedDocument signed = signer.sign(key, "document".getBytes(StandardCharsets.UTF_8));
+boolean verified = signer.verify(signed);
+```
+
+The shipped JCA providers are `ed25519()`, `ecdsaP256()`, and
+`postQuantumPlaceholder()`. The placeholder reports `ML-DSA-44` but signs with an Ed25519 stand-in;
+it is an agility demo slot, not post-quantum protection.
+
+## Spring Boot Setup
+
+The starter auto-registers a `DocumentSigner` when enabled. Defaults:
+
+```yaml
+glyptodon:
+  crypto:
+    enabled: true
+    default-algorithm: ED25519
+    default-key-id: local-ed25519-1
+    providers:
+      jca:
+        ed25519:
+          enabled: true
+        ecdsa-p256:
+          enabled: false
+        ml-dsa-44-placeholder:
+          enabled: false
+```
+
+Inject and use:
+
+```java
+@Service
+final class SigningService {
+    private final DocumentSigner signer;
+
+    SigningService(DocumentSigner signer) {
+        this.signer = signer;
+    }
+
+    SignedDocument sign(byte[] payload) {
+        return signer.sign(payload);
+    }
 }
 ```
 
-Neither names an algorithm. `DocumentSignerTest` parameterises over **every** registered algorithm
-through this identical call site and asserts each round-trips — the falsifiable form of "an
-algorithm swap leaves call sites unchanged."
+Startup fails if the configured default algorithm has no provider or if duplicate provider beans
+report the same algorithm.
 
-## The Post-Quantum Slot
+## Adding A Provider
 
-ML-DSA-44 (FIPS 204) is the migration target, and it is **not** in the JDK 21 platform. The slot
-exists anyway: `SignatureAlgorithm.ML_DSA_44` and `SignatureProviders.postQuantumPlaceholder()`
-report the `ML-DSA-44` wire identifier and run the full registry / handle / call-site path with a
-**stand-in Ed25519 primitive**. It produces and verifies real signatures end-to-end; only the
-underlying primitive is a stand-in — this module is **not** ML-DSA conformance or quantum
-resistance.
+Implement `SignatureProvider` and return `KeyHandle` instances that hide private material:
 
-The real migration swaps the placeholder primitive for `Signature.getInstance("ML-DSA")` (JDK 24)
-or a BouncyCastle PQC provider, with no change to the interface, the registry, or any call site —
-see the activation procedure in [ADR-0006](../docs/adr/0006-crypto-agility-provider-seam.md).
-
-## Testing
-
-```bash
-../gradlew :crypto-agility:test --tests "*DocumentSignerTest"          # the agility property
-../gradlew :crypto-agility:test --tests "*JcaSignatureProviderTest"    # per-algorithm round-trips
-../gradlew :crypto-agility:test --tests "*SignatureProviderRegistryTest"
+```java
+final class KmsSignatureProvider implements SignatureProvider {
+    public SignatureAlgorithm algorithm() { return SignatureAlgorithm.ED25519; }
+    public KeyHandle generateKey(String keyId) { return kmsProvisionedHandle(keyId); }
+    public boolean verify(byte[] publicKey, byte[] payload, byte[] signature) { return kmsVerify(...); }
+}
 ```
 
-The agility claim is proven by driving one call site across every algorithm, not by reading the
-interface.
+Run the testkit contract:
+
+```java
+class KmsSignatureProviderContractTest implements SignatureProviderContract {
+    public SignatureProvider provider() {
+        return new KmsSignatureProvider(...);
+    }
+}
+```
+
+## Key Custody Integration
+
+The local JCA provider stores software keys in process and is suitable for examples and local
+integration tests. Production deployments should replace `KeyHandleResolver` and provider
+implementations with KMS, HSM, hardware-backed wallet custody, or another approved custody boundary.
+
+`DocumentSigner.sign(byte[])` uses:
+
+- `SignatureAlgorithm` - configured default algorithm.
+- `KeyIdStrategy` - selects the active key id for the algorithm.
+- `KeyHandleResolver` - resolves the handle for that algorithm/key id.
+
+## Rotation Strategy
+
+Use versioned key ids. A rotation creates a new handle under a new `keyId`, updates `KeyIdStrategy`
+for new signatures, and keeps old public keys/verifiers available for retained signed documents.
+Do not reuse a key id for different private material.
+
+## FIPS And Compliance Notes
+
+`SignatureAlgorithm.fipsApproved()` describes the algorithm identity only. It does not prove the
+runtime provider is a validated cryptographic module. FIPS posture requires validating the concrete
+provider, module boundary, mode, operating environment, key custody, and operational controls.
+
+The `ML_DSA_44` placeholder is deliberately loud: it is an Ed25519-backed migration slot and must
+not be treated as ML-DSA conformance or quantum resistance.
+
+## Threat Model And Non-Goals
+
+This library keeps call sites algorithm-agnostic and signs envelope metadata so tampering with
+payload, algorithm, key id, public key, or signature fails verification.
+
+It does not:
+
+- establish signer authenticity when a document carries its own public key
+- manage trust anchors or certificate chains
+- store or rotate production keys
+- certify FIPS/CMVP compliance
+- implement real ML-DSA in Java 21
+- replace protocol-specific JOSE, COSE, VC, or mdoc validation
+
+## Examples
+
+Runnable consumer examples live under:
+
+- `../examples/crypto-agility-plain-java`
+- `../examples/crypto-agility-spring-boot`

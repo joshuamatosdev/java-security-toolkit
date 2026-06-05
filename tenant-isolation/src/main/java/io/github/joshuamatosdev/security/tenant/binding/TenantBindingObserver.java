@@ -1,5 +1,7 @@
 package io.github.joshuamatosdev.security.tenant.binding;
 
+import io.github.joshuamatosdev.security.tenant.datasource.session.TenantSessionDataSourceProxy;
+
 /**
  * Observer extension point for {@link TenantSessionDataSourceProxy}. Production wiring would back this
  * with a metrics registry (counters for binding set, missing-tenant borrows, and failed resets);

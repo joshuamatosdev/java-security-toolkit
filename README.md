@@ -1,26 +1,15 @@
 # Project Glyptodon
 
-A buildable security-architecture reference.
+A production-oriented Java 21 security toolkit for multi-tenant SaaS systems.
 
-> Defense in depth, plated layer by layer.
+Project Glyptodon is built by Joshua Matos and DoctrineOne Industries. It turns
+hard platform-security decisions into usable Java modules, executable tests, and
+ADR-backed operating guidance for teams building multi-tenant applications.
 
-A runnable Java 21 reference for platform security patterns. Each module is a
-small Spring/Gradle project that turns one security design decision into code,
-tests, and ADR-backed documentation.
-
-This repository is intentionally neutral. The examples use fictional tenants,
-organizations, and documents so the patterns can be studied without exposing a
-real production system.
-
-## Table of Contents
-
-- [Quick Start](#quick-start)
-- [Status](#status)
-- [What Is Included](#what-is-included)
-- [Architecture Posture](#architecture-posture)
-- [Documentation](#documentation)
-- [Development](#development)
-- [License](#license)
+Use it as production-grade starting material: adopt modules directly, publish
+them as internal Maven artifacts, or copy the patterns into an application with
+the documented replacement points. The repository stays neutral and public-safe:
+examples use fictional tenants, organizations, users, and documents.
 
 ## Quick Start
 
@@ -35,27 +24,73 @@ Build and test everything:
 ./gradlew build
 ```
 
-Run one module:
+Publish the modules to your local Maven repository for application integration:
+
+```bash
+./gradlew publishToMavenLocal
+```
+
+Run focused modules:
 
 ```bash
 ./gradlew :tenant-isolation:test
 ./gradlew :layered-authorization:test
+./gradlew :edge-perimeter:test
+./gradlew :supply-chain:test
+./gradlew :crypto-agility-core:test
+./gradlew :crypto-agility-spring-boot-starter:test
+./gradlew :crypto-agility-testkit:test
 ```
 
 The test suite starts PostgreSQL containers where a pattern depends on real
 database behavior.
 
-## Status
+## What You Can Use
 
-| Area | Status |
-|---|---|
-| Build | `./gradlew build` |
-| Java | 21 |
-| Framework | Spring Boot 3.5.x |
-| License | Apache License 2.0 |
-| Current modules | `shared`, `tenant-isolation`, `layered-authorization`, `edge-perimeter`, `supply-chain`, `crypto-agility` |
+```mermaid
+flowchart LR
+    Browser["Browser / SPA"] --> Edge["edge-perimeter<br/>OIDC, PKCE, CORS, CSRF, headers"]
+    Service["Service client"] --> Edge
+    Edge --> Authz["layered-authorization<br/>route gate + resource policy + audit"]
+    Authz --> Tenant["tenant-isolation<br/>placement + signed session claim + RLS"]
+    Tenant --> Postgres[("PostgreSQL")]
+    Shared["shared<br/>typed identifiers"] --> Authz
+    Shared --> Tenant
+    Crypto["crypto-agility-core<br/>provider seam + algorithm registry"] -. signs/verifies .-> Authz
+    Supply["supply-chain<br/>SBOM + dependency/base-image checks"] -. verifies .-> Build["Build"]
+```
 
-## What Is Included
+| Module | Security pattern | What the tests prove |
+|---|---|---|
+| `shared` | Typed identity kernel | Tenant, organization, and resource IDs cannot be casually mixed as raw UUIDs. |
+| `tenant-isolation` | Tenant placement, signed PostgreSQL session claims, and RLS | Tenant context reaches the database boundary and isolation holds under real PostgreSQL behavior. |
+| `layered-authorization` | Coarse route gate plus fine-grained resource policy | Route, resource, deny-overrides, and audit behavior are enforced from the same decision point. |
+| `edge-perimeter` | Browser/service credential plane separation | Browser sessions, service JWTs, CORS, CSRF, and headers stay in their intended boundary. |
+| `supply-chain` | Build trust horizon | SBOM evidence and base-image pinning are executable checks, not review-only guidance. |
+| `crypto-agility-core` | Provider seam and algorithm registry | Signing call sites stay stable while algorithms and providers can change behind the seam. |
+| `crypto-agility-spring-boot-starter` | Spring Boot auto-configuration | A Spring app can inject `DocumentSigner` after wiring one provider/default key id. |
+| `crypto-agility-testkit` | Provider and signer contracts | Provider implementers can reuse contract tests instead of copying internal test code. |
+
+## Production Adoption
+
+Glyptodon is designed for real production apps, but adoption must be explicit.
+The modules provide tested boundaries and implementation patterns; your app owns
+its environment-specific issuer, keys, database roles, tenant source of truth,
+policy store, observability, incident process, and compliance validation.
+
+Typical adoption paths:
+
+- **Library adoption:** publish modules with `./gradlew publishToMavenLocal` or
+  your internal Maven repository, then depend on selected modules.
+- **Source adoption:** copy a module into a service and preserve the tests as
+  contract tests while adapting package names and infrastructure.
+- **Pattern adoption:** use the ADRs and tests as acceptance criteria for an
+  existing platform implementation.
+
+See [Production adoption guide](docs/PRODUCTION_ADOPTION.md) for integration
+contracts, replacement points, and module-by-module hardening notes.
+
+## Repository Layout
 
 ```text
 modules/
@@ -63,8 +98,12 @@ modules/
 |-- tenant-isolation/        # tenant placement, session binding, PostgreSQL RLS
 |-- layered-authorization/   # coarse request gate + fine-grained policy
 |-- edge-perimeter/          # BFF edge: dual credential planes, headers, CORS, CSRF
-|-- supply-chain/            # build trust horizon: SBOM, dep-scan, wrapper + base-image pin
-|-- crypto-agility/          # one signer seam, algorithm registry, reserved post-quantum slot
+|-- supply-chain/            # build trust horizon: SBOM, dependency scan, base-image pin
+|-- crypto-agility/          # compatibility artifact for crypto-agility-core
+|-- crypto-agility-core/     # stable API, JCA providers, signer, registry
+|-- crypto-agility-spring-boot-starter/ # optional Boot auto-configuration
+|-- crypto-agility-testkit/  # reusable contract tests and fakes
+|-- examples/                # standalone consumer examples
 |-- docs/
 |   |-- adr/                 # architecture decision records
 |   `-- GLOSSARY.md          # shared vocabulary
@@ -73,110 +112,42 @@ modules/
 `-- README.md
 ```
 
-### `shared`
-
-The cross-module identity kernel. It owns typed identifiers used by more than
-one module:
-
-- `TenantId`
-- `OrganizationId`
-- `ResourceId`
-
-### `tenant-isolation`
-
-Layer 5 data isolation. The module supports three configured tenant placement
-modes:
-
-- `id`: shared tables, `tenant_id`, signed PostgreSQL session claim, forced RLS
-- `schema`: one PostgreSQL schema per tenant, with signed tenant claim binding
-- `database`: one JDBC pool per tenant database, with signed tenant claim binding
-
-The default path demonstrates non-superuser runtime roles, a read-only
-system-ops pool, database-owned UUIDv7 identifiers, and build-breaking audits
-for unsafe pool identities.
-
-See [tenant-isolation/README.md](tenant-isolation/README.md).
-
-### `layered-authorization`
-
-Layer 2 authorization. The module combines:
-
-- a deny-by-default request gate
-- a typed principal and immutable request context
-- a pure resource-aware policy
-- deny-overrides rules
-- audit records for every allow and deny
-- PostgreSQL-backed document facts with database-owned UUIDv7 identifiers
-
-See [layered-authorization/README.md](layered-authorization/README.md).
-
-### `edge-perimeter`
-
-Layers 1 and 4: the backend-for-frontend edge. The module separates two credential
-planes into two ordered security chains:
-
-- a browser plane authenticated by OIDC Authorization-Code + PKCE login (session
-  cookie), with CSRF, a credentialed CORS allow-list, deny-by-default routing, and
-  security headers on every response
-- a stateless service plane (`/api/service/**`) authenticated by bearer JWT, with no
-  cookie, no CSRF, and no CORS surface
-
-The planes are kept disjoint by a filter that strips a browser-supplied
-`Authorization` header, and the route map registers narrow role exceptions before the
-broad admin gate. Pure WebFlux + Spring Security; the tests need only JDK 21.
-
-See [edge-perimeter/README.md](edge-perimeter/README.md).
-
-### `supply-chain`
-
-The cross-cutting supply-chain layer: the build's trust horizon. Every dependency, the build tool,
-and the runtime base image is code that executes, so the module pins and verifies each:
-
-- a Gradle wrapper pinned by `distributionSha256Sum`
-- a CycloneDX SBOM emitted on build, with an integrity gate that asserts on the real generated bill
-- an OWASP dependency scan (CI / on-demand; `failBuildOnCVSS = 7.0`)
-- a base-image-pin policy enforced by a test that fails on any floating `FROM` tag
-- documented activation for the repo-global anchors (dependency-verification metadata, lockfile)
-
-Built from the verified supply-chain gaps in the real platform (the gateway shipped no
-dependency-verification metadata; a backend left only a dry-run seed). Tests need only JDK 21.
-
-See [supply-chain/README.md](supply-chain/README.md).
-
-### `crypto-agility`
-
-The cross-cutting crypto-strategy layer. Every algorithm-specific decision sits behind one
-`SignatureProvider` interface, providers are resolved from a registry keyed by algorithm, and keys
-are referenced by versioned handles that sign without exposing private material:
-
-- an algorithm registry (`SignatureAlgorithm`) as the single authority for algorithm + wire id
-- a provider seam and an immutable registry that rejects duplicate algorithms
-- a `DocumentSigner` call site that seals and verifies while naming no algorithm
-- a reserved, exercised post-quantum slot (`ML-DSA-44`) behind the same interface
-
-The agility property — an algorithm swap leaves call sites unchanged — is proven by driving one
-call site across every algorithm. Plain Java; tests need only JDK 21.
-
-See [crypto-agility/README.md](crypto-agility/README.md).
-
 ## Architecture Posture
 
-The repository demonstrates a five-layer posture where controls are structural
-and deny-by-default.
+The repository demonstrates a layered posture where controls are structural,
+explicit, and deny-by-default.
 
 | Layer | Concern | Module |
 |---|---|---|
-| 1. Identity / AuthN | OIDC, PKCE, MFA, step-up | `edge-perimeter` |
-| 2. Authorization | coarse route gate plus fine-grained resource policy | `layered-authorization` |
-| 3. Secrets / config | no production secret in source or image | documented in ADR-0001 |
-| 4. Transport / runtime | perimeter, headers, actuator lockdown | `edge-perimeter` |
-| 5. Data | tenant placement, least-privilege roles, RLS | `tenant-isolation` |
-| 5. Supply chain | SBOM, dependency + wrapper + base-image verification | `supply-chain` |
-| Cross-cutting | crypto agility and migration strategy | `crypto-agility` |
+| 1. Identity / AuthN | OIDC, PKCE, browser/service credential separation | `edge-perimeter` |
+| 2. Authorization | Coarse route gate plus fine-grained resource policy | `layered-authorization` |
+| 3. Secrets / config | No production secret in source or image | ADR-0001 and release checklist |
+| 4. Transport / runtime | Perimeter routing, browser headers, actuator lockdown | `edge-perimeter` |
+| 5. Data | Tenant placement, least-privilege roles, RLS | `tenant-isolation` |
+| 6. Supply chain | SBOM, dependency, wrapper, and base-image verification | `supply-chain` |
+| Cross-cutting | Signature-provider agility and migration strategy | `crypto-agility-core` |
+
+## Public Release Posture
+
+- This repository is intentionally neutral and uses fictional identifiers such as
+  `acme` and `globex`.
+- Do not add real customer, tenant, employer, internal-system, endpoint, or secret
+  values to examples, tests, docs, issues, or pull requests.
+- Cryptographic examples demonstrate API shape and migration boundaries. A
+  listed algorithm or FIPS-approved algorithm identity is not a claim that every
+  runtime provider, deployment, or environment is FIPS-validated.
+- Production systems still need their own threat model, operational controls,
+  compliance review, provider validation, and incident process.
 
 ## Documentation
 
 - [Conventions](CONVENTIONS.md)
+- [Contributing](CONTRIBUTING.md)
+- [Security policy](SECURITY.md)
+- [Support](SUPPORT.md)
+- [Changelog](CHANGELOG.md)
+- [Production adoption guide](docs/PRODUCTION_ADOPTION.md)
+- [Public release checklist](docs/PUBLIC_RELEASE_CHECKLIST.md)
 - [Glossary](docs/GLOSSARY.md)
 - [ADR index](docs/adr/README.md)
 - [ADR-0001: Five-layer security posture](docs/adr/0001-five-layer-security-posture.md)
@@ -197,6 +168,7 @@ Useful commands:
 ./gradlew :layered-authorization:test --tests "*DocumentControllerSecurityTest"
 ./gradlew :edge-perimeter:test --tests "*RouteAuthorizationTest"
 ./gradlew :supply-chain:test --tests "*SbomIntegrityTest"
+./gradlew :crypto-agility-core:test
 ```
 
 Repository rules:
@@ -209,5 +181,4 @@ Repository rules:
 
 ## License
 
-Apache License 2.0 — free to use and modify; attribution is required.
-Redistributions must carry the [`NOTICE`](NOTICE). See [LICENSE](LICENSE).
+Apache License 2.0. See [LICENSE](LICENSE) and [NOTICE](NOTICE).

@@ -29,7 +29,7 @@ public record TenantPoolSnapshot(
      * Validates record invariants for a captured pool snapshot.
      */
     public TenantPoolSnapshot {
-        Objects.requireNonNull(name, "name");
+        name = requireNonBlankWithoutEdgeWhitespace(name, "name");
         requireNonNegative(activeConnections, "activeConnections");
         requireNonNegative(idleConnections, "idleConnections");
         requireNonNegative(totalConnections, "totalConnections");
@@ -46,5 +46,19 @@ public record TenantPoolSnapshot(
             throw new IllegalArgumentException(field + " must not be negative");
         }
     }
-}
 
+    private static String requireNonBlankWithoutEdgeWhitespace(final String value, final String field) {
+        Objects.requireNonNull(value, field + " must not be null");
+        if (value.isBlank()) {
+            throw new IllegalArgumentException(field + " must not be blank");
+        }
+        if (!value.equals(value.strip())) {
+            throw new IllegalArgumentException(
+                    field + " must not include leading or trailing whitespace");
+        }
+        if (value.chars().anyMatch(Character::isISOControl)) {
+            throw new IllegalArgumentException(field + " must not contain control characters");
+        }
+        return value;
+    }
+}

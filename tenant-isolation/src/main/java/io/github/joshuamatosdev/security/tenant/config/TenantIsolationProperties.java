@@ -204,7 +204,7 @@ public record TenantIsolationProperties(
     private static final Pattern JAVA_CLASS_NAME =
             Pattern.compile("[A-Za-z_$][A-Za-z0-9_$]*(\\.[A-Za-z_$][A-Za-z0-9_$]*)*");
     private static final Set<String> FORBIDDEN_TENANT_POOL_USERNAMES =
-            Set.of("postgres", "tenant_bypass", "tenant_ops_user", "ttx");
+            Set.of("postgres", "ttx", "tenant_bypass", "tenant_ops_user", "application_owner");
     private static final String DUPLICATE_TENANT_ID_PREFIX = "duplicate tenant id ";
     private static final String TENANT_DATABASE_POOL_PREFIX = "tenant-db-";
     private static final String TENANT_MESSAGE_PREFIX = "tenant '";

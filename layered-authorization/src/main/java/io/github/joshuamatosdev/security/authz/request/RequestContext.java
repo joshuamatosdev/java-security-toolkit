@@ -37,6 +37,8 @@ public record RequestContext(
         Objects.requireNonNull(principal, "principal must not be null");
         Objects.requireNonNull(tenantId, "tenantId must not be null");
         Objects.requireNonNull(correlationId, "correlationId must not be null");
+        Objects.requireNonNull(roleAssignments, "roleAssignments must not be null")
+            .forEach(assignment -> Objects.requireNonNull(assignment, "roleAssignment must not be null"));
         roleAssignments = Set.copyOf(roleAssignments);
     }
 

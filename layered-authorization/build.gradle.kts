@@ -1,5 +1,5 @@
 plugins {
-    java
+    `java-library`
     alias(libs.plugins.spring.boot)
     alias(libs.plugins.spring.dep.management)
 }
@@ -9,7 +9,7 @@ java {
 }
 
 dependencies {
-    implementation(project(":shared"))
+    api(project(":shared"))
     implementation("org.springframework.boot:spring-boot-starter-web")
     implementation("org.springframework.boot:spring-boot-starter-security")
     implementation("org.springframework.boot:spring-boot-starter-data-jpa")

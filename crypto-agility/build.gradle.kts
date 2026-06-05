@@ -1,5 +1,5 @@
 plugins {
-    java
+    `java-library`
 }
 
 java {
@@ -7,6 +7,7 @@ java {
 }
 
 dependencies {
+    api(project(":crypto-agility-core"))
     implementation(libs.jspecify)
 
     testImplementation(platform("org.junit:junit-bom:5.11.4"))
