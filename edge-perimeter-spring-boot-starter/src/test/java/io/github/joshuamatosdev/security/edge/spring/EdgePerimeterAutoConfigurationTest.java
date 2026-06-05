@@ -13,6 +13,11 @@ class EdgePerimeterAutoConfigurationTest {
             .withConfiguration(AutoConfigurations.of(EdgePerimeterAutoConfiguration.class));
 
     @Test
+    void doesNotAutoConfigureOutsideReactiveWebApplications() {
+        contextRunner.run(context -> assertThat(context).doesNotHaveBean(EdgePerimeterProperties.class));
+    }
+
+    @Test
     void canBeDisabled() {
         contextRunner
                 .withPropertyValues("glyptodon.edge-perimeter.enabled=false")

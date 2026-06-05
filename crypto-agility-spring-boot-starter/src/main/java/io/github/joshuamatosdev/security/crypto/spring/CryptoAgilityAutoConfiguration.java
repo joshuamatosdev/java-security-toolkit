@@ -81,7 +81,9 @@ public class CryptoAgilityAutoConfiguration {
     @Bean
     @ConditionalOnMissingBean
     KeyIdStrategy keyIdStrategy(final CryptoAgilityProperties properties) {
-        return algorithm -> requireNonBlank(properties.getDefaultKeyId(), "glyptodon.crypto.default-key-id");
+        final String defaultKeyId = requireNonBlank(
+                properties.getDefaultKeyId(), "glyptodon.crypto.default-key-id");
+        return algorithm -> defaultKeyId;
     }
 
     @Bean
@@ -121,6 +123,13 @@ public class CryptoAgilityAutoConfiguration {
         Objects.requireNonNull(value, propertyName + " must not be null");
         if (value.isBlank()) {
             throw new IllegalStateException(propertyName + " must not be blank");
+        }
+        if (!value.equals(value.strip())) {
+            throw new IllegalStateException(
+                    propertyName + " must not include leading or trailing whitespace");
+        }
+        if (value.chars().anyMatch(Character::isISOControl)) {
+            throw new IllegalStateException(propertyName + " must not contain control characters");
         }
         return value;
     }

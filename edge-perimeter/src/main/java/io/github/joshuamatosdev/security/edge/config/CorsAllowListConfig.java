@@ -29,7 +29,7 @@ import org.springframework.web.cors.reactive.UrlBasedCorsConfigurationSource;
 public class CorsAllowListConfig {
 
   private static final List<String> GET_ONLY_METHODS = List.of("GET");
-  private static final List<String> DOCUMENT_METHODS = List.of("GET", "POST");
+  private static final List<String> DOCUMENT_METHODS = List.of("GET", "POST", "DELETE");
 
   @Bean
   public CorsConfigurationSource corsConfigurationSource(EdgePerimeterProperties properties) {
@@ -118,7 +118,8 @@ public class CorsAllowListConfig {
 
   private static boolean hasValidExplicitHttpPort(URI parsed) {
     String rawAuthority = parsed.getRawAuthority();
-    return parsed.getPort() <= 65535 && (rawAuthority == null || !rawAuthority.endsWith(":"));
+    int port = parsed.getPort();
+    return (port == -1 || port > 0) && port <= 65535 && (rawAuthority == null || !rawAuthority.endsWith(":"));
   }
 
   private static boolean containsControlCharacter(String value) {

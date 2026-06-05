@@ -23,7 +23,16 @@ Then consume selected modules:
 ```kotlin
 dependencies {
     implementation("io.github.joshuamatosdev.security:shared:0.1.0-SNAPSHOT")
+    implementation("io.github.joshuamatosdev.security:tenant-isolation:0.1.0-SNAPSHOT")
+    implementation("io.github.joshuamatosdev.security:layered-authorization:0.1.0-SNAPSHOT")
+    implementation("io.github.joshuamatosdev.security:edge-perimeter:0.1.0-SNAPSHOT")
+    implementation("io.github.joshuamatosdev.security:supply-chain-core:0.1.0-SNAPSHOT")
     implementation("io.github.joshuamatosdev.security:crypto-agility-core:0.1.0-SNAPSHOT")
+    testImplementation("io.github.joshuamatosdev.security:shared-testkit:0.1.0-SNAPSHOT")
+    testImplementation("io.github.joshuamatosdev.security:tenant-isolation-testkit:0.1.0-SNAPSHOT")
+    testImplementation("io.github.joshuamatosdev.security:layered-authorization-testkit:0.1.0-SNAPSHOT")
+    testImplementation("io.github.joshuamatosdev.security:edge-perimeter-testkit:0.1.0-SNAPSHOT")
+    testImplementation("io.github.joshuamatosdev.security:supply-chain-testkit:0.1.0-SNAPSHOT")
     testImplementation("io.github.joshuamatosdev.security:crypto-agility-testkit:0.1.0-SNAPSHOT")
 }
 ```
@@ -32,14 +41,16 @@ Spring Boot applications can instead add:
 
 ```kotlin
 dependencies {
+    implementation("io.github.joshuamatosdev.security:tenant-isolation-spring-boot-starter:0.1.0-SNAPSHOT")
+    implementation("io.github.joshuamatosdev.security:layered-authorization-spring-boot-starter:0.1.0-SNAPSHOT")
+    implementation("io.github.joshuamatosdev.security:edge-perimeter-spring-boot-starter:0.1.0-SNAPSHOT")
     implementation("io.github.joshuamatosdev.security:crypto-agility-spring-boot-starter:0.1.0-SNAPSHOT")
 }
 ```
 
-Spring application modules such as `tenant-isolation`, `layered-authorization`,
-and `edge-perimeter` are intentionally more opinionated. Teams usually adopt
-them by copying the module or importing selected classes and preserving the
-tests as contract tests.
+The Spring Boot starters are optional. Use them when the reference Spring
+configuration matches your service shape; otherwise depend on the core module
+directly or copy the source module while preserving the testkit contracts.
 
 ### Source Modules
 
@@ -79,7 +90,8 @@ or database topology.
 
 Production-ready as a small typed-identifier kernel. Keep this module stable
 because downstream modules use it to prevent tenant, organization, and resource
-identity confusion.
+identity confusion. `shared-testkit` carries reusable contracts for identifier
+factories, value equality, and string round-trips.
 
 ### `crypto-agility-core`, `crypto-agility-spring-boot-starter`, and `crypto-agility-testkit`
 
@@ -97,7 +109,10 @@ contracts. Before production use:
 
 ### `tenant-isolation`
 
-Adopt as a source module or integration pattern. Before production use:
+Adopt as a library, source module, or integration pattern. Spring applications
+can start with `tenant-isolation-spring-boot-starter`; provider-specific tenant
+context implementations can reuse `tenant-isolation-testkit`. Before production
+use:
 
 - provision non-superuser runtime roles and system-ops roles outside application code
 - inject tenant claim secrets from a secret manager
@@ -107,8 +122,9 @@ Adopt as a source module or integration pattern. Before production use:
 
 ### `layered-authorization`
 
-Adopt the decision model, audit contract, and deny-overrides behavior. Before
-production use:
+Adopt the decision model, audit contract, and deny-overrides behavior. Spring
+applications can start with `layered-authorization-spring-boot-starter`; policy
+implementers can reuse `layered-authorization-testkit`. Before production use:
 
 - replace demo role resolution with an authorization store
 - model revocation and authorization-version behavior
@@ -117,7 +133,9 @@ production use:
 
 ### `edge-perimeter`
 
-Adopt the security-chain shape and tests. Before production use:
+Adopt the security-chain shape and tests. Spring WebFlux edge applications can
+start with `edge-perimeter-spring-boot-starter`; perimeter policy adopters can
+reuse `edge-perimeter-testkit`. Before production use:
 
 - register real OAuth2/OIDC clients
 - pin issuer and audience values
@@ -125,9 +143,12 @@ Adopt the security-chain shape and tests. Before production use:
 - verify cookie, CSRF, and header behavior behind your TLS terminator
 - add outbound routing or token relay only after preserving browser/service plane separation
 
-### `supply-chain`
+### `supply-chain-core`, `supply-chain`, and `supply-chain-testkit`
 
-Adopt directly into CI. Before production use:
+Adopt `supply-chain-core` directly into CI. The `supply-chain` artifact remains
+as a compatibility aggregate for existing consumers. Use `supply-chain-testkit`
+when implementing equivalent SBOM or base-image-pin policy checks in another
+build. Before production use:
 
 - enable dependency review and secret scanning in the host repository
 - publish SBOMs with release artifacts

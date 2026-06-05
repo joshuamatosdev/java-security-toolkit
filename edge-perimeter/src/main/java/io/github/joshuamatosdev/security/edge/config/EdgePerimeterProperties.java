@@ -172,6 +172,7 @@ public record EdgePerimeterProperties(
 
   private static boolean hasValidExplicitHttpPort(URI parsed) {
     String rawAuthority = parsed.getRawAuthority();
-    return parsed.getPort() <= 65535 && (rawAuthority == null || !rawAuthority.endsWith(":"));
+    int port = parsed.getPort();
+    return (port == -1 || port > 0) && port <= 65535 && (rawAuthority == null || !rawAuthority.endsWith(":"));
   }
 }

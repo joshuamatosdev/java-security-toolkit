@@ -53,8 +53,10 @@ public final class TenantContext {
      * transaction is the tenant transaction); replaceable for multi-datasource deployments via
      * {@link #useTenantTransactionActiveCheck}.
      */
-    private static volatile BooleanSupplier tenantTransactionActive =
+    private static final BooleanSupplier DEFAULT_TENANT_TRANSACTION_ACTIVE_CHECK =
             TransactionSynchronizationManager::isActualTransactionActive;
+    private static volatile BooleanSupplier tenantTransactionActive =
+            DEFAULT_TENANT_TRANSACTION_ACTIVE_CHECK;
 
     /**
      * Prevents construction of the static context holder.
@@ -82,6 +84,18 @@ public final class TenantContext {
      */
     public static void useTenantTransactionActiveCheck(final BooleanSupplier check) {
         tenantTransactionActive = Objects.requireNonNull(check, "check must not be null");
+    }
+
+    /**
+     * Restores the default single-datasource tenant transaction check.
+     *
+     * <p>This is primarily useful for reusable test contracts and infrastructure cleanup after a
+     * scoped override. It returns the guard to {@link
+     * TransactionSynchronizationManager#isActualTransactionActive()} rather than leaving a permissive
+     * test predicate in process-wide static state.
+     */
+    public static void resetTenantTransactionActiveCheck() {
+        tenantTransactionActive = DEFAULT_TENANT_TRANSACTION_ACTIVE_CHECK;
     }
 
     /**

@@ -113,6 +113,19 @@ class CorsAllowListTest {
   }
 
   @Test
+  void documentCorsAllowsDeleteMutations() {
+    CorsConfigurationSource source =
+        config.corsConfigurationSource(withOrigins("https://app.acme.example"));
+
+    MockServerWebExchange exchange =
+        MockServerWebExchange.from(MockServerHttpRequest.delete("/api/documents/123"));
+    CorsConfiguration resolved = source.getCorsConfiguration(exchange);
+
+    assertThat(resolved).isNotNull();
+    assertThat(resolved.getAllowedMethods()).contains("DELETE");
+  }
+
+  @Test
   void loopbackHttpOriginBuildsACredentialedAllowListForLocalDevelopment() {
     CorsConfigurationSource source = config.corsConfigurationSource(withOrigins("http://localhost:5173"));
 

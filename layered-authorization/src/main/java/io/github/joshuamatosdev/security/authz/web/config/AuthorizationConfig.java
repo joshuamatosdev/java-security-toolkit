@@ -7,6 +7,7 @@ import io.github.joshuamatosdev.security.authz.policy.rule.PolicyRuleRepository;
 import io.github.joshuamatosdev.security.authz.service.AuthorizationPolicy;
 import io.github.joshuamatosdev.security.authz.service.AuthorizationService;
 import io.github.joshuamatosdev.security.authz.service.DefaultAuthorizationService;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 
@@ -24,26 +25,31 @@ import java.time.Clock;
 public class AuthorizationConfig {
 
     @Bean
+    @ConditionalOnMissingBean(Clock.class)
     Clock authorizationClock() {
         return Clock.systemUTC();
     }
 
     @Bean
+    @ConditionalOnMissingBean(AuthorizationPolicy.class)
     AuthorizationPolicy authorizationPolicy() {
         return new AuthorizationPolicy();
     }
 
     @Bean
+    @ConditionalOnMissingBean(PolicyRuleRepository.class)
     PolicyRuleRepository policyRuleRepository() {
         return new InMemoryPolicyRuleRepository();
     }
 
     @Bean
+    @ConditionalOnMissingBean(AuthorizationAuditSink.class)
     AuthorizationAuditSink authorizationAuditSink() {
         return new Slf4jAuthorizationAuditSink();
     }
 
     @Bean
+    @ConditionalOnMissingBean(AuthorizationService.class)
     AuthorizationService authorizationService(
         final AuthorizationPolicy policy,
         final PolicyRuleRepository policyRuleRepository,

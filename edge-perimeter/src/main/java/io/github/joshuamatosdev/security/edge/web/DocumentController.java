@@ -1,7 +1,9 @@
 package io.github.joshuamatosdev.security.edge.web;
 
 import java.util.Map;
+import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RestController;
 
@@ -25,5 +27,10 @@ public class DocumentController {
   @PostMapping("/api/documents")
   public Map<String, String> create() {
     return Map.of("created", "ok");
+  }
+
+  @DeleteMapping("/api/documents/{id}")
+  public Map<String, String> delete(@PathVariable String id) {
+    return Map.of("deleted", id);
   }
 }

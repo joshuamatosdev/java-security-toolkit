@@ -11,6 +11,7 @@ decision record is [ADR-0003](../docs/adr/0003-layered-authorization.md).
 ## Table of Contents
 
 - [Quick Start](#quick-start)
+- [Library Artifacts](#library-artifacts)
 - [What It Demonstrates](#what-it-demonstrates)
 - [How Requests Are Authorized](#how-requests-are-authorized)
 - [Decision Model](#decision-model)
@@ -34,6 +35,30 @@ Run the module tests:
 
 The pure policy tests run in memory. HTTP tests start PostgreSQL 18 so document
 facts use database-owned UUIDv7 identifiers.
+
+## Library Artifacts
+
+Plain Java or custom Spring wiring:
+
+```kotlin
+implementation("io.github.joshuamatosdev.security:layered-authorization:0.1.0-SNAPSHOT")
+testImplementation("io.github.joshuamatosdev.security:layered-authorization-testkit:0.1.0-SNAPSHOT")
+```
+
+Spring Boot auto-configuration:
+
+```kotlin
+implementation("io.github.joshuamatosdev.security:layered-authorization-spring-boot-starter:0.1.0-SNAPSHOT")
+```
+
+The starter imports the reference authorization configuration when
+`glyptodon.layered-authorization.enabled` is true or absent. Disable it with:
+
+```yaml
+glyptodon:
+  layered-authorization:
+    enabled: false
+```
 
 ## What It Demonstrates
 

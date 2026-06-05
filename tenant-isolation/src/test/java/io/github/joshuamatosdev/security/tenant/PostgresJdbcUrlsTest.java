@@ -19,6 +19,10 @@ class PostgresJdbcUrlsTest {
         assertThat(PostgresJdbcUrls.containsCredentialQueryParameter(JDBC_URL + "?user=postgres")).isTrue();
         assertThat(PostgresJdbcUrls.containsCredentialQueryParameter(JDBC_URL + "?password=secret")).isTrue();
         assertThat(PostgresJdbcUrls.containsCredentialQueryParameter(JDBC_URL + "?service=tenant-admin")).isTrue();
+        assertThat(PostgresJdbcUrls.containsCredentialQueryParameter(JDBC_URL + "?sslcert=/run/secrets/client.crt"))
+                .isTrue();
+        assertThat(PostgresJdbcUrls.containsCredentialQueryParameter(JDBC_URL + "?sslkey=/run/secrets/client.pk8"))
+                .isTrue();
         assertThat(PostgresJdbcUrls.containsCredentialQueryParameter(JDBC_URL + "?sslpassword=secret")).isTrue();
         assertThat(PostgresJdbcUrls.containsCredentialQueryParameter(
                         JDBC_URL + "?sslpasswordcallback=com.example.SecretCallback"))

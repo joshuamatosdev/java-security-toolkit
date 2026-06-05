@@ -19,6 +19,13 @@ these identifiers through:
 implementation(project(":shared"))
 ```
 
+Consumers that implement compatible identifier types can reuse
+`shared-testkit` contract tests:
+
+```kotlin
+testImplementation(project(":shared-testkit"))
+```
+
 ## Run It
 
 `shared` has no standalone runtime. It is compiled and tested as part of the
@@ -26,6 +33,7 @@ repository build:
 
 ```bash
 ../gradlew :shared:build
+../gradlew :shared-testkit:test
 ../gradlew build
 ```
 
