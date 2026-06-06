@@ -17,6 +17,8 @@ public interface BaseImagePolicyContract {
     @Test
     default void digestPinnedReferencesAreAcceptedAndFloatingTagsAreRejected() {
         assertThat(policy().isDigestPinned("eclipse-temurin:21-jre@sha256:" + "a".repeat(64))).isTrue();
+        assertThat(policy().isDigestPinned("eclipse-temurin:21-jre@SHA256:" + "a".repeat(64))).isFalse();
+        assertThat(policy().isDigestPinned("eclipse-temurin:21-jre@sha256:" + "A".repeat(64))).isFalse();
         assertThat(policy().isDigestPinned("eclipse-temurin:21-jre")).isFalse();
         assertThat(policy().isDigestPinned(null)).isFalse();
     }

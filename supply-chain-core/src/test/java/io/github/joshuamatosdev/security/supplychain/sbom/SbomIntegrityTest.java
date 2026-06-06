@@ -8,8 +8,8 @@ import org.junit.jupiter.api.Test;
 
 /**
  * Proves the build emits a CycloneDX SBOM and that the bill has integrity. The {@code test} task
- * {@code dependsOn("cyclonedxBom")} and passes {@code -Dsbom.path}, so these assertions run against
- * the REAL generated {@code build/reports/bom.json} — not a checked-in fixture.
+ * {@code dependsOn(cyclonedxDirectBom)} and passes {@code -Dsbom.path}, so these assertions run
+ * against the REAL generated {@code build/reports/bom.json} — not a checked-in fixture.
  *
  * <p>Why this is important to test: build trust checks only protect the system when generated
  * SBOMs and base-image pins are asserted continuously.
@@ -19,7 +19,7 @@ class SbomIntegrityTest {
   private static Path generatedSbom() {
     String path = System.getProperty("sbom.path");
     assertThat(path)
-        .as("the build wires -Dsbom.path; the test depends on cyclonedxBom")
+        .as("the build wires -Dsbom.path; the test depends on cyclonedxDirectBom")
         .isNotNull();
     return Path.of(path);
   }
@@ -27,7 +27,7 @@ class SbomIntegrityTest {
   @Test
   void buildEmitsACycloneDxBill() {
     Path bom = generatedSbom();
-    assertThat(Files.exists(bom)).as("cyclonedxBom must emit %s on build", bom).isTrue();
+    assertThat(Files.exists(bom)).as("cyclonedxDirectBom must emit %s on build", bom).isTrue();
 
     SbomDocument doc = new SbomReader().read(bom);
     assertThat(doc.bomFormat()).isEqualTo("CycloneDX");

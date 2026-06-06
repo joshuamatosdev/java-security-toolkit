@@ -5,8 +5,6 @@ import org.springframework.context.annotation.Configuration;
 import org.springframework.web.server.session.CookieWebSessionIdResolver;
 import org.springframework.web.server.session.WebSessionIdResolver;
 
-/** Applies the same browser-cookie transport policy to the reactive session cookie. */
-
 /**
  * Cookie Policy Config for the edge-perimeter module.
  *

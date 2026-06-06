@@ -47,7 +47,7 @@ public record AuthorizationAuditRecord(
         Objects.requireNonNull(at, "at must not be null");
         Objects.requireNonNull(correlationId, "correlationId must not be null");
         Objects.requireNonNull(principalType, "principalType must not be null");
-        requireText(principalKey, "principalKey");
+        requireText(principalKey);
         Objects.requireNonNull(resourceId, "resourceId must not be null");
         Objects.requireNonNull(action, "action must not be null");
 
@@ -116,16 +116,16 @@ public record AuthorizationAuditRecord(
             false);
     }
 
-    private static void requireText(final String value, final String field) {
-        Objects.requireNonNull(value, field + " must not be null");
+    private static void requireText(final String value) {
+        Objects.requireNonNull(value, "principalKey" + " must not be null");
         if (value.isBlank()) {
-            throw new IllegalArgumentException(field + " must not be blank");
+            throw new IllegalArgumentException("principalKey" + " must not be blank");
         }
         if (!value.equals(value.strip())) {
-            throw new IllegalArgumentException(field + " must not include leading or trailing whitespace");
+            throw new IllegalArgumentException("principalKey" + " must not include leading or trailing whitespace");
         }
         if (value.chars().anyMatch(Character::isISOControl)) {
-            throw new IllegalArgumentException(field + " must not contain control characters");
+            throw new IllegalArgumentException("principalKey" + " must not contain control characters");
         }
     }
 }

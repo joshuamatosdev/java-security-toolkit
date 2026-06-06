@@ -29,7 +29,7 @@ git log -p --all -G"(api[_-]?key|client[_-]?secret|private[_-]?key|password|pass
 Optional dedicated scanners:
 
 ```bash
-gitleaks detect --source . --verbose
+gitleaks detect --source . --redact --verbose
 trufflehog git file://$PWD
 ```
 
@@ -42,7 +42,7 @@ and security documentation, so keyword hits are not automatically leaks.
 ```bash
 ./gradlew test
 ./gradlew build publishToMavenLocal
-./gradlew :supply-chain-core:cyclonedxBom :crypto-agility-core:cyclonedxBom :crypto-agility-spring-boot-starter:cyclonedxBom :crypto-agility-testkit:cyclonedxBom
+./gradlew :supply-chain-core:cyclonedxDirectBom :crypto-agility-core:cyclonedxDirectBom :crypto-agility-spring-boot-starter:cyclonedxDirectBom :crypto-agility-testkit:cyclonedxDirectBom
 git diff --check
 ```
 

@@ -10,14 +10,13 @@ image are code that executes — at compile time, at `bootRun`, on the CI runner
 A control at the application layer (Layers 1–5 of [ADR-0001](0001-five-layer-security-posture.md))
 is moot if the artifact it ships inside was assembled from inputs no one verified.
 
-The failure modes are quiet, and each was confirmed against the real platform this showcase is
-drawn from (audits dated 2026-05-26, re-verified 2026-06-03):
+The failure modes are quiet and common enough to justify executable checks:
 
 - **Dependency trust on TLS alone.** Without Gradle dependency-verification metadata, the build
   accepts whatever JAR a configured repository serves. A compromised mirror, a typo-squat upload,
-  or a poisoned `~/.m2` artifact lands code execution at build time. One real backend carried only
-  a `verification-metadata.dryrun.xml` — the seed file, never renamed to the active name Gradle
-  enforces; the gateway carried no metadata at all (its highest-severity supply-chain finding).
+  or a poisoned `~/.m2` artifact lands code execution at build time. A seed file such as
+  `verification-metadata.dryrun.xml` is not protection until it is promoted to the active metadata
+  file Gradle enforces.
 - **Unpinned build tool.** A `gradle-wrapper.properties` without `distributionSha256Sum` trusts
   the wrapper download host; `validateDistributionUrl` checks the URL, not the bytes.
 - **Non-reproducible resolution.** Without a lockfile, two builds at different times can resolve
@@ -63,7 +62,7 @@ The OWASP dependency-check plugin is applied and configured with `failBuildOnCVS
 High-or-worse finding fails the scan). It is **not** wired into `check`, because the NVD data feed
 requires network access and an API key (`NVD_API_KEY`) — wiring it into the default build would
 break the offline clean-clone contract every other module holds. It is the CI / on-demand gate
-(`./gradlew :supply-chain:dependencyCheckAnalyze`).
+(`NVD_API_KEY=... ./gradlew :supply-chain-core:dependencyCheckAnalyze`).
 
 ### Pin the base image by digest
 

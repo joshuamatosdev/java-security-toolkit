@@ -39,7 +39,10 @@ public final class BaseImagePolicy {
       Pattern.compile("^\\s*([A-Z]+)\\s+(.*)$", Pattern.CASE_INSENSITIVE);
 
   private static final Pattern DIGEST_PINNED =
-      Pattern.compile("^\\S+@sha256:[0-9a-f]{64}$", Pattern.CASE_INSENSITIVE);
+      Pattern.compile("^\\S+@sha256:[0-9a-f]{64}$");
+
+  private static final Pattern HEREDOC_TOKEN =
+      Pattern.compile("(?<!\\S)<<(-?)(?:\"([^\"]+)\"|'([^']+)'|(\\S+))");
 
   /** True when the reference pins an immutable {@code @sha256:<64 hex>} digest. */
   public boolean isDigestPinned(String imageRef) {
@@ -66,8 +69,16 @@ public final class BaseImagePolicy {
       if (stage.matches()) {
         stageNames.add(normalizeStageName(stage.group(1)));
       }
-      for (String sourceRef : imageSourceRefs(instruction)) {
-        addIfUnpinnedExternal(unpinned, stageNames, priorStageCount, sourceRef, true);
+      for (ImageSourceRef sourceRef : imageSourceRefs(instruction)) {
+        boolean allowCurrentStageReferences = sourceRef.allowCurrentStageReferences();
+        Set<String> sourceStageNames = allowCurrentStageReferences ? stageNames : Set.of();
+        int sourcePriorStageCount = allowCurrentStageReferences ? priorStageCount : 0;
+        addIfUnpinnedExternal(
+            unpinned,
+            sourceStageNames,
+            sourcePriorStageCount,
+            sourceRef.ref(),
+            allowCurrentStageReferences);
       }
     }
     return unpinned;
@@ -85,34 +96,44 @@ public final class BaseImagePolicy {
     }
   }
 
-  private static List<String> imageSourceRefs(String instruction) {
+  private static List<ImageSourceRef> imageSourceRefs(String instruction) {
+    return imageSourceRefs(instruction, true);
+  }
+
+  private static List<ImageSourceRef> imageSourceRefs(
+      String instruction, boolean allowCurrentStageReferences) {
     Matcher instructionWithArgs = INSTRUCTION_WITH_ARGS.matcher(instruction);
     if (!instructionWithArgs.matches()) {
       return List.of();
     }
     String name = instructionWithArgs.group(1).toUpperCase(Locale.ROOT);
     String args = instructionWithArgs.group(2);
+    if ("ONBUILD".equals(name)) {
+      return imageSourceRefs(args, false);
+    }
     if ("COPY".equals(name)) {
-      return copyFromRefs(args);
+      return copyFromRefs(args, allowCurrentStageReferences);
     }
     if ("RUN".equals(name)) {
-      return runMountFromRefs(args);
+      return runMountFromRefs(args, allowCurrentStageReferences);
     }
     return List.of();
   }
 
-  private static List<String> copyFromRefs(String args) {
-    List<String> refs = new ArrayList<>();
+  private static List<ImageSourceRef> copyFromRefs(String args, boolean allowCurrentStageReferences) {
+    List<ImageSourceRef> refs = new ArrayList<>();
     for (String option : leadingOptions(args)) {
       if (option.startsWith("--from=")) {
-        refs.add(option.substring("--from=".length()));
+        refs.add(
+            new ImageSourceRef(option.substring("--from=".length()), allowCurrentStageReferences));
       }
     }
     return refs;
   }
 
-  private static List<String> runMountFromRefs(String args) {
-    List<String> refs = new ArrayList<>();
+  private static List<ImageSourceRef> runMountFromRefs(
+      String args, boolean allowCurrentStageReferences) {
+    List<ImageSourceRef> refs = new ArrayList<>();
     for (String option : leadingOptions(args)) {
       if (!option.startsWith("--mount=")) {
         continue;
@@ -120,7 +141,8 @@ public final class BaseImagePolicy {
       String mountOptions = option.substring("--mount=".length());
       for (String field : mountOptions.split(",")) {
         if (field.startsWith("from=")) {
-          refs.add(field.substring("from=".length()));
+          refs.add(
+              new ImageSourceRef(field.substring("from=".length()), allowCurrentStageReferences));
         }
       }
     }
@@ -159,7 +181,14 @@ public final class BaseImagePolicy {
     List<String> instructions = new ArrayList<>();
     StringBuilder current = new StringBuilder();
     char escape = dockerfileEscape(physicalLines);
+    List<HeredocMarker> pendingHeredocs = new ArrayList<>();
     for (String physicalLine : physicalLines) {
+      if (!pendingHeredocs.isEmpty()) {
+        if (isHeredocTerminator(physicalLine.stripTrailing(), pendingHeredocs.getFirst())) {
+          pendingHeredocs.removeFirst();
+        }
+        continue;
+      }
       if (isCommentLine(physicalLine)) {
         continue;
       }
@@ -170,21 +199,57 @@ public final class BaseImagePolicy {
       boolean continued = line.charAt(line.length() - 1) == escape;
       String segment = continued ? line.substring(0, line.length() - 1) : line;
       appendInstructionSegment(current, segment);
-      if (!continued && current.length() > 0) {
+      if (!continued && !current.isEmpty()) {
         String instruction = current.toString().strip();
         if (!instruction.isEmpty()) {
           instructions.add(instruction);
+          pendingHeredocs.addAll(heredocMarkers(instruction));
         }
         current.setLength(0);
       }
     }
-    if (current.length() > 0) {
+    if (!current.isEmpty()) {
       String instruction = current.toString().strip();
       if (!instruction.isEmpty()) {
         instructions.add(instruction);
       }
     }
     return instructions;
+  }
+
+  private static List<HeredocMarker> heredocMarkers(String instruction) {
+    Matcher marker = HEREDOC_TOKEN.matcher(instruction);
+    List<HeredocMarker> markers = new ArrayList<>();
+    while (marker.find()) {
+      String delimiter = heredocDelimiter(marker);
+      if (!delimiter.isEmpty()) {
+        markers.add(new HeredocMarker(delimiter, "-".equals(marker.group(1))));
+      }
+    }
+    return markers;
+  }
+
+  private static String heredocDelimiter(Matcher marker) {
+    if (marker.group(2) != null) {
+      return marker.group(2);
+    }
+    if (marker.group(3) != null) {
+      return marker.group(3);
+    }
+    return marker.group(4);
+  }
+
+  private static boolean isHeredocTerminator(String line, HeredocMarker marker) {
+    String candidate = marker.allowLeadingTabs() ? stripLeadingTabs(line) : line;
+    return candidate.equals(marker.delimiter());
+  }
+
+  private static String stripLeadingTabs(String value) {
+    int index = 0;
+    while (index < value.length() && value.charAt(index) == '\t') {
+      index++;
+    }
+    return value.substring(index);
   }
 
   private static boolean isCommentLine(String line) {
@@ -252,6 +317,10 @@ public final class BaseImagePolicy {
       return false;
     }
   }
+
+  private record ImageSourceRef(String ref, boolean allowCurrentStageReferences) {}
+
+  private record HeredocMarker(String delimiter, boolean allowLeadingTabs) {}
 
   private static List<String> readLines(Path dockerfile) {
     try {

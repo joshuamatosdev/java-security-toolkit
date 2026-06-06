@@ -5,6 +5,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import java.time.Instant;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import org.junit.jupiter.api.Test;
 import org.springframework.security.authentication.AbstractAuthenticationToken;
 import org.springframework.security.core.GrantedAuthority;
@@ -32,8 +33,8 @@ class ServiceApiRolesConverterTest {
 
   private List<String> authoritiesFor(Jwt jwt) {
     AbstractAuthenticationToken token =
-        ServiceApiSecurityChainConfig.reactiveRolesConverter().convert(jwt).block();
-    assertThat(token).isNotNull();
+        Objects.requireNonNull(
+            ServiceApiSecurityChainConfig.reactiveRolesConverter().convert(jwt).block());
     return token.getAuthorities().stream().map(GrantedAuthority::getAuthority).toList();
   }
 

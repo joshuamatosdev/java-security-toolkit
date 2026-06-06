@@ -19,6 +19,7 @@ public interface TenantContextContract {
 
     @AfterEach
     default void clearTenantContext() {
+        TenantContext.useTenantTransactionActiveCheck(() -> false);
         TenantContext.clear();
         TenantContext.resetTenantTransactionActiveCheck();
     }

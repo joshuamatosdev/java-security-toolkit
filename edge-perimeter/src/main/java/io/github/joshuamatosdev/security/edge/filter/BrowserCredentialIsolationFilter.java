@@ -7,6 +7,7 @@ import org.springframework.core.Ordered;
 import org.springframework.core.annotation.Order;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.server.reactive.ServerHttpRequest;
+import org.springframework.lang.NonNull;
 import org.springframework.security.web.server.util.matcher.ServerWebExchangeMatcher;
 import org.springframework.security.web.server.util.matcher.ServerWebExchangeMatchers;
 import org.springframework.stereotype.Component;
@@ -43,7 +44,8 @@ public class BrowserCredentialIsolationFilter implements WebFilter {
       ServerWebExchangeMatchers.pathMatchers(ServiceApiSecurityChainConfig.SERVICE_MATCHER);
 
   @Override
-  public Mono<Void> filter(ServerWebExchange exchange, WebFilterChain chain) {
+  public @NonNull Mono<Void> filter(
+      @NonNull ServerWebExchange exchange, @NonNull WebFilterChain chain) {
     ServerHttpRequest request = exchange.getRequest();
     String path = request.getURI().getPath();
 

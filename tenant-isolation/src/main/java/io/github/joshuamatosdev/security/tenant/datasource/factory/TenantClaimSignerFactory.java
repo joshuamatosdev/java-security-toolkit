@@ -23,14 +23,17 @@ final class TenantClaimSignerFactory {
     private static final Duration CLAIM_TTL = Duration.ofSeconds(120);
 
     private final TenantBindingProperties bindingProperties;
+    private final Clock clock;
 
     /**
      * Creates the signer factory.
      *
      * @param bindingProperties RLS session-claim settings
+     * @param clock clock used to compute signed tenant claim expiry
      */
-    TenantClaimSignerFactory(final TenantBindingProperties bindingProperties) {
+    TenantClaimSignerFactory(final TenantBindingProperties bindingProperties, final Clock clock) {
         this.bindingProperties = Objects.requireNonNull(bindingProperties, "bindingProperties");
+        this.clock = Objects.requireNonNull(clock, "clock");
     }
 
     /**
@@ -39,7 +42,6 @@ final class TenantClaimSignerFactory {
      * @return claim signer used by the tenant-aware datasource proxy
      */
     TenantClaimSigner tenantClaimSigner() {
-        return new TenantClaimSigner(bindingProperties.requireClaimSecret(), CLAIM_TTL, Clock.systemUTC());
+        return new TenantClaimSigner(bindingProperties.requireClaimSecret(), CLAIM_TTL, clock);
     }
 }
-

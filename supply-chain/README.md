@@ -40,7 +40,7 @@ Requirements:
 | Control | Where |
 |---|---|
 | Build-tool pin | `gradle/wrapper/gradle-wrapper.properties` carries `distributionSha256Sum` |
-| CycloneDX SBOM on build | `build.gradle.kts` applies `org.cyclonedx.bom`; `cyclonedxBom` emits `build/reports/bom.json` |
+| CycloneDX SBOM on build | `build.gradle.kts` applies `org.cyclonedx.bom`; `cyclonedxDirectBom` emits `build/reports/bom.json` |
 | SBOM integrity gate | `supply-chain-core` `SbomReader` + `SbomIntegrityTest` assert on the real generated bill |
 | Dependency scan | `org.owasp.dependencycheck`, `failBuildOnCVSS = 7.0`, CI/on-demand |
 | Base-image-pin policy | `Dockerfile` digest-pinned; `BaseImagePolicy` + `BaseImagePolicyTest` enforce it |
@@ -48,8 +48,8 @@ Requirements:
 
 ## SBOM Integrity Gate
 
-`cyclonedxBom` emits a CycloneDX 1.5 bill on every build. The `test` task `dependsOn("cyclonedxBom")`
-and passes `-Dsbom.path`, so `SbomIntegrityTest` checks the **real** generated
+`cyclonedxDirectBom` emits a CycloneDX 1.5 bill on every build. The `test` task
+depends on that generated bill and passes `-Dsbom.path`, so `SbomIntegrityTest` checks the **real** generated
 `build/reports/bom.json` — not a fixture. It asserts the document is CycloneDX, carries a unique
 `serialNumber`, enumerates the resolved components, and that every component has a `purl` coordinate
 (so each can be cross-checked against an advisory feed).

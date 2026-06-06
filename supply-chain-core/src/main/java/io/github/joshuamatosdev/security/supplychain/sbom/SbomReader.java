@@ -203,7 +203,7 @@ public final class SbomReader {
       }
       switch (character) {
         case '.', '-', '_', '~', '%', ':', '/', '@', '?', '=', '&', '#' -> {
-          continue;
+          // allowed package-url punctuation
         }
         default -> {
           return false;

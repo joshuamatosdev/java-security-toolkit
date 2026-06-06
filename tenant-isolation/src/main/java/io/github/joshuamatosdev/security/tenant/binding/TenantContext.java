@@ -141,9 +141,13 @@ public final class TenantContext {
      * Clears the current thread's tenant binding.
      *
      * <p>This is intended for test cleanup and infrastructure cleanup paths. Normal application work
-     * should prefer scoped methods that restore the prior tenant automatically.
+     * should prefer scoped methods that restore the prior tenant automatically. Clearing is rejected
+     * while a tenant transaction is active because the database connection may already carry the
+     * prior signed tenant claim; removing the thread-local at that point would desynchronize the
+     * application boundary from the database session.
      */
     public static void clear() {
+        rejectClearInActiveTransaction();
         CURRENT.remove();
     }
 
@@ -268,6 +272,19 @@ public final class TenantContext {
     }
 
     /**
+     * Rejects clearing the current tenant while a tenant transaction is active.
+     */
+    private static void rejectClearInActiveTransaction() {
+        final TenantId current = CURRENT.get();
+        if (current != null && tenantTransactionActive.getAsBoolean()) {
+            throw new SecurityException("cannot clear tenant binding for " + current
+                    + " inside an active transaction — the transaction may already hold a"
+                    + " tenant-bound database session, so clearing the application boundary could"
+                    + " desynchronize it from the database session (fail-closed)");
+        }
+    }
+
+    /**
      * Restores a previously bound tenant after scoped work completes.
      *
      * <p>Removing the thread-local when there was no prior tenant avoids leaking a completed request's
@@ -276,6 +293,13 @@ public final class TenantContext {
      * @param prior tenant that was bound before the scoped work, or {@code null} when none existed
      */
     private static void restore(final @Nullable TenantId prior) {
+        final TenantId current = CURRENT.get();
+        if (tenantTransactionActive.getAsBoolean() && !Objects.equals(current, prior)) {
+            throw new SecurityException("cannot restore tenant binding from " + current + " to " + prior
+                    + " inside an active transaction — the transaction may already hold a"
+                    + " tenant-bound database session, so restoring the application boundary could"
+                    + " desynchronize it from the database session (fail-closed)");
+        }
         if (prior == null) {
             CURRENT.remove();
         } else {

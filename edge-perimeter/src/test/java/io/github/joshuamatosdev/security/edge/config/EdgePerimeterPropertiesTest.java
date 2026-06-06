@@ -59,17 +59,17 @@ class EdgePerimeterPropertiesTest {
 
   @Test
   void identityIssuerRejectsLeadingOrTrailingWhitespace() {
-    assertThatThrownBy(() -> new EdgePerimeterProperties.Identity(" https://idp.acme.example/realms/ttx"))
+    assertThatThrownBy(() -> new EdgePerimeterProperties.Identity(" https://idp.acme.example/realms/demo"))
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessage("edge.identity.issuer-uri must not include leading or trailing whitespace");
-    assertThatThrownBy(() -> new EdgePerimeterProperties.Identity("https://idp.acme.example/realms/ttx "))
+    assertThatThrownBy(() -> new EdgePerimeterProperties.Identity("https://idp.acme.example/realms/demo "))
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessage("edge.identity.issuer-uri must not include leading or trailing whitespace");
   }
 
   @Test
   void identityIssuerRejectsControlCharacters() {
-    assertThatThrownBy(() -> new EdgePerimeterProperties.Identity("https://idp.acme.example/realms/ttx\u0000"))
+    assertThatThrownBy(() -> new EdgePerimeterProperties.Identity("https://idp.acme.example/realms/demo\u0000"))
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessage("edge.identity.issuer-uri must not contain control characters");
   }
@@ -101,14 +101,14 @@ class EdgePerimeterPropertiesTest {
 
   @Test
   void identityIssuerAllowsLoopbackPlainHttpForLocalDevelopment() {
-    assertThat(new EdgePerimeterProperties.Identity("http://localhost:8081/realms/ttx").issuerUri())
-        .isEqualTo("http://localhost:8081/realms/ttx");
+    assertThat(new EdgePerimeterProperties.Identity("http://localhost:8081/realms/demo").issuerUri())
+        .isEqualTo("http://localhost:8081/realms/demo");
   }
 
   @Test
   void identityIssuerAllowsIpv6LoopbackPlainHttpForLocalDevelopment() {
-    assertThat(new EdgePerimeterProperties.Identity("http://[::1]:8081/realms/ttx").issuerUri())
-        .isEqualTo("http://[::1]:8081/realms/ttx");
+    assertThat(new EdgePerimeterProperties.Identity("http://[::1]:8081/realms/demo").issuerUri())
+        .isEqualTo("http://[::1]:8081/realms/demo");
   }
 
   @Test

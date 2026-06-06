@@ -17,8 +17,14 @@ public record SignatureAuditEvent(
     }
 
     public SignatureAuditEvent {
-        operation = Objects.requireNonNull(operation, "operation must not be null");
+        Objects.requireNonNull(operation, "operation must not be null");
+        alg = requireOptionalAuditText(alg, "alg");
+        keyId = requireOptionalAuditText(keyId, "keyId");
         reason = requireAuditText(reason, "reason");
+    }
+
+    private static String requireOptionalAuditText(final String value, final String field) {
+        return value == null ? null : requireAuditText(value, field);
     }
 
     private static String requireAuditText(final String value, final String field) {

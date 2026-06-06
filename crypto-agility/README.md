@@ -114,8 +114,12 @@ Implement `SignatureProvider` and return `KeyHandle` instances that hide private
 ```java
 final class KmsSignatureProvider implements SignatureProvider {
     public SignatureAlgorithm algorithm() { return SignatureAlgorithm.ED25519; }
-    public KeyHandle generateKey(String keyId) { return kmsProvisionedHandle(keyId); }
-    public boolean verify(byte[] publicKey, byte[] payload, byte[] signature) { return kmsVerify(...); }
+    public KeyHandle generateKey(String keyId) {
+        throw new UnsupportedOperationException("wire to KMS custody");
+    }
+    public boolean verify(byte[] publicKey, byte[] payload, byte[] signature) {
+        throw new UnsupportedOperationException("wire to KMS verification");
+    }
 }
 ```
 
@@ -124,7 +128,7 @@ Run the testkit contract:
 ```java
 class KmsSignatureProviderContractTest implements SignatureProviderContract {
     public SignatureProvider provider() {
-        return new KmsSignatureProvider(...);
+        return new KmsSignatureProvider();
     }
 }
 ```

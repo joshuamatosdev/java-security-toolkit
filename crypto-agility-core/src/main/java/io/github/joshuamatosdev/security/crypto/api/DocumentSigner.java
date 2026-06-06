@@ -50,8 +50,9 @@ public final class DocumentSigner {
             throw new IllegalStateException(
                     "Default signing requires a default algorithm, key handle resolver, and key id strategy");
         }
-        final String keyId = keyIdStrategy.currentKeyId(defaultAlgorithm);
+        final String keyId = requireNonBlank(keyIdStrategy.currentKeyId(defaultAlgorithm), "default key id");
         final KeyHandle key = keyHandleResolver.resolve(defaultAlgorithm, keyId);
+        requireDefaultKey(defaultAlgorithm, keyId, key);
         return sign(key, payload);
     }
 
@@ -118,6 +119,33 @@ public final class DocumentSigner {
                 verified,
                 verified ? "verified" : "verification failed");
         return verified;
+    }
+
+    private static void requireDefaultKey(
+            final SignatureAlgorithm expectedAlgorithm, final String expectedKeyId, final KeyHandle key) {
+        final String requiredKeyId = requireNonBlank(expectedKeyId, "default key id");
+        Objects.requireNonNull(key, "keyHandleResolver must not return null");
+        if (key.algorithm() != expectedAlgorithm) {
+            throw new IllegalStateException(
+                    "Resolved default key algorithm must match configured default algorithm");
+        }
+        if (!requiredKeyId.equals(requireNonBlank(key.keyId(), "resolved default key id"))) {
+            throw new IllegalStateException("Resolved default key id must match current key id");
+        }
+    }
+
+    private static String requireNonBlank(final String value, final String field) {
+        Objects.requireNonNull(value, field + " must not be null");
+        if (value.isBlank()) {
+            throw new IllegalStateException(field + " must not be blank");
+        }
+        if (!value.equals(value.strip())) {
+            throw new IllegalStateException(field + " must not include leading or trailing whitespace");
+        }
+        if (value.chars().anyMatch(Character::isISOControl)) {
+            throw new IllegalStateException(field + " must not contain control characters");
+        }
+        return value;
     }
 
     private void record(

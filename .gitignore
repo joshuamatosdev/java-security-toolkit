@@ -25,7 +25,7 @@ Thumbs.db
 .env
 *.local
 
-# Local-only planning scaffolding — references the private source system; never published.
+# Local-only planning scaffolding; never published.
 docs/superpowers/
 
 # Agent tooling state (machine-local; never published).

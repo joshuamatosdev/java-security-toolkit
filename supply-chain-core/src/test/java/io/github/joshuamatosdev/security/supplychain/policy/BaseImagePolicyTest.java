@@ -57,6 +57,12 @@ class BaseImagePolicyTest {
   }
 
   @Test
+  void digestReferenceMustUseOciCanonicalLowercaseSha256Format() {
+    assertThat(policy.isDigestPinned("eclipse-temurin:21-jre@SHA256:" + "a".repeat(64))).isFalse();
+    assertThat(policy.isDigestPinned("eclipse-temurin:21-jre@sha256:" + "A".repeat(64))).isFalse();
+  }
+
+  @Test
   void edgePaddedDigestReferenceIsNotConsideredPinned() {
     assertThat(policy.isDigestPinned(" eclipse-temurin:21-jre@sha256:" + "a".repeat(64))).isFalse();
     assertThat(policy.isDigestPinned("eclipse-temurin:21-jre@sha256:" + "a".repeat(64) + " ")).isFalse();
@@ -76,6 +82,19 @@ class BaseImagePolicyTest {
   void aShortOrNonHexDigestIsNotPinned() {
     assertThat(policy.isDigestPinned("img@sha256:abc")).isFalse();
     assertThat(policy.isDigestPinned("img@sha256:" + "z".repeat(64))).isFalse();
+  }
+
+  @Test
+  void malformedUppercaseDigestReferenceIsReportedAsUnpinnedExternalImage() throws IOException {
+    Path dockerfile =
+        writeDockerfile(
+            """
+            FROM eclipse-temurin:21-jre@SHA256:%s AS runtime
+            """
+                .formatted("a".repeat(64)));
+
+    assertThat(policy.unpinnedExternalRefs(dockerfile))
+        .containsExactly("eclipse-temurin:21-jre@SHA256:" + "a".repeat(64));
   }
 
   @Test
@@ -229,6 +248,38 @@ class BaseImagePolicyTest {
   }
 
   @Test
+  void heredocBodyLinesDoNotCreateImageSourceReferences() throws IOException {
+    Path dockerfile =
+        writeDockerfile(
+            """
+            FROM eclipse-temurin:21-jre@sha256:%s AS runtime
+            RUN <<EOF
+            COPY --from=nginx:latest /etc/nginx/nginx.conf /nginx.conf
+            FROM alpine:latest
+            RUN --mount=type=bind,from=busybox:latest,target=/busybox true
+            EOF
+            """
+                .formatted("a".repeat(64)));
+
+    assertThat(policy.unpinnedExternalRefs(dockerfile)).isEmpty();
+  }
+
+  @Test
+  void imageSourcesOnHeredocStartingInstructionMustBeDigestPinned() throws IOException {
+    Path dockerfile =
+        writeDockerfile(
+            """
+            FROM eclipse-temurin:21-jre@sha256:%s AS runtime
+            RUN --mount=type=bind,from=nginx:latest,target=/nginx <<EOF
+            true
+            EOF
+            """
+                .formatted("a".repeat(64)));
+
+    assertThat(policy.unpinnedExternalRefs(dockerfile)).containsExactly("nginx:latest");
+  }
+
+  @Test
   void externalCopyFromOnBacktickContinuedInstructionMustBeDigestPinned() throws IOException {
     Path dockerfile =
         writeDockerfile(
@@ -258,6 +309,46 @@ class BaseImagePolicyTest {
                 .formatted("a".repeat(64)));
 
     assertThat(policy.unpinnedExternalRefs(dockerfile)).containsExactly("nginx:latest");
+  }
+
+  @Test
+  void onbuildExternalCopyFromMustBeDigestPinned() throws IOException {
+    Path dockerfile =
+        writeDockerfile(
+            """
+            FROM eclipse-temurin:21-jre@sha256:%s AS runtime
+            ONBUILD COPY --from=nginx:latest /etc/nginx/nginx.conf /nginx.conf
+            """
+                .formatted("a".repeat(64)));
+
+    assertThat(policy.unpinnedExternalRefs(dockerfile)).containsExactly("nginx:latest");
+  }
+
+  @Test
+  void onbuildExternalRunMountFromMustBeDigestPinned() throws IOException {
+    Path dockerfile =
+        writeDockerfile(
+            """
+            FROM eclipse-temurin:21-jre@sha256:%s AS runtime
+            ONBUILD RUN --mount=type=bind,from=nginx:latest,target=/nginx,readonly true
+            """
+                .formatted("a".repeat(64)));
+
+    assertThat(policy.unpinnedExternalRefs(dockerfile)).containsExactly("nginx:latest");
+  }
+
+  @Test
+  void onbuildImageSourcesDoNotReuseStageNamesFromTheTriggeringImageBuild() throws IOException {
+    Path dockerfile =
+        writeDockerfile(
+            """
+            FROM eclipse-temurin:21-jre@sha256:%s AS builder
+            FROM scratch
+            ONBUILD COPY --from=builder /app /app
+            """
+                .formatted("a".repeat(64)));
+
+    assertThat(policy.unpinnedExternalRefs(dockerfile)).containsExactly("builder");
   }
 
   @Test

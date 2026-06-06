@@ -7,6 +7,8 @@ java {
     toolchain { languageVersion = JavaLanguageVersion.of(21) }
 }
 
+extra["netty.version"] = libs.versions.netty.get()
+
 dependencyManagement {
     imports {
         mavenBom("org.springframework.boot:spring-boot-dependencies:${libs.versions.springBoot.get()}")

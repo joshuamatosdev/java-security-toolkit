@@ -90,6 +90,45 @@ class DocumentSignerTest {
     }
 
     @Test
+    void defaultSigningRejectsResolverKeysForTheWrongAlgorithm() {
+        final KeyHandle wrongAlgorithm = registry.resolve(SignatureAlgorithm.ECDSA_P256).generateKey("default-k1");
+        final DocumentSigner defaultSigner =
+                defaultSigner(SignatureAlgorithm.ED25519, "default-k1", wrongAlgorithm);
+
+        assertThatThrownBy(() -> defaultSigner.sign(DOCUMENT))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessage("Resolved default key algorithm must match configured default algorithm");
+    }
+
+    @Test
+    void defaultSigningRejectsResolverKeysForTheWrongKeyId() {
+        final KeyHandle wrongKeyId = registry.resolve(SignatureAlgorithm.ED25519).generateKey("rotated-k2");
+        final DocumentSigner defaultSigner =
+                defaultSigner(SignatureAlgorithm.ED25519, "default-k1", wrongKeyId);
+
+        assertThatThrownBy(() -> defaultSigner.sign(DOCUMENT))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessage("Resolved default key id must match current key id");
+    }
+
+    @Test
+    void defaultSigningRejectsBlankCurrentKeyIdBeforeResolvingAKey() {
+        final DocumentSigner defaultSigner = new DocumentSigner(
+                registry,
+                SignatureAlgorithm.ED25519,
+                (algorithm, keyId) -> {
+                    throw new AssertionError("key resolver should not be called for a blank key id");
+                },
+                algorithm -> " ",
+                new io.github.joshuamatosdev.security.crypto.internal.DefaultSignatureEnvelopeCodec(),
+                SignatureAuditSink.noop());
+
+        assertThatThrownBy(() -> defaultSigner.sign(DOCUMENT))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessage("default key id must not be blank");
+    }
+
+    @Test
     void defaultSigningFailsFastUntilDefaultCollaboratorsAreConfigured() {
         assertThatThrownBy(() -> signer.sign(DOCUMENT))
                 .isInstanceOf(IllegalStateException.class)
@@ -154,5 +193,16 @@ class DocumentSignerTest {
         assertThat(events)
                 .extracting(SignatureAuditEvent::operation)
                 .containsExactly(SignatureAuditEvent.Operation.SIGN, SignatureAuditEvent.Operation.VERIFY);
+    }
+
+    private DocumentSigner defaultSigner(
+            final SignatureAlgorithm algorithm, final String currentKeyId, final KeyHandle resolvedKey) {
+        return new DocumentSigner(
+                registry,
+                algorithm,
+                (requestedAlgorithm, requestedKeyId) -> resolvedKey,
+                requestedAlgorithm -> currentKeyId,
+                new io.github.joshuamatosdev.security.crypto.internal.DefaultSignatureEnvelopeCodec(),
+                SignatureAuditSink.noop());
     }
 }
