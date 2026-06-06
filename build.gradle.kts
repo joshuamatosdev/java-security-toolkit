@@ -26,6 +26,65 @@ val jspecifyPublicApiDependencies = setOf(
     ":supply-chain-core"
 )
 
+val pinnedCommonsCompressVersion = libs.versions.commonsCompress.get()
+val pinnedCommonsLang3Version = libs.versions.commonsLang3.get()
+val pinnedNettyVersion = libs.versions.netty.get()
+val pinnedPostgresqlVersion = libs.versions.postgresql.get()
+val pinnedTomcatVersion = libs.versions.tomcat.get()
+
+val securityPinnedDependencyVersions = mapOf(
+    ":edge-perimeter" to mapOf(
+        "runtimeClasspath" to mapOf(
+            "io.netty:netty-codec" to pinnedNettyVersion,
+            "io.netty:netty-codec-dns" to pinnedNettyVersion,
+            "io.netty:netty-codec-http" to pinnedNettyVersion,
+            "io.netty:netty-codec-http2" to pinnedNettyVersion,
+            "io.netty:netty-handler-proxy" to pinnedNettyVersion
+        )
+    ),
+    ":edge-perimeter-spring-boot-starter" to mapOf(
+        "runtimeClasspath" to mapOf(
+            "io.netty:netty-codec" to pinnedNettyVersion,
+            "io.netty:netty-codec-dns" to pinnedNettyVersion,
+            "io.netty:netty-codec-http" to pinnedNettyVersion,
+            "io.netty:netty-codec-http2" to pinnedNettyVersion,
+            "io.netty:netty-handler-proxy" to pinnedNettyVersion
+        )
+    ),
+    ":layered-authorization" to mapOf(
+        "runtimeClasspath" to mapOf(
+            "org.apache.tomcat.embed:tomcat-embed-core" to pinnedTomcatVersion,
+            "org.apache.tomcat.embed:tomcat-embed-websocket" to pinnedTomcatVersion,
+            "org.postgresql:postgresql" to pinnedPostgresqlVersion
+        ),
+        "testRuntimeClasspath" to mapOf(
+            "org.apache.commons:commons-compress" to pinnedCommonsCompressVersion,
+            "org.apache.commons:commons-lang3" to pinnedCommonsLang3Version
+        )
+    ),
+    ":layered-authorization-spring-boot-starter" to mapOf(
+        "runtimeClasspath" to mapOf(
+            "org.apache.tomcat.embed:tomcat-embed-core" to pinnedTomcatVersion,
+            "org.apache.tomcat.embed:tomcat-embed-websocket" to pinnedTomcatVersion,
+            "org.postgresql:postgresql" to pinnedPostgresqlVersion
+        )
+    ),
+    ":tenant-isolation" to mapOf(
+        "runtimeClasspath" to mapOf(
+            "org.postgresql:postgresql" to pinnedPostgresqlVersion
+        ),
+        "testRuntimeClasspath" to mapOf(
+            "org.apache.commons:commons-compress" to pinnedCommonsCompressVersion,
+            "org.apache.commons:commons-lang3" to pinnedCommonsLang3Version
+        )
+    ),
+    ":tenant-isolation-spring-boot-starter" to mapOf(
+        "runtimeClasspath" to mapOf(
+            "org.postgresql:postgresql" to pinnedPostgresqlVersion
+        )
+    )
+)
+
 allprojects {
     group = "io.github.joshuamatosdev.security"
     version = "0.1.0-SNAPSHOT"
@@ -48,6 +107,14 @@ subprojects {
             publications {
                 create<MavenPublication>("mavenJava") {
                     from(components["java"])
+                    versionMapping {
+                        usage("java-api") {
+                            fromResolutionOf("runtimeClasspath")
+                        }
+                        usage("java-runtime") {
+                            fromResolutionResult()
+                        }
+                    }
 
                     pom {
                         name.set("Project Glyptodon ${project.name}")
@@ -102,6 +169,42 @@ subprojects {
 
             tasks.named("check") {
                 dependsOn(assertJSpecifyPublicApiDependencyIsCompileScoped)
+            }
+        }
+
+        securityPinnedDependencyVersions[project.path]?.let { expectedByConfiguration ->
+            val assertSecurityPinnedDependencyVersions =
+                tasks.register("assertSecurityPinnedDependencyVersions") {
+                    doLast {
+                        expectedByConfiguration.forEach { (configurationName, expectedVersions) ->
+                            val selectedVersions = configurations
+                                .getByName(configurationName)
+                                .incoming
+                                .resolutionResult
+                                .allComponents
+                                .mapNotNull { component -> component.moduleVersion }
+                                .associate { module -> "${module.group}:${module.name}" to module.version }
+
+                            val mismatches = expectedVersions
+                                .filter { (coordinate, expectedVersion) ->
+                                    selectedVersions[coordinate] != expectedVersion
+                                }
+                                .map { (coordinate, expectedVersion) ->
+                                    "$coordinate expected $expectedVersion, selected ${selectedVersions[coordinate] ?: "missing"}"
+                                }
+
+                            if (mismatches.isNotEmpty()) {
+                                throw GradleException(
+                                    "Security-pinned dependency versions drifted in ${project.path} " +
+                                        "$configurationName: ${mismatches.joinToString()}"
+                                )
+                            }
+                        }
+                    }
+                }
+
+            tasks.named("check") {
+                dependsOn(assertSecurityPinnedDependencyVersions)
             }
         }
     }

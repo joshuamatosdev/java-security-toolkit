@@ -4,6 +4,9 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 import io.github.joshuamatosdev.security.tenant.datasource.factory.DataSourceConfig;
 import io.github.joshuamatosdev.security.tenant.datasource.session.TenantSessionDataSourceProxy;
+import java.time.Clock;
+import java.time.Instant;
+import java.time.ZoneOffset;
 import javax.sql.DataSource;
 import org.junit.jupiter.api.Test;
 import org.mockito.Mockito;
@@ -23,7 +26,7 @@ class TenantIsolationAutoConfigurationTest {
                     "spring.datasource.url=jdbc:postgresql://db.example/shared",
                     "spring.datasource.username=tenant_user",
                     "spring.datasource.password=tenant_password",
-                    "tenant.binding.claim-secret=0123456789abcdef0123456789abcdef",
+                    "tenant.binding.claim-secret=local-dev-tenant-claim-secret-not-production-32-bytes",
                     "tenant.binding.system-ops-password=system_ops_password");
 
     @Test
@@ -43,6 +46,15 @@ class TenantIsolationAutoConfigurationTest {
                     assertThat(context).hasSingleBean(DataSource.class);
                     assertThat(context).doesNotHaveBean(DataSourceConfig.class);
                 });
+    }
+
+    @Test
+    void usesApplicationClockWhenOneIsProvided() {
+        final Clock clock = Clock.fixed(Instant.parse("2026-06-02T00:00:00Z"), ZoneOffset.UTC);
+
+        bootDataSourceContextRunner
+                .withBean(Clock.class, () -> clock)
+                .run(context -> assertThat(context.getBean(Clock.class)).isSameAs(clock));
     }
 
     @Test

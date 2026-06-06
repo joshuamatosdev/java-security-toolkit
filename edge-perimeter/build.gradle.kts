@@ -8,6 +8,8 @@ java {
     toolchain { languageVersion = JavaLanguageVersion.of(21) }
 }
 
+extra["netty.version"] = libs.versions.netty.get()
+
 dependencies {
     api("org.springframework.boot:spring-boot-starter-webflux")
     api("org.springframework.boot:spring-boot-starter-oauth2-client")

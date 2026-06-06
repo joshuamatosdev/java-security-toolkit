@@ -128,7 +128,7 @@ A thread pool worker can handle request A and then request B. If request A leave
 
 This module avoids that by using scoped entry points:
 
-```java
+```text
 TenantContext.runAs(TenantIds.ACME, () -> {
     // tenant-scoped work
 });
@@ -148,13 +148,13 @@ tenants. That is intentionally not a normal request tenant.
 
 Ordinary entry points reject `TenantIds.SYSTEM_OPS`:
 
-```java
+```text
 TenantContext.runAs(TenantIds.SYSTEM_OPS, work); // rejected
 ```
 
 System operations must use the explicit system-ops entry points:
 
-```java
+```text
 TenantContext.runAsSystemOps(work);
 TenantContext.supplyAsSystemOps(work);
 ```
@@ -173,7 +173,7 @@ transaction starts.
 
 Correct shape:
 
-```java
+```text
 TenantContext.runAs(TenantIds.ACME, () -> {
     transactionalService.doTenantWork();
 });
@@ -206,7 +206,7 @@ created it.
 
 Async work must bind the tenant explicitly:
 
-```java
+```text
 TenantId tenant = TenantContext.requireCurrent();
 
 executor.submit(() ->

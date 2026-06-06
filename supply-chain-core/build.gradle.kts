@@ -16,16 +16,18 @@ dependencies {
     testImplementation(platform("org.junit:junit-bom:5.11.4"))
     testImplementation("org.junit.jupiter:junit-jupiter")
     testRuntimeOnly("org.junit.platform:junit-platform-launcher")
-    testImplementation("org.assertj:assertj-core:3.26.3")
+    testImplementation(libs.assertj.core)
 }
 
-tasks.named<org.cyclonedx.gradle.CycloneDxTask>("cyclonedxBom") {
-    setIncludeConfigs(listOf("runtimeClasspath"))
-    setOutputFormat("json")
-    setSchemaVersion("1.5")
-    setProjectType("library")
-    setOutputName("bom")
+val cyclonedxDirectBom = tasks.named<org.cyclonedx.gradle.CyclonedxDirectTask>("cyclonedxDirectBom") {
+    includeConfigs = listOf("runtimeClasspath")
+    jsonOutput.set(file("build/reports/bom.json"))
+    xmlOutput.unsetConvention()
+    schemaVersion = org.cyclonedx.Version.VERSION_15
+    projectType = org.cyclonedx.model.Component.Type.LIBRARY
 }
+// Realize during configuration so the plugin's outgoing artifact variant exists before other projects consume this module.
+cyclonedxDirectBom.get()
 
 dependencyCheck {
     failBuildOnCVSS = 7.0f
@@ -34,7 +36,7 @@ dependencyCheck {
 
 tasks.test {
     useJUnitPlatform()
-    dependsOn("cyclonedxBom")
+    dependsOn(cyclonedxDirectBom)
     systemProperty(
         "sbom.path",
         layout.buildDirectory.file("reports/bom.json").get().asFile.absolutePath,

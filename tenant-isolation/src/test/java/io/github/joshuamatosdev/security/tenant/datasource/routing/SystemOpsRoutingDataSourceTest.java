@@ -123,7 +123,7 @@ class SystemOpsRoutingDataSourceTest {
         final SystemOpsRoutingDataSource router = new SystemOpsRoutingDataSource(runtime, systemOps);
 
         assertThat(router).isInstanceOf(AutoCloseable.class);
-        ((AutoCloseable) router).close();
+        router.close();
 
         verify(runtime).close();
         verify(systemOps).close();

@@ -25,18 +25,20 @@ dependencies {
     testRuntimeOnly("org.junit.platform:junit-platform-launcher")
 }
 
-tasks.named<org.cyclonedx.gradle.CycloneDxTask>("cyclonedxBom") {
-    setIncludeConfigs(listOf("runtimeClasspath"))
-    setOutputFormat("json")
-    setSchemaVersion("1.5")
-    setProjectType("library")
-    setOutputName("bom")
+val cyclonedxDirectBom = tasks.named<org.cyclonedx.gradle.CyclonedxDirectTask>("cyclonedxDirectBom") {
+    includeConfigs = listOf("runtimeClasspath")
+    jsonOutput.set(file("build/reports/bom.json"))
+    xmlOutput.unsetConvention()
+    schemaVersion = org.cyclonedx.Version.VERSION_15
+    projectType = org.cyclonedx.model.Component.Type.LIBRARY
 }
+// Realize during configuration so the plugin's outgoing artifact variant exists before other projects consume this module.
+cyclonedxDirectBom.get()
 
 tasks.test {
     useJUnitPlatform()
 }
 
 tasks.named("check") {
-    dependsOn("cyclonedxBom")
+    dependsOn(cyclonedxDirectBom)
 }

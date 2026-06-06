@@ -9,7 +9,7 @@ java {
 dependencies {
     api(project(":shared"))
     api("org.junit.jupiter:junit-jupiter-api:5.11.4")
-    api("org.assertj:assertj-core:3.26.3")
+    api(libs.assertj.core)
 
     testRuntimeOnly("org.junit.platform:junit-platform-launcher")
     testRuntimeOnly("org.junit.jupiter:junit-jupiter-engine:5.11.4")

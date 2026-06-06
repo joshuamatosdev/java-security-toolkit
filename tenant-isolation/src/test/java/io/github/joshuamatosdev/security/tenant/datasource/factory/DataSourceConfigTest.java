@@ -134,7 +134,7 @@ class DataSourceConfigTest {
     }
 
     @Test
-    void idModeRejectsRuntimePoolJdbcUrlCredentialParameters() {
+    void idModeRejectsRuntimePoolJdbcUrlUnsafeParameters() {
         final DataSourceConfig config = new DataSourceConfig(
                 new TenantIsolationProperties(TenantIsolationMode.ID, null, null),
                 new TenantBindingProperties(
@@ -145,14 +145,126 @@ class DataSourceConfigTest {
                         TenantPoolInspection.NONE))
                 .isInstanceOf(IllegalStateException.class)
                 .hasMessageContaining("spring.datasource.url")
-                .hasMessageContaining("credential parameters");
+                .hasMessageContaining("unsafe credential, target, trust, plugin, or session parameters");
 
         assertThatThrownBy(() -> config.dataSource(
                         sharedDataSourceProperties(TENANT_USER, SHARED_JDBC_URL + "?password=secret"),
                         TenantPoolInspection.NONE))
                 .isInstanceOf(IllegalStateException.class)
                 .hasMessageContaining("spring.datasource.url")
-                .hasMessageContaining("credential parameters");
+                .hasMessageContaining("unsafe credential, target, trust, plugin, or session parameters");
+
+        assertThatThrownBy(() -> config.dataSource(
+                        sharedDataSourceProperties(
+                                TENANT_USER,
+                                SHARED_JDBC_URL + "?authenticationPluginClassName=com.example.SecretPlugin"),
+                        TenantPoolInspection.NONE))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining("spring.datasource.url")
+                .hasMessageContaining("unsafe credential, target, trust, plugin, or session parameters");
+
+        assertThatThrownBy(() -> config.dataSource(
+                        sharedDataSourceProperties(
+                                TENANT_USER,
+                                SHARED_JDBC_URL + "?socketFactory=com.example.SecretSocketFactory"),
+                        TenantPoolInspection.NONE))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining("spring.datasource.url")
+                .hasMessageContaining("unsafe credential, target, trust, plugin, or session parameters");
+
+        assertThatThrownBy(() -> config.dataSource(
+                        sharedDataSourceProperties(TENANT_USER, SHARED_JDBC_URL + "?currentSchema=tenant_acme"),
+                        TenantPoolInspection.NONE))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining("spring.datasource.url")
+                .hasMessageContaining("unsafe credential, target, trust, plugin, or session parameters");
+
+        assertThatThrownBy(() -> config.dataSource(
+                        sharedDataSourceProperties(
+                                TENANT_USER,
+                                SHARED_JDBC_URL + "?options=-c%20search_path=tenant_acme"),
+                        TenantPoolInspection.NONE))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining("spring.datasource.url")
+                .hasMessageContaining("unsafe credential, target, trust, plugin, or session parameters");
+    }
+
+    @Test
+    void idModeRejectsRuntimePoolJdbcUrlTargetAndTrustOverrides() {
+        final DataSourceConfig config = new DataSourceConfig(
+                new TenantIsolationProperties(TenantIsolationMode.ID, null, null),
+                new TenantBindingProperties(
+                        TenantTestConstants.CLAIM_SECRET, TenantTestConstants.DEV_PASSWORD));
+
+        assertThatThrownBy(() -> config.dataSource(
+                        sharedDataSourceProperties(TENANT_USER, SHARED_JDBC_URL + "?PGHOST=evil.example"),
+                        TenantPoolInspection.NONE))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining("spring.datasource.url")
+                .hasMessageContaining("unsafe credential, target, trust, plugin, or session parameters");
+
+        assertThatThrownBy(() -> config.dataSource(
+                        sharedDataSourceProperties(TENANT_USER, SHARED_JDBC_URL + "?PGDBNAME=otherdb"),
+                        TenantPoolInspection.NONE))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining("spring.datasource.url")
+                .hasMessageContaining("unsafe credential, target, trust, plugin, or session parameters");
+
+        assertThatThrownBy(() -> config.dataSource(
+                        sharedDataSourceProperties(TENANT_USER, SHARED_JDBC_URL + "?loadBalanceHosts=true"),
+                        TenantPoolInspection.NONE))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining("spring.datasource.url")
+                .hasMessageContaining("unsafe credential, target, trust, plugin, or session parameters");
+
+        assertThatThrownBy(() -> config.dataSource(
+                        sharedDataSourceProperties(TENANT_USER, SHARED_JDBC_URL + "?sslrootcert=/run/secrets/root.crt"),
+                        TenantPoolInspection.NONE))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining("spring.datasource.url")
+                .hasMessageContaining("unsafe credential, target, trust, plugin, or session parameters");
+
+        assertThatThrownBy(() -> config.dataSource(
+                        sharedDataSourceProperties(TENANT_USER, SHARED_JDBC_URL + "?gssEncMode=allow"),
+                        TenantPoolInspection.NONE))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining("spring.datasource.url")
+                .hasMessageContaining("unsafe credential, target, trust, plugin, or session parameters");
+
+        assertThatThrownBy(() -> config.dataSource(
+                        sharedDataSourceProperties(TENANT_USER, SHARED_JDBC_URL + "?scramMaxIterations=0"),
+                        TenantPoolInspection.NONE))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining("spring.datasource.url")
+                .hasMessageContaining("unsafe credential, target, trust, plugin, or session parameters");
+
+        assertThatThrownBy(() -> config.dataSource(
+                        sharedDataSourceProperties(TENANT_USER, SHARED_JDBC_URL + "?allowEncodingChanges=true"),
+                        TenantPoolInspection.NONE))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining("spring.datasource.url")
+                .hasMessageContaining("unsafe credential, target, trust, plugin, or session parameters");
+
+        assertThatThrownBy(() -> config.dataSource(
+                        sharedDataSourceProperties(TENANT_USER, SHARED_JDBC_URL + "?sslmode=prefer"),
+                        TenantPoolInspection.NONE))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining("spring.datasource.url")
+                .hasMessageContaining("unsafe credential, target, trust, plugin, or session parameters");
+
+        assertThatThrownBy(() -> config.dataSource(
+                        sharedDataSourceProperties(TENANT_USER, SHARED_JDBC_URL + "?ssl=false"),
+                        TenantPoolInspection.NONE))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining("spring.datasource.url")
+                .hasMessageContaining("unsafe credential, target, trust, plugin, or session parameters");
+
+        assertThatThrownBy(() -> config.dataSource(
+                        sharedDataSourceProperties(TENANT_USER, SHARED_JDBC_URL + "?preferQueryMode=simple"),
+                        TenantPoolInspection.NONE))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining("spring.datasource.url")
+                .hasMessageContaining("unsafe credential, target, trust, plugin, or session parameters");
     }
 
     @Test

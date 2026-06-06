@@ -1,5 +1,6 @@
 package io.github.joshuamatosdev.security.tenant.testkit;
 
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import io.github.joshuamatosdev.security.tenant.TenantIds;
@@ -7,6 +8,17 @@ import io.github.joshuamatosdev.security.tenant.binding.TenantContext;
 import org.junit.jupiter.api.Test;
 
 class TenantContextContractTest implements TenantContextContract {
+
+    @Test
+    void contractCleanupClearsContextBeforeRestoringTheDefaultGuard() {
+        TenantContext.runAs(TenantIds.ACME, () -> {
+            TenantContext.useTenantTransactionActiveCheck(() -> true);
+
+            clearTenantContext();
+
+            assertThat(TenantContext.current()).isEmpty();
+        });
+    }
 
     @Test
     void contractCleanupRestoresTheDefaultTransactionGuard() throws Exception {

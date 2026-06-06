@@ -1,0 +1,48 @@
+name: Bug report
+description: Report a defect in Project Glyptodon
+title: "[bug]: "
+labels: ["bug"]
+body:
+  - type: textarea
+    id: summary
+    attributes:
+      label: Summary
+      description: What happened?
+    validations:
+      required: true
+  - type: dropdown
+    id: module
+    attributes:
+      label: Module
+      options:
+        - shared
+        - tenant-isolation
+        - layered-authorization
+        - edge-perimeter
+        - supply-chain
+        - crypto-agility
+        - docs
+        - build
+    validations:
+      required: true
+  - type: textarea
+    id: reproduce
+    attributes:
+      label: Reproduction
+      description: Minimal steps, command output, or failing test.
+    validations:
+      required: true
+  - type: textarea
+    id: impact
+    attributes:
+      label: Security or production impact
+      description: What boundary, default, or adoption contract is affected?
+    validations:
+      required: true
+  - type: checkboxes
+    id: sanitization
+    attributes:
+      label: Public data check
+      options:
+        - label: I did not include secrets, private hostnames, customer data, or exploit details.
+          required: true

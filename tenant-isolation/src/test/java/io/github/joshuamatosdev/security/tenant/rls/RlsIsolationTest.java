@@ -64,7 +64,7 @@ class RlsIsolationTest extends AbstractRlsTest {
         var acmeView = WithTenant.supplyAs(TenantIds.ACME, repository::findAll);
 
         assertThat(acmeView).hasSize(1);
-        assertThat(acmeView.get(0).getTenantId()).isEqualTo(TenantIds.ACME.value());
+        assertThat(acmeView.getFirst().getTenantId()).isEqualTo(TenantIds.ACME.value());
     }
 
     @Test

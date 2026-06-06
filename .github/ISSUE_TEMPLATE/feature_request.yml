@@ -1,0 +1,26 @@
+name: Feature request
+description: Propose a production hardening, module, or documentation improvement
+title: "[feature]: "
+labels: ["enhancement"]
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem
+      description: What production adoption problem should this solve?
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposal
+      description: What should change?
+    validations:
+      required: true
+  - type: textarea
+    id: contract
+    attributes:
+      label: Security contract
+      description: Which boundary, test, ADR, or public API should define correctness?
+    validations:
+      required: true

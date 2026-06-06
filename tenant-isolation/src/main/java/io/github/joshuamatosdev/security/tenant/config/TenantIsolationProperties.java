@@ -289,7 +289,7 @@ public record TenantIsolationProperties(
         }
         if (PostgresJdbcUrls.containsCredentialQueryParameter(value)) {
             throw new IllegalArgumentException(
-                    tenantMessage(alias, "jdbc-url must not include credential parameters"));
+                    tenantMessage(alias, "jdbc-url must not include unsafe credential, target, trust, plugin, or session parameters"));
         }
         return value;
     }

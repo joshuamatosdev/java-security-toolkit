@@ -3,7 +3,6 @@ package io.github.joshuamatosdev.security.authz.request;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import io.github.joshuamatosdev.security.authz.policy.RoleAssignment;
-import io.github.joshuamatosdev.security.authz.policy.Roles;
 import io.github.joshuamatosdev.security.authz.principal.UserPrincipal;
 import io.github.joshuamatosdev.security.shared.TenantId;
 import java.util.HashSet;

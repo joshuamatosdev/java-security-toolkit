@@ -93,7 +93,7 @@ public class ServiceApiSecurityChainConfig {
       String issuerUri, List<String> audiences) {
     return new DelegatingOAuth2TokenValidator<>(
         new JwtIssuerValidator(issuerUri),
-        new JwtClaimValidator<Object>(
+        new JwtClaimValidator<>(
             JwtClaimNames.AUD, aud -> hasAcceptedAudience(aud, audiences)));
   }
 

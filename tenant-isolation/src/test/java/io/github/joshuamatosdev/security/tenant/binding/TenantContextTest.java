@@ -6,6 +6,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import io.github.joshuamatosdev.security.tenant.TenantIds;
 import io.github.joshuamatosdev.security.tenant.testfixtures.WithTenant;
+import java.util.concurrent.atomic.AtomicBoolean;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.transaction.support.TransactionSynchronizationManager;
@@ -33,10 +34,10 @@ class TenantContextTest {
 
     @AfterEach
     void reset() {
-        TenantContext.clear();
-        TenantContext.useTenantTransactionActiveCheck(
-                TransactionSynchronizationManager::isActualTransactionActive);
         TransactionSynchronizationManager.setActualTransactionActive(false);
+        TenantContext.useTenantTransactionActiveCheck(() -> false);
+        TenantContext.clear();
+        TenantContext.resetTenantTransactionActiveCheck();
     }
 
     @Test
@@ -140,6 +141,43 @@ class TenantContextTest {
         TenantContext.useTenantTransactionActiveCheck(() -> false);
 
         assertThatCode(() -> TenantContext.set(TenantIds.ACME)).doesNotThrowAnyException();
+    }
+
+    @Test
+    void clearingTenantInsideActiveTransactionFailsClosedAndKeepsBinding() {
+        TenantContext.set(TenantIds.ACME);
+        TransactionSynchronizationManager.setActualTransactionActive(true);
+
+        assertThatThrownBy(TenantContext::clear)
+                .isInstanceOf(SecurityException.class)
+                .hasMessageContaining("cannot clear tenant binding")
+                .hasMessageContaining(ACTIVE_TRANSACTION_MESSAGE);
+        assertThat(TenantContext.current()).contains(TenantIds.ACME);
+    }
+
+    @Test
+    void restoringToNoTenantInsideActiveTransactionFailsClosedAndKeepsBinding() {
+        final AtomicBoolean tenantTransactionActive = new AtomicBoolean(false);
+        TenantContext.useTenantTransactionActiveCheck(tenantTransactionActive::get);
+
+        assertThatThrownBy(() -> TenantContext.runAs(TenantIds.ACME, () -> tenantTransactionActive.set(true)))
+                .isInstanceOf(SecurityException.class)
+                .hasMessageContaining("cannot restore tenant binding")
+                .hasMessageContaining(ACTIVE_TRANSACTION_MESSAGE);
+        assertThat(TenantContext.current()).contains(TenantIds.ACME);
+    }
+
+    @Test
+    void restoringPriorTenantInsideActiveTransactionFailsClosedAndKeepsInnerBinding() {
+        final AtomicBoolean tenantTransactionActive = new AtomicBoolean(false);
+        TenantContext.useTenantTransactionActiveCheck(tenantTransactionActive::get);
+        TenantContext.set(TenantIds.ACME);
+
+        assertThatThrownBy(() -> TenantContext.runAs(TenantIds.GLOBEX, () -> tenantTransactionActive.set(true)))
+                .isInstanceOf(SecurityException.class)
+                .hasMessageContaining("cannot restore tenant binding")
+                .hasMessageContaining(ACTIVE_TRANSACTION_MESSAGE);
+        assertThat(TenantContext.current()).contains(TenantIds.GLOBEX);
     }
 
     @Test

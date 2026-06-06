@@ -191,7 +191,7 @@ class TenantSchemaDataSourceTest {
                 TenantPoolInspection.NONE);
 
         assertThat(dataSource).isInstanceOf(AutoCloseable.class);
-        ((AutoCloseable) dataSource).close();
+        dataSource.close();
 
         verify(delegate).close();
     }

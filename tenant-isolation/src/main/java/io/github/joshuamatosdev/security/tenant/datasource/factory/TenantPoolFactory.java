@@ -152,7 +152,7 @@ final class TenantPoolFactory {
         }
         if (PostgresJdbcUrls.containsCredentialQueryParameter(jdbcUrl)) {
             throw new IllegalStateException(
-                    "spring.datasource.url must not include credential parameters");
+                    "spring.datasource.url must not include unsafe credential, target, trust, plugin, or session parameters");
         }
     }
 

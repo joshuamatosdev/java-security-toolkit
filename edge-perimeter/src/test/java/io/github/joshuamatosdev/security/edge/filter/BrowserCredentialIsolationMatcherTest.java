@@ -3,6 +3,7 @@ package io.github.joshuamatosdev.security.edge.filter;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import io.github.joshuamatosdev.security.edge.chain.ServiceApiSecurityChainConfig;
+import java.util.Objects;
 import java.util.concurrent.atomic.AtomicReference;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ValueSource;
@@ -44,9 +45,10 @@ class BrowserCredentialIsolationMatcherTest {
                 .header(HttpHeaders.AUTHORIZATION, "Bearer candidate-token"));
 
     boolean serviceChainMatches =
-        ServerWebExchangeMatchers.pathMatchers(ServiceApiSecurityChainConfig.SERVICE_MATCHER)
-            .matches(exchange)
-            .block()
+        Objects.requireNonNull(
+                ServerWebExchangeMatchers.pathMatchers(ServiceApiSecurityChainConfig.SERVICE_MATCHER)
+                    .matches(exchange)
+                    .block())
             .isMatch();
 
     ServerHttpRequest downstream = runAndCaptureDownstreamRequest(exchange);

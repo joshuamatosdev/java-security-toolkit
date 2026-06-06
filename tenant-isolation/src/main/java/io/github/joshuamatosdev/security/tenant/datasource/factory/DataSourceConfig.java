@@ -5,9 +5,11 @@ import io.github.joshuamatosdev.security.tenant.binding.SystemTenantBoundary;
 import io.github.joshuamatosdev.security.tenant.config.TenantBindingProperties;
 import io.github.joshuamatosdev.security.tenant.config.TenantIsolationProperties;
 import io.github.joshuamatosdev.security.tenant.datasource.pool.TenantPoolInspection;
-import javax.sql.DataSource;
-
 import io.github.joshuamatosdev.security.tenant.datasource.session.TenantSessionDataSourceProxy;
+import java.time.Clock;
+import javax.sql.DataSource;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
 import org.springframework.boot.autoconfigure.jdbc.DataSourceProperties;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.context.annotation.Bean;
@@ -46,11 +48,32 @@ public class DataSourceConfig {
     public DataSourceConfig(
             final TenantIsolationProperties isolationProperties,
             final TenantBindingProperties bindingProperties) {
+        this(isolationProperties, bindingProperties, Clock.systemUTC());
+    }
+
+    /**
+     * Creates the datasource configuration component.
+     *
+     * @param isolationProperties typed tenant placement topology
+     * @param bindingProperties session-claim settings used by every isolation mode
+     * @param clock clock used to compute signed tenant claim expiry
+     */
+    @Autowired
+    public DataSourceConfig(
+            final TenantIsolationProperties isolationProperties,
+            final TenantBindingProperties bindingProperties,
+            final Clock clock) {
         this.poolFactory = new TenantPoolFactory(isolationProperties, bindingProperties);
         this.dataSourceFactory = new TenantDataSourceFactory(
                 isolationProperties,
                 poolFactory,
-                new TenantClaimSignerFactory(bindingProperties));
+                new TenantClaimSignerFactory(bindingProperties, clock));
+    }
+
+    @Bean
+    @ConditionalOnMissingBean(Clock.class)
+    static Clock tenantIsolationClock() {
+        return Clock.systemUTC();
     }
 
     /**
@@ -124,4 +147,3 @@ public class DataSourceConfig {
                 tenantPoolInspection);
     }
 }
-
