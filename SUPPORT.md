@@ -1,6 +1,6 @@
 # Support
 
-Project Glyptodon is maintained by Joshua Matos and DoctrineOne Industries.
+Bulwark is maintained by Joshua Matos and DoctrineOne Industries.
 
 ## Community Support
 

@@ -1,20 +1,8 @@
 plugins {
     `java-library`
-}
-
-java {
-    toolchain { languageVersion = JavaLanguageVersion.of(21) }
+    alias(libs.plugins.cyclonedx.bom)
 }
 
 dependencies {
-    api(project(":crypto-agility-core"))
-
-    testImplementation(platform("org.junit:junit-bom:5.11.4"))
-    testImplementation("org.junit.jupiter:junit-jupiter")
-    testRuntimeOnly("org.junit.platform:junit-platform-launcher")
-    testImplementation(libs.assertj.core)
-}
-
-tasks.test {
-    useJUnitPlatform()
+    testImplementation(project(":crypto-agility-testkit"))
 }

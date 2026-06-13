@@ -7,7 +7,7 @@ java {
 }
 
 dependencies {
-    implementation("io.github.joshuamatosdev.security:crypto-agility-core:0.1.0-SNAPSHOT")
+    implementation("io.github.joshuamatosdev.security:crypto-agility:0.1.0-SNAPSHOT")
 }
 
 application {

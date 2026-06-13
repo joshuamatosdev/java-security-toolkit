@@ -12,7 +12,7 @@ import org.springframework.context.annotation.Import;
 @AutoConfiguration
 @ConditionalOnClass(AuthorizationService.class)
 @ConditionalOnProperty(
-        prefix = "glyptodon.layered-authorization",
+        prefix = "bulwark.layered-authorization",
         name = "enabled",
         havingValue = "true",
         matchIfMissing = true)

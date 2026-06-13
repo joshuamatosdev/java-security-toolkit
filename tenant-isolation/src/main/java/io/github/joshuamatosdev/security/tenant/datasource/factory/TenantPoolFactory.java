@@ -32,7 +32,7 @@ final class TenantPoolFactory {
             Pattern.compile("jdbc:[A-Za-z][A-Za-z0-9._-]*:\\S+");
     private static final String POSTGRES_JDBC_URL_PREFIX = "jdbc:postgresql:";
     private static final Set<String> FORBIDDEN_RUNTIME_POOL_USERNAMES =
-            Set.of("postgres", "ttx", "tenant_bypass", SYSTEM_OPS_USERNAME, "application_owner");
+            Set.of("postgres", "app_superuser", "tenant_bypass", SYSTEM_OPS_USERNAME, "application_owner");
 
     private final TenantIsolationProperties isolationProperties;
     private final TenantBindingProperties bindingProperties;
@@ -150,9 +150,11 @@ final class TenantPoolFactory {
             throw new IllegalStateException(
                     "spring.datasource.url must be a PostgreSQL jdbc-url");
         }
-        if (PostgresJdbcUrls.containsCredentialQueryParameter(jdbcUrl)) {
+        final var unsafeParameter = PostgresJdbcUrls.firstUnsafeQueryParameter(jdbcUrl);
+        if (unsafeParameter.isPresent()) {
             throw new IllegalStateException(
-                    "spring.datasource.url must not include unsafe credential, target, trust, plugin, or session parameters");
+                    "spring.datasource.url must not include unsafe JDBC URL query parameter: "
+                            + unsafeParameter.get());
         }
     }
 

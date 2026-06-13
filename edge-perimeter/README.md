@@ -54,10 +54,10 @@ implementation("io.github.joshuamatosdev.security:edge-perimeter-spring-boot-sta
 ```
 
 The starter imports the reference WebFlux perimeter configuration when
-`glyptodon.edge-perimeter.enabled` is true or absent. Disable it with:
+`bulwark.edge-perimeter.enabled` is true or absent. Disable it with:
 
 ```yaml
-glyptodon:
+bulwark:
   edge-perimeter:
     enabled: false
 ```

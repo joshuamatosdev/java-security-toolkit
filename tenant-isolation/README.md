@@ -52,10 +52,10 @@ implementation("io.github.joshuamatosdev.security:tenant-isolation-spring-boot-s
 ```
 
 The starter imports the reference data-source configuration when
-`glyptodon.tenant-isolation.enabled` is true or absent. Disable it with:
+`bulwark.tenant-isolation.enabled` is true or absent. Disable it with:
 
 ```yaml
-glyptodon:
+bulwark:
   tenant-isolation:
     enabled: false
 ```
@@ -67,6 +67,7 @@ glyptodon:
 - Connection reset before a pooled connection is returned.
 - Non-superuser runtime roles with `NOBYPASSRLS`.
 - A separate read-only system-ops pool for ID-mode cross-tenant reads.
+- A separate sentinel-pinned system-writer role for system-owned writes, capped by a RESTRICTIVE policy.
 - Forced signed-claim RLS as a second guard for schema-mode tables.
 - Database-owned UUIDv7 identifiers through PostgreSQL 18.
 - Build-breaking tests for unsafe pool identities and tenant-boundary mistakes.
@@ -207,6 +208,9 @@ Important tests:
 - `DatabaseIsolationModeIntegrationTest`: per-tenant database routing, signed
   claim binding, hidden pool inspection, and physical tenant separation.
 - `PoolIdentityAuditTest`: non-superuser and `NOBYPASSRLS` role invariants.
+- `SystemWriterRestrictivePolicyTest`: the system-writer tier — sentinel-claim
+  minting, the RESTRICTIVE write cap that rejects even a captured valid
+  foreign-tenant claim, and the ungranted system-write path for the runtime pool.
 - `SystemTenantBoundaryArchitectureTest`: source-level guard for system-ops
   boundary access.
 

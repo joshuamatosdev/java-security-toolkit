@@ -8,5 +8,6 @@ Maven publication:
 ./gradlew -p examples/crypto-agility-spring-boot bootRun
 ```
 
-The starter auto-configures local JCA Ed25519, a default key id, and `DocumentSigner`. Replace the
-local key resolver/provider with KMS or HSM custody before production use.
+The example opts into local ephemeral signing keys so `DocumentSigner.sign(byte[])` can run without
+external custody. Production applications should leave that opt-in disabled and supply a
+`KeyHandleResolver` backed by KMS or HSM custody.

@@ -125,11 +125,13 @@ class DocumentControllerSecurityTest {
     private static void seed(final Connection c, final ResourceId id, final TenantId tenantId, final String owner)
         throws Exception {
         try (PreparedStatement ps = c.prepareStatement(
-                "INSERT INTO document (id, tenant_id, organization_id, owner_principal_key) VALUES (?, ?, ?, ?)")) {
+                "INSERT INTO document (id, tenant_id, organization_id, owner_principal_type, owner_principal_key)"
+                    + " VALUES (?, ?, ?, ?, ?)")) {
             ps.setObject(1, id.value());
             ps.setObject(2, tenantId.value());
             ps.setObject(3, DocumentDirectory.ENGINEERING.value());
-            ps.setString(4, owner);
+            ps.setString(4, PrincipalType.USER.name());
+            ps.setString(5, owner);
             ps.executeUpdate();
         }
     }
@@ -247,8 +249,8 @@ class DocumentControllerSecurityTest {
 
     @Test
     void postgres18MintsVersion7DocumentIds() {
-        final ProtectedResource created =
-            documents.create(DocumentDirectory.ACME, DocumentDirectory.ENGINEERING, DemoAccounts.MEMBER_USERNAME);
+        final ProtectedResource created = documents.create(
+            DocumentDirectory.ACME, DocumentDirectory.ENGINEERING, PrincipalType.USER, DemoAccounts.MEMBER_USERNAME);
 
         assertThat(created.resourceId().value().version()).isEqualTo(7);
     }

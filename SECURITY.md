@@ -1,6 +1,6 @@
 # Security Policy
 
-Project Glyptodon is production-oriented open-source security software from
+Bulwark is production-oriented open-source security software from
 Joshua Matos and DoctrineOne Industries. It is intended to be adopted into real
 applications with the environment-specific controls described in the production
 adoption guide.

@@ -1,11 +1,33 @@
 plugins {
     `java-library`
-}
-
-java {
-    toolchain { languageVersion = JavaLanguageVersion.of(21) }
+    alias(libs.plugins.cyclonedx.bom)
+    alias(libs.plugins.owasp.dependencycheck)
 }
 
 dependencies {
-    api(project(":supply-chain-core"))
+    api(libs.jspecify)
+    implementation(libs.jackson.databind)
+
+    testImplementation(project(":supply-chain-testkit"))
+}
+
+dependencyCheck {
+    failBuildOnCVSS = 7.0f
+    formats = listOf("HTML", "JSON")
+}
+
+tasks.test {
+    dependsOn(tasks.named("cyclonedxDirectBom"))
+    systemProperty(
+        "sbom.path",
+        layout.buildDirectory.file("reports/bom.json").get().asFile.absolutePath,
+    )
+    systemProperty(
+        "dockerfile.path",
+        layout.projectDirectory.file("Dockerfile").asFile.absolutePath,
+    )
+    systemProperty(
+        "wrapper.properties.path",
+        rootProject.file("gradle/wrapper/gradle-wrapper.properties").absolutePath,
+    )
 }

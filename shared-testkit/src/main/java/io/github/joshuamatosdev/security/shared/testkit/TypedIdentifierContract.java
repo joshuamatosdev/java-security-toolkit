@@ -31,4 +31,11 @@ public interface TypedIdentifierContract<T> {
                 .isInstanceOf(IllegalArgumentException.class)
                 .hasMessage(typeName() + " must be a canonical UUID");
     }
+
+    @Test
+    default void nilUuidIsRejected() {
+        assertThatThrownBy(() -> parser().apply("00000000-0000-0000-0000-000000000000"))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessage(typeName() + " must not be the nil UUID");
+    }
 }

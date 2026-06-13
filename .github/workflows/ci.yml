@@ -5,6 +5,10 @@ on:
     branches: [main]
   pull_request:
     branches: [main]
+  schedule:
+    # Weekly dependency CVE scan against a fresh NVD feed, independent of commit cadence.
+    - cron: "0 7 * * 1"
+  workflow_dispatch:
 
 permissions:
   contents: read
@@ -17,16 +21,20 @@ jobs:
 
     steps:
       - name: Check out repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
 
       - name: Set up JDK 21
-        uses: actions/setup-java@v4
+        uses: actions/setup-java@c1e323688fd81a25caa38c78aa6df2d33d3e20d9 # v4
         with:
           distribution: temurin
           java-version: "21"
 
       - name: Set up Gradle
-        uses: gradle/actions/setup-gradle@v4
+        uses: gradle/actions/setup-gradle@ed408507eac070d1f99cc633dbcf757c94c7933a # v4
+        with:
+          # Validate the committed gradle-wrapper.jar against Gradle's published checksums before it
+          # runs. The wrapper JAR is the first code executed on every ./gradlew invocation.
+          validate-wrappers: true
 
       - name: Build, test, and verify local publication metadata
         run: ./gradlew build publishToMavenLocal --console=plain --no-daemon
@@ -41,7 +49,44 @@ jobs:
 
     steps:
       - name: Check out repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
 
       - name: Review dependency changes
-        uses: actions/dependency-review-action@v4
+        uses: actions/dependency-review-action@2031cfc080254a8a887f58cffee85186f0e49e48 # v4
+
+  dependency-scan:
+    name: dependency CVE scan
+    runs-on: ubuntu-latest
+    # The OWASP scan needs the NVD feed (network + API key), so it runs on a schedule and on demand
+    # rather than on every push — keeping the default build offline (see ADR-0005).
+    if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
+    timeout-minutes: 30
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+
+      - name: Set up JDK 21
+        uses: actions/setup-java@c1e323688fd81a25caa38c78aa6df2d33d3e20d9 # v4
+        with:
+          distribution: temurin
+          java-version: "21"
+
+      - name: Set up Gradle
+        uses: gradle/actions/setup-gradle@ed408507eac070d1f99cc633dbcf757c94c7933a # v4
+        with:
+          validate-wrappers: true
+
+      - name: Require NVD API key
+        env:
+          NVD_API_KEY: ${{ secrets.NVD_API_KEY }}
+        run: |
+          if [ -z "$NVD_API_KEY" ]; then
+            echo "::error::NVD_API_KEY secret is required for dependencyCheckAggregate."
+            exit 1
+          fi
+
+      - name: Scan every module's dependency closure for high-severity CVEs
+        env:
+          NVD_API_KEY: ${{ secrets.NVD_API_KEY }}
+        run: ./gradlew dependencyCheckPurge dependencyCheckAggregate --console=plain --no-daemon

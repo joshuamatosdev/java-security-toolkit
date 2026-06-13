@@ -12,3 +12,6 @@ indent_size = 4
 
 [*.{yml,yaml,toml,md}]
 indent_size = 2
+
+[*.bat]
+end_of_line = crlf

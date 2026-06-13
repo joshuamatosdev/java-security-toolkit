@@ -1,9 +1,5 @@
 package io.github.joshuamatosdev.security.tenant.datasource.session;
 
-import java.lang.reflect.InvocationHandler;
-import java.lang.reflect.InvocationTargetException;
-import java.lang.reflect.Method;
-import java.lang.reflect.Proxy;
 import java.sql.Connection;
 import java.sql.ConnectionBuilder;
 import java.sql.PreparedStatement;
@@ -13,17 +9,16 @@ import java.sql.ShardingKeyBuilder;
 import java.sql.Types;
 import java.util.List;
 import java.util.Objects;
-import java.util.concurrent.Executor;
 import javax.sql.DataSource;
 
 import io.github.joshuamatosdev.security.shared.TenantId;
 import io.github.joshuamatosdev.security.tenant.binding.SystemTenantBoundary;
 import io.github.joshuamatosdev.security.tenant.binding.TenantBindingObserver;
 import io.github.joshuamatosdev.security.tenant.binding.TenantContext;
+import io.github.joshuamatosdev.security.tenant.datasource.ResettingConnectionProxy;
 import io.github.joshuamatosdev.security.tenant.datasource.pool.TenantPoolInspection;
 import io.github.joshuamatosdev.security.tenant.datasource.pool.TenantPoolSnapshot;
 import org.jspecify.annotations.NonNull;
-import org.jspecify.annotations.Nullable;
 import org.springframework.jdbc.datasource.AbstractDataSource;
 
 /**
@@ -45,9 +40,6 @@ public final class TenantSessionDataSourceProxy extends AbstractDataSource imple
 
     private static final String SET_CONFIG_SQL = "SELECT set_config(?, ?, ?)";
     private static final String TENANT_CLAIM_SETTING = "app.tenant_claim";
-    private static final String ARGS_REQUIRED = "args";
-    private static final String WRAPPER_INTERFACE_REQUIRED = "wrapper interface must not be null";
-    private static final Executor DIRECT_EXECUTOR = Runnable::run;
 
     private final DataSource delegate;
     private final String poolName;
@@ -228,43 +220,11 @@ public final class TenantSessionDataSourceProxy extends AbstractDataSource imple
         try {
             applyBinding(raw, tenantClaim);
         } catch (SQLException | RuntimeException ex) {
-            abortQuietly(raw);
+            ResettingConnectionProxy.abortQuietly(raw);
             throw ex;
         }
         notifyObserver(() -> observer.onBindingSet(poolName));
         return wrapForSessionReset(raw);
-    }
-
-    /**
-     * Closes a connection while intentionally suppressing close failures.
-     *
-     * <p>This helper is used only on already-failing paths where preserving the original failure is
-     * more useful than replacing it with cleanup noise.
-     *
-     * @param raw the connection to close
-     */
-    private static void closeQuietly(final Connection raw) {
-        try {
-            raw.close();
-        } catch (SQLException | RuntimeException suppressed) {
-            // ignore; we are already failing fast
-        }
-    }
-
-    /**
-     * Aborts a connection and falls back to close if the driver cannot abort it.
-     *
-     * <p>{@link Connection#abort(Executor)} requires an executor; the direct executor is enough
-     * because the caller is already on a cleanup path and no asynchronous scheduling is needed.
-     *
-     * @param raw the connection whose session state should not be returned to the pool
-     */
-    private static void abortQuietly(final Connection raw) {
-        try {
-            raw.abort(DIRECT_EXECUTOR);
-        } catch (SQLException | RuntimeException suppressed) {
-            closeQuietly(raw);
-        }
     }
 
     /**
@@ -395,138 +355,37 @@ public final class TenantSessionDataSourceProxy extends AbstractDataSource imple
      * @return a connection proxy that resets the tenant binding before returning to the pool
      */
     private Connection wrapForSessionReset(final Connection raw) {
-        return (Connection) Proxy.newProxyInstance(
-                TenantSessionDataSourceProxy.class.getClassLoader(),
-                new Class<?>[] {Connection.class},
-                new SessionResetHandler(raw, poolName, observer));
+        return ResettingConnectionProxy.wrap(
+                raw,
+                "tenant-guarded connection is closed",
+                "tenant-guarded connection does not expose its delegate",
+                this::closeTenantSession);
     }
 
-    private static final class SessionResetHandler implements InvocationHandler {
-        private final Connection delegate;
-        private final String poolName;
-        private final TenantBindingObserver observer;
-        private boolean closed;
-
-        /**
-         * Creates the invocation handler for one borrowed connection.
-         *
-         * @param delegate the tenant-bound connection returned by the underlying pool
-         * @param poolName the logical pool name used in observer callbacks
-         * @param observer receives reset-failure events
-         */
-        SessionResetHandler(final Connection delegate, final String poolName, final TenantBindingObserver observer) {
-            this.delegate = delegate;
-            this.poolName = poolName;
-            this.observer = observer;
+    /**
+     * Clears the tenant session binding, then returns the connection to the pool.
+     *
+     * <p>The reset catch MUST cover {@link RuntimeException} as well as {@link SQLException}: schema
+     * mode wraps the delegate and can surface driver exception causes verbatim. A claim-bearing
+     * connection must never be returned to the pool unreset; abort is the only safe disposal when
+     * reset fails.
+     *
+     * @param raw the tenant-bound connection returned by the underlying pool
+     * @throws SQLException when returning the connection to the pool fails
+     */
+    private void closeTenantSession(final Connection raw) throws SQLException {
+        try {
+            resetSessionBinding(raw);
+        } catch (SQLException | RuntimeException ex) {
+            notifyObserver(() -> observer.onResetFailed(poolName));
+            ResettingConnectionProxy.abortQuietly(raw);
+            return;
         }
-
-        /**
-         * Intercepts connection calls that can affect the tenant-binding guard.
-         *
-         * <p>{@code close()} is made idempotent and performs session reset before returning the
-         * delegate to the pool. JDBC's {@code isWrapperFor}/{@code unwrap} methods are special-cased
-         * because they come from {@link java.sql.Wrapper}; without the proxy-first behavior, callers
-         * could unwrap to the raw pool connection and bypass this close/reset handler.
-         *
-         * @param proxy the connection proxy exposed to callers
-         * @param method the invoked {@link Connection} method
-         * @param args method arguments, or {@code null} for no-argument methods
-         * @return the delegated method result, or {@code null} for {@code close()}
-         * @throws Throwable when the delegated JDBC method throws
-         */
-        @Override
-        public @Nullable Object invoke(final Object proxy, final Method method, final @Nullable Object[] args)
-                throws Throwable {
-            final String methodName = method.getName();
-            if ("close".equals(methodName) && hasNoArgs(args)) {
-                handleClose();
-                return null;
-            }
-            if ("isClosed".equals(methodName) && hasNoArgs(args)) {
-                return closed || Boolean.TRUE.equals(invokeDelegate(method, args));
-            }
-            if (closed && method.getDeclaringClass() != Object.class) {
-                throw new SQLException("tenant-guarded connection is closed");
-            }
-            if ("isWrapperFor".equals(methodName) && hasSingleArg(args)) {
-                return handleIsWrapperFor(proxy, args);
-            }
-            if ("unwrap".equals(methodName) && hasSingleArg(args)) {
-                return handleUnwrap(proxy, args);
-            }
-            return invokeDelegate(method, args);
-        }
-
-        private static boolean hasNoArgs(final @Nullable Object[] args) {
-            return args == null || args.length == 0;
-        }
-
-        private static boolean hasSingleArg(final @Nullable Object[] args) {
-            return args != null && args.length == 1;
-        }
-
-        /**
-         * Clears the tenant session binding, then returns the connection to the pool, exactly once.
-         *
-         * <p>The reset catch MUST cover {@link RuntimeException} as well as {@link SQLException}: in
-         * schema mode the delegate is a {@code SchemaResetConnection} proxy that rethrows driver
-         * exception causes verbatim, so {@code resetSessionBinding} can throw unchecked. Narrowing the
-         * catch back to {@code SQLException} would let that path skip {@code abortQuietly} and
-         * {@code closed = true}, orphaning the borrowed connection instead of aborting it (this is the
-         * same reason {@code bind} catches {@code SQLException | RuntimeException}). A claim-bearing
-         * connection must never be returned to the pool unreset — abort is the only safe disposal when
-         * the reset fails. Do not narrow it.
-         *
-         * @throws SQLException when returning the connection to the pool fails
-         */
-        private void handleClose() throws SQLException {
-            if (closed) {
-                return;
-            }
-            try {
-                resetSessionBinding(delegate);
-            } catch (SQLException | RuntimeException ex) {
-                notifyObserver(() -> observer.onResetFailed(poolName));
-                abortQuietly(delegate);
-                closed = true;
-                return;
-            }
-            try {
-                delegate.close();
-            } catch (SQLException | RuntimeException ex) {
-                abortQuietly(delegate);
-                throw ex;
-            } finally {
-                closed = true;
-            }
-        }
-
-        private static boolean handleIsWrapperFor(final Object proxy, final @Nullable Object[] args) {
-            final Class<?> iface = wrapperInterface(args);
-            return iface != null && iface.isInstance(proxy);
-        }
-
-        private static Object handleUnwrap(final Object proxy, final @Nullable Object[] args) throws SQLException {
-            final Class<?> iface = wrapperInterface(args);
-            if (iface == null) {
-                throw new SQLException(WRAPPER_INTERFACE_REQUIRED);
-            }
-            if (iface.isInstance(proxy)) {
-                return iface.cast(proxy);
-            }
-            throw new SQLException("tenant-guarded connection does not expose its delegate");
-        }
-
-        private static @Nullable Class<?> wrapperInterface(final @Nullable Object[] args) {
-            return (Class<?>) Objects.requireNonNull(args, ARGS_REQUIRED)[0];
-        }
-
-        private Object invokeDelegate(final Method method, final @Nullable Object[] args) throws Throwable {
-            try {
-                return method.invoke(delegate, args);
-            } catch (InvocationTargetException ex) {
-                throw ex.getTargetException();
-            }
+        try {
+            raw.close();
+        } catch (SQLException | RuntimeException ex) {
+            ResettingConnectionProxy.abortQuietly(raw);
+            throw ex;
         }
     }
 }

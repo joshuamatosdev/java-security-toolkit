@@ -47,7 +47,7 @@ public class BrowserCredentialIsolationFilter implements WebFilter {
   public @NonNull Mono<Void> filter(
       @NonNull ServerWebExchange exchange, @NonNull WebFilterChain chain) {
     ServerHttpRequest request = exchange.getRequest();
-    String path = request.getURI().getPath();
+    String logPath = safeLogPath(request);
 
     // Match the service security chain's /api/service/** matcher exactly, including Spring's path
     // parsing rules for matrix parameters and encoded separators. A hand-written prefix check can
@@ -59,23 +59,43 @@ public class BrowserCredentialIsolationFilter implements WebFilter {
               if (match.isMatch()) {
                 return chain.filter(exchange);
               }
-              return filterBrowserPlane(exchange, chain, request, path);
+              return filterBrowserPlane(exchange, chain, request, logPath);
             });
   }
 
   private Mono<Void> filterBrowserPlane(
-      ServerWebExchange exchange, WebFilterChain chain, ServerHttpRequest request, String path) {
+      ServerWebExchange exchange, WebFilterChain chain, ServerHttpRequest request, String logPath) {
     if (request.getHeaders().containsKey(HttpHeaders.AUTHORIZATION)) {
       log.warn(
           "inbound_credential_header_stripped header={} method={} path={} remote={}",
           HttpHeaders.AUTHORIZATION,
           request.getMethod(),
-          path,
+          logPath,
           request.getRemoteAddress() != null ? request.getRemoteAddress().getAddress() : null);
       ServerHttpRequest mutated =
           request.mutate().headers(h -> h.remove(HttpHeaders.AUTHORIZATION)).build();
       return chain.filter(exchange.mutate().request(mutated).build());
     }
     return chain.filter(exchange);
+  }
+
+  static String safeLogPath(ServerHttpRequest request) {
+    String rawPath = request.getURI().getRawPath();
+    return escapeControlCharacters(rawPath == null ? "" : rawPath);
+  }
+
+  private static String escapeControlCharacters(String value) {
+    StringBuilder escaped = new StringBuilder(value.length());
+    for (int index = 0; index < value.length(); index++) {
+      char character = value.charAt(index);
+      if (Character.isISOControl(character)) {
+        escaped.append("\\u");
+        String hex = Integer.toHexString(character);
+        escaped.append("0".repeat(4 - hex.length())).append(hex);
+      } else {
+        escaped.append(character);
+      }
+    }
+    return escaped.toString();
   }
 }

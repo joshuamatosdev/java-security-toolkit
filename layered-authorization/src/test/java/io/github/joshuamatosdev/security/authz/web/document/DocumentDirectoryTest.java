@@ -8,6 +8,7 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoMoreInteractions;
 
 import io.github.joshuamatosdev.security.authz.persistence.DocumentRepository;
+import io.github.joshuamatosdev.security.authz.principal.PrincipalType;
 import io.github.joshuamatosdev.security.shared.ResourceId;
 import org.junit.jupiter.api.Test;
 
@@ -39,7 +40,8 @@ class DocumentDirectoryTest {
         final DocumentDirectory directory = new DocumentDirectory(repository);
 
         assertThatThrownBy(() ->
-                directory.create(DocumentDirectory.ACME, DocumentDirectory.ENGINEERING, "member\nforged"))
+                directory.create(
+                    DocumentDirectory.ACME, DocumentDirectory.ENGINEERING, PrincipalType.USER, "member\nforged"))
                 .isInstanceOf(IllegalArgumentException.class)
                 .hasMessage("ownerPrincipalKey must not contain control characters");
 

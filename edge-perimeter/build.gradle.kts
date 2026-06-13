@@ -4,12 +4,6 @@ plugins {
     alias(libs.plugins.spring.dep.management)
 }
 
-java {
-    toolchain { languageVersion = JavaLanguageVersion.of(21) }
-}
-
-extra["netty.version"] = libs.versions.netty.get()
-
 dependencies {
     api("org.springframework.boot:spring-boot-starter-webflux")
     api("org.springframework.boot:spring-boot-starter-oauth2-client")
@@ -25,8 +19,4 @@ dependencies {
     // JDK-21-only build contract. Pinned centrally in libs.versions.toml (okhttp 4.12.0, the
     // version Spring Boot 3.5.x manages for okhttp3).
     testImplementation(libs.mockwebserver)
-}
-
-tasks.test {
-    useJUnitPlatform()
 }

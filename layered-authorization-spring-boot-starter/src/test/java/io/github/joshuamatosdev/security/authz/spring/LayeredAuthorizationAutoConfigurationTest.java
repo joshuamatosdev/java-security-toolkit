@@ -33,7 +33,7 @@ class LayeredAuthorizationAutoConfigurationTest {
     @Test
     void canBeDisabled() {
         contextRunner
-                .withPropertyValues("glyptodon.layered-authorization.enabled=false")
+                .withPropertyValues("bulwark.layered-authorization.enabled=false")
                 .run(context -> assertThat(context).doesNotHaveBean(AuthorizationService.class));
     }
 

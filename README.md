@@ -1,12 +1,12 @@
-# Project Glyptodon
+# Bulwark
 
 A production-oriented Java 21 security toolkit for multi-tenant SaaS systems.
 
-Project Glyptodon is built by Joshua Matos and DoctrineOne Industries. It turns
+Bulwark is built by Joshua Matos and DoctrineOne Industries. It turns
 hard platform-security decisions into usable Java modules, executable tests, and
 ADR-backed operating guidance for teams building multi-tenant applications.
 
-Use it as production-grade starting material: adopt modules directly, publish
+Use it as production-oriented starting material: adopt modules directly, publish
 them as internal Maven artifacts, or copy the patterns into an application with
 the documented replacement points. The repository stays neutral and public-safe:
 examples use fictional tenants, organizations, users, and documents.
@@ -42,9 +42,9 @@ Run focused modules:
 ./gradlew :edge-perimeter:test
 ./gradlew :edge-perimeter-spring-boot-starter:test
 ./gradlew :edge-perimeter-testkit:test
-./gradlew :supply-chain-core:test
+./gradlew :supply-chain:test
 ./gradlew :supply-chain-testkit:test
-./gradlew :crypto-agility-core:test
+./gradlew :crypto-agility:test
 ./gradlew :crypto-agility-spring-boot-starter:test
 ./gradlew :crypto-agility-testkit:test
 ./gradlew :shared:test
@@ -65,7 +65,7 @@ flowchart LR
     Tenant --> Postgres[("PostgreSQL")]
     Shared["shared<br/>typed identifiers"] --> Authz
     Shared --> Tenant
-    Crypto["crypto-agility-core<br/>provider seam + algorithm registry"] -. signs/verifies .-> Authz
+    Crypto["crypto-agility<br/>provider seam + algorithm registry"] -. signs/verifies .-> Authz
     Supply["supply-chain<br/>SBOM + dependency/base-image checks"] -. verifies .-> Build["Build"]
 ```
 
@@ -82,16 +82,15 @@ flowchart LR
 | `edge-perimeter` | Browser/service credential plane separation | Browser sessions, service JWTs, CORS, CSRF, and headers stay in their intended boundary. |
 | `edge-perimeter-spring-boot-starter` | Spring Boot auto-configuration | A WebFlux edge app can import the reference perimeter chains and properties through a starter. |
 | `edge-perimeter-testkit` | Edge policy contracts | Consumers can reuse property and perimeter policy checks around CORS, headers, and credential-plane defaults. |
-| `supply-chain-core` | Build trust horizon | SBOM evidence and base-image pinning are executable checks, not review-only guidance. |
-| `supply-chain` | Compatibility artifact | Existing consumers can keep the old artifact while moving to `supply-chain-core`. |
+| `supply-chain` | Build trust horizon | SBOM evidence and base-image pinning are executable checks, not review-only guidance. |
 | `supply-chain-testkit` | Supply-chain contracts | Build-policy implementers can reuse SBOM and base-image-pin contract tests. |
-| `crypto-agility-core` | Provider seam and algorithm registry | Signing call sites stay stable while algorithms and providers can change behind the seam. |
-| `crypto-agility-spring-boot-starter` | Spring Boot auto-configuration | A Spring app can inject `DocumentSigner` after wiring one provider/default key id. |
+| `crypto-agility` | Provider seam and algorithm registry | Signing call sites stay stable while algorithms and providers can change behind the seam. |
+| `crypto-agility-spring-boot-starter` | Spring Boot auto-configuration | A Spring app can inject `DocumentSigner`; default signing requires app-owned key custody or explicit local-demo opt-in. |
 | `crypto-agility-testkit` | Provider and signer contracts | Provider implementers can reuse contract tests instead of copying internal test code. |
 
 ## Production Adoption
 
-Glyptodon is designed for real production apps, but adoption must be explicit.
+Bulwark is designed for real production apps, but adoption must be explicit.
 The modules provide tested boundaries and implementation patterns; your app owns
 its environment-specific issuer, keys, database roles, tenant source of truth,
 policy store, observability, incident process, and compliance validation.
@@ -111,7 +110,7 @@ contracts, replacement points, and module-by-module hardening notes.
 ## Repository Layout
 
 ```text
-modules/
+bulwark/
 |-- shared/                  # typed cross-module identifiers
 |-- shared-testkit/          # reusable typed identifier contracts
 |-- tenant-isolation/        # tenant placement, session binding, PostgreSQL RLS
@@ -123,11 +122,9 @@ modules/
 |-- edge-perimeter/          # BFF edge: dual credential planes, headers, CORS, CSRF
 |-- edge-perimeter-spring-boot-starter/ # optional Boot auto-configuration
 |-- edge-perimeter-testkit/  # reusable edge policy contracts
-|-- supply-chain/            # compatibility artifact for supply-chain-core
-|-- supply-chain-core/       # build trust horizon: SBOM, dependency scan, base-image pin
+|-- supply-chain/            # build trust horizon: SBOM, dependency scan, base-image pin
 |-- supply-chain-testkit/    # reusable supply-chain contracts
-|-- crypto-agility/          # compatibility artifact for crypto-agility-core
-|-- crypto-agility-core/     # stable API, JCA providers, signer, registry
+|-- crypto-agility/          # stable API, JCA providers, signer, registry
 |-- crypto-agility-spring-boot-starter/ # optional Boot auto-configuration
 |-- crypto-agility-testkit/  # reusable contract tests and fakes
 |-- examples/                # standalone consumer examples
@@ -152,7 +149,7 @@ explicit, and deny-by-default.
 | 4. Transport / runtime | Perimeter routing, browser headers, actuator lockdown | `edge-perimeter` |
 | 5. Data | Tenant placement, least-privilege roles, RLS | `tenant-isolation` |
 | 6. Supply chain | SBOM, dependency, wrapper, and base-image verification | `supply-chain` |
-| Cross-cutting | Signature-provider agility and migration strategy | `crypto-agility-core` |
+| Cross-cutting | Signature-provider agility and migration strategy | `crypto-agility` |
 
 ## Public Release Posture
 
@@ -160,9 +157,10 @@ explicit, and deny-by-default.
   `acme` and `globex`.
 - Do not add real customer, tenant, employer, internal-system, endpoint, or secret
   values to examples, tests, docs, issues, or pull requests.
-- Cryptographic examples demonstrate API shape and migration boundaries. A
-  listed algorithm or FIPS-approved algorithm identity is not a claim that every
-  runtime provider, deployment, or environment is FIPS-validated.
+- Cryptographic examples demonstrate API shape and migration boundaries. Local
+  ephemeral signing keys are demo-only, and a listed algorithm or FIPS-approved
+  algorithm identity is not a claim that every runtime provider, deployment, or
+  environment is FIPS-validated.
 - Production systems still need their own threat model, operational controls,
   compliance review, provider validation, and incident process.
 
@@ -174,15 +172,8 @@ explicit, and deny-by-default.
 - [Support](SUPPORT.md)
 - [Changelog](CHANGELOG.md)
 - [Production adoption guide](docs/PRODUCTION_ADOPTION.md)
-- [Public release checklist](docs/PUBLIC_RELEASE_CHECKLIST.md)
 - [Glossary](docs/GLOSSARY.md)
-- [ADR index](docs/adr/README.md)
-- [ADR-0001: Five-layer security posture](docs/adr/0001-five-layer-security-posture.md)
-- [ADR-0002: Tenant isolation with RLS session binding](docs/adr/0002-tenant-isolation-rls-session-binding.md)
-- [ADR-0003: Layered authorization](docs/adr/0003-layered-authorization.md)
-- [ADR-0004: Edge perimeter with dual credential planes](docs/adr/0004-edge-perimeter-dual-plane.md)
-- [ADR-0005: Supply-chain trust horizon](docs/adr/0005-supply-chain-trust-horizon.md)
-- [ADR-0006: Cryptographic agility](docs/adr/0006-crypto-agility-provider-seam.md)
+- [Architecture decisions](docs/adr/README.md)
 
 ## Development
 
@@ -194,8 +185,8 @@ Useful commands:
 ./gradlew :tenant-isolation:test --tests "*SchemaIsolationModeIntegrationTest"
 ./gradlew :layered-authorization:test --tests "*DocumentControllerSecurityTest"
 ./gradlew :edge-perimeter:test --tests "*RouteAuthorizationTest"
-./gradlew :supply-chain-core:test --tests "*SbomIntegrityTest"
-./gradlew :crypto-agility-core:test
+./gradlew :supply-chain:test --tests "*SbomIntegrityTest"
+./gradlew :crypto-agility:test
 ```
 
 Repository rules:

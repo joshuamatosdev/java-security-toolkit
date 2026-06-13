@@ -1,15 +1,8 @@
 plugins {
     `java-library`
-    jacoco
     alias(libs.plugins.spring.boot)
     alias(libs.plugins.spring.dep.management)
 }
-
-java {
-    toolchain { languageVersion = JavaLanguageVersion.of(21) }
-}
-
-extra["commons-lang3.version"] = libs.versions.commonsLang3.get()
 
 dependencies {
     api(project(":shared"))
@@ -25,26 +18,9 @@ dependencies {
     testRuntimeOnly(libs.commons.lang3)
 }
 
-dependencyManagement {
-    imports {
-        mavenBom("org.testcontainers:testcontainers-bom:${libs.versions.testcontainers.get()}")
-    }
-}
-
 tasks.test {
-    useJUnitPlatform()
     // Pin the Docker Engine API version negotiated by Testcontainers' docker-java client to one
     // served by Docker Engine 25–29+. Very new local daemons (Docker Desktop 29.x) otherwise
     // reject the auto-negotiated version with HTTP 400 on /info. Harmless on CI's older daemons.
     systemProperty("api.version", "1.44")
-    finalizedBy(tasks.jacocoTestReport)
-}
-
-tasks.jacocoTestReport {
-    dependsOn(tasks.test)
-    reports {
-        xml.required = true
-        html.required = true
-        csv.required = false
-    }
 }

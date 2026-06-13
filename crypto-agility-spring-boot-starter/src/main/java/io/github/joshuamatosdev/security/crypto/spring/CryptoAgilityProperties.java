@@ -4,12 +4,13 @@ import io.github.joshuamatosdev.security.crypto.api.SignatureAlgorithm;
 import org.springframework.boot.context.properties.ConfigurationProperties;
 
 /** Configuration properties for the crypto-agility Spring Boot starter. */
-@ConfigurationProperties(prefix = "glyptodon.crypto")
+@ConfigurationProperties(prefix = "bulwark.crypto")
 public class CryptoAgilityProperties {
 
     private boolean enabled = true;
     private SignatureAlgorithm defaultAlgorithm = SignatureAlgorithm.ED25519;
     private String defaultKeyId = "local-ed25519-1";
+    private LocalEphemeralKeys localEphemeralKeys = new LocalEphemeralKeys();
     private Providers providers = new Providers();
 
     public boolean isEnabled() {
@@ -34,6 +35,14 @@ public class CryptoAgilityProperties {
 
     public void setDefaultKeyId(final String defaultKeyId) {
         this.defaultKeyId = defaultKeyId;
+    }
+
+    public LocalEphemeralKeys getLocalEphemeralKeys() {
+        return localEphemeralKeys;
+    }
+
+    public void setLocalEphemeralKeys(final LocalEphemeralKeys localEphemeralKeys) {
+        this.localEphemeralKeys = localEphemeralKeys;
     }
 
     public Providers getProviders() {
@@ -85,6 +94,19 @@ public class CryptoAgilityProperties {
 
         public void setMlDsa44Placeholder(final ProviderToggle mlDsa44Placeholder) {
             this.mlDsa44Placeholder = mlDsa44Placeholder;
+        }
+    }
+
+    /** Explicit local-development opt-in for process-local generated signing keys. */
+    public static class LocalEphemeralKeys {
+        private boolean enabled;
+
+        public boolean isEnabled() {
+            return enabled;
+        }
+
+        public void setEnabled(final boolean enabled) {
+            this.enabled = enabled;
         }
     }
 
