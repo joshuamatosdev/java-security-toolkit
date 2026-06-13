@@ -1,6 +1,6 @@
 # Contributing
 
-Thanks for considering a contribution. Project Glyptodon is intentionally small:
+Thanks for considering a contribution. Bulwark is intentionally small:
 one module demonstrates one security pattern, and every pattern should remain
 runnable from a clean clone.
 
@@ -50,7 +50,7 @@ git diff --check
 
 Also review:
 
-- [Public release checklist](docs/PUBLIC_RELEASE_CHECKLIST.md)
+- [Public release checklist](docs/maintainer/PUBLIC_RELEASE_CHECKLIST.md)
 - [Security policy](SECURITY.md)
 - [Conventions](CONVENTIONS.md)
 

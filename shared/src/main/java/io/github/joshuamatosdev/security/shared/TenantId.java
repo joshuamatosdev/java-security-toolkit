@@ -17,6 +17,7 @@ public record TenantId(UUID value) {
         if (value == null) {
             throw new IllegalArgumentException("TenantId must not be null");
         }
+        CanonicalUuid.requireNotNil(value, "TenantId");
     }
 
     public TenantId(final String stringValue) {

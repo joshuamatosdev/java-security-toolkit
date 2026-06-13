@@ -1,6 +1,6 @@
 # Public Release Checklist
 
-Use this checklist before publishing Project Glyptodon to a public host or
+Use this checklist before publishing Bulwark to a public host or
 cutting a public release tag.
 
 ## Repository Scrub
@@ -42,7 +42,8 @@ and security documentation, so keyword hits are not automatically leaks.
 ```bash
 ./gradlew test
 ./gradlew build publishToMavenLocal
-./gradlew :supply-chain-core:cyclonedxDirectBom :crypto-agility-core:cyclonedxDirectBom :crypto-agility-spring-boot-starter:cyclonedxDirectBom :crypto-agility-testkit:cyclonedxDirectBom
+./gradlew :supply-chain:cyclonedxDirectBom :crypto-agility:cyclonedxDirectBom :crypto-agility-spring-boot-starter:cyclonedxDirectBom :crypto-agility-testkit:cyclonedxDirectBom
+NVD_API_KEY=... ./gradlew dependencyCheckPurge dependencyCheckAggregate
 git diff --check
 ```
 

@@ -10,10 +10,18 @@ package io.github.joshuamatosdev.security.authz.decision;
  */
 public sealed interface Decision permits Allow, Deny {
 
+    /**
+     * Use when a caller only needs a permit/refuse branch. Pattern-match {@link Allow} when the
+     * grant basis is needed.
+     */
     default boolean allowed() {
         return this instanceof Allow;
     }
 
+    /**
+     * Use when a caller only needs a refuse/permit branch, such as routing deny metrics. Pattern-match
+     * {@link Deny} when the denial reason is needed.
+     */
     default boolean denied() {
         return this instanceof Deny;
     }

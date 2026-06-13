@@ -113,7 +113,7 @@ class EdgePerimeterPropertiesTest {
 
   @Test
   void identityIssuerRejectsUserInfoCredentials() {
-    assertThatThrownBy(() -> new EdgePerimeterProperties.Identity("https://client:secret@idp.acme.example"))
+    assertThatThrownBy(() -> new EdgePerimeterProperties.Identity("https://userinfo@idp.acme.example"))
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessageContaining("must not include user-info credentials");
   }

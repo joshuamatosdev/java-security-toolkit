@@ -14,6 +14,7 @@ public record ResourceId(UUID value) {
 
     public ResourceId {
         Objects.requireNonNull(value, "ResourceId must not be null");
+        CanonicalUuid.requireNotNil(value, "ResourceId");
     }
 
     public static ResourceId fromString(final String raw) {

@@ -1,6 +1,6 @@
 # Production Adoption Guide
 
-Project Glyptodon is designed to be useful in production applications. It is not
+Bulwark is designed to be useful in production applications. It is not
 only sample code: each module has a narrow security boundary, executable tests,
 and documentation that explains the reasoning behind the boundary.
 
@@ -26,8 +26,8 @@ dependencies {
     implementation("io.github.joshuamatosdev.security:tenant-isolation:0.1.0-SNAPSHOT")
     implementation("io.github.joshuamatosdev.security:layered-authorization:0.1.0-SNAPSHOT")
     implementation("io.github.joshuamatosdev.security:edge-perimeter:0.1.0-SNAPSHOT")
-    implementation("io.github.joshuamatosdev.security:supply-chain-core:0.1.0-SNAPSHOT")
-    implementation("io.github.joshuamatosdev.security:crypto-agility-core:0.1.0-SNAPSHOT")
+    implementation("io.github.joshuamatosdev.security:supply-chain:0.1.0-SNAPSHOT")
+    implementation("io.github.joshuamatosdev.security:crypto-agility:0.1.0-SNAPSHOT")
     testImplementation("io.github.joshuamatosdev.security:shared-testkit:0.1.0-SNAPSHOT")
     testImplementation("io.github.joshuamatosdev.security:tenant-isolation-testkit:0.1.0-SNAPSHOT")
     testImplementation("io.github.joshuamatosdev.security:layered-authorization-testkit:0.1.0-SNAPSHOT")
@@ -93,7 +93,7 @@ because downstream modules use it to prevent tenant, organization, and resource
 identity confusion. `shared-testkit` carries reusable contracts for identifier
 factories, value equality, and string round-trips.
 
-### `crypto-agility-core`, `crypto-agility-spring-boot-starter`, and `crypto-agility-testkit`
+### `crypto-agility`, `crypto-agility-spring-boot-starter`, and `crypto-agility-testkit`
 
 Good candidates for library adoption. Stable contracts live in
 `io.github.joshuamatosdev.security.crypto.api`; local JCA code lives outside
@@ -103,6 +103,7 @@ contracts. Before production use:
 
 - bind key handles to your key custody system
 - configure the default provider and key id explicitly
+- keep `bulwark.crypto.local-ephemeral-keys.enabled=false` outside local demos
 - validate provider behavior in your runtime environment
 - separate algorithm identity from FIPS or compliance validation
 - add artifact signing and key-rotation runbooks
@@ -143,10 +144,9 @@ reuse `edge-perimeter-testkit`. Before production use:
 - verify cookie, CSRF, and header behavior behind your TLS terminator
 - add outbound routing or token relay only after preserving browser/service plane separation
 
-### `supply-chain-core`, `supply-chain`, and `supply-chain-testkit`
+### `supply-chain` and `supply-chain-testkit`
 
-Adopt `supply-chain-core` directly into CI. The `supply-chain` artifact remains
-as a compatibility aggregate for existing consumers. Use `supply-chain-testkit`
+Adopt `supply-chain` directly into CI. Use `supply-chain-testkit`
 when implementing equivalent SBOM or base-image-pin policy checks in another
 build. Before production use:
 
@@ -169,7 +169,7 @@ pre-stable. Pin exact versions and read the changelog before upgrading.
 
 ## Non-Negotiable Production Checks
 
-Before using Glyptodon-derived code in production:
+Before using Bulwark-derived code in production:
 
 ```bash
 ./gradlew build publishToMavenLocal

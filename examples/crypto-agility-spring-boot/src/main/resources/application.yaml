@@ -1,7 +1,9 @@
-glyptodon:
+bulwark:
   crypto:
     default-algorithm: ED25519
     default-key-id: local-ed25519-1
+    local-ephemeral-keys:
+      enabled: true
     providers:
       jca:
         ed25519:

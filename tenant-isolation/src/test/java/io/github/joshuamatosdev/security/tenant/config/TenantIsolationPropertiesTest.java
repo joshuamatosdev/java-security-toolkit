@@ -4,6 +4,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import io.github.joshuamatosdev.security.tenant.TenantIds;
+import java.util.List;
 import java.util.Map;
 import org.junit.jupiter.api.Test;
 
@@ -171,7 +172,7 @@ class TenantIsolationPropertiesTest {
         assertThatThrownBy(() -> databaseModeProperties(new TenantIsolationProperties.DatabaseTenantProperties(
                         TenantIds.ACME.toString(),
                         ACME_JDBC_URL,
-                        "ttx",
+                        "app_superuser",
                         TENANT_PASSWORD,
                         POSTGRES_DRIVER,
                         STABLE_POOL_NAME,
@@ -333,179 +334,24 @@ class TenantIsolationPropertiesTest {
     }
 
     @Test
-    void databaseModeRejectsJdbcUrlUnsafeParameters() {
-        assertThatThrownBy(() -> databaseModeProperties(databaseTenant(
-                        TenantIds.ACME.toString(),
-                        ACME_JDBC_URL + "?user=postgres",
-                        TENANT_PASSWORD,
-                        null,
-                        STABLE_POOL_NAME,
-                        null,
-                        null)))
-                .isInstanceOf(IllegalArgumentException.class)
-                .hasMessageContaining("jdbc-url")
-                .hasMessageContaining("unsafe credential, target, trust, plugin, or session parameters");
-
-        assertThatThrownBy(() -> databaseModeProperties(databaseTenant(
-                        TenantIds.ACME.toString(),
-                        ACME_JDBC_URL + "?password=secret",
-                        TENANT_PASSWORD,
-                        null,
-                        STABLE_POOL_NAME,
-                        null,
-                        null)))
-                .isInstanceOf(IllegalArgumentException.class)
-                .hasMessageContaining("jdbc-url")
-                .hasMessageContaining("unsafe credential, target, trust, plugin, or session parameters");
-
-        assertThatThrownBy(() -> databaseModeProperties(databaseTenant(
-                        TenantIds.ACME.toString(),
-                        ACME_JDBC_URL + "?authenticationPluginClassName=com.example.SecretPlugin",
-                        TENANT_PASSWORD,
-                        null,
-                        STABLE_POOL_NAME,
-                        null,
-                        null)))
-                .isInstanceOf(IllegalArgumentException.class)
-                .hasMessageContaining("jdbc-url")
-                .hasMessageContaining("unsafe credential, target, trust, plugin, or session parameters");
-
-        assertThatThrownBy(() -> databaseModeProperties(databaseTenant(
-                        TenantIds.ACME.toString(),
-                        ACME_JDBC_URL + "?currentSchema=tenant_acme",
-                        TENANT_PASSWORD,
-                        null,
-                        STABLE_POOL_NAME,
-                        null,
-                        null)))
-                .isInstanceOf(IllegalArgumentException.class)
-                .hasMessageContaining("jdbc-url")
-                .hasMessageContaining("unsafe credential, target, trust, plugin, or session parameters");
-
-        assertThatThrownBy(() -> databaseModeProperties(databaseTenant(
-                        TenantIds.ACME.toString(),
-                        ACME_JDBC_URL + "?options=-c%20search_path=tenant_acme",
-                        TENANT_PASSWORD,
-                        null,
-                        STABLE_POOL_NAME,
-                        null,
-                        null)))
-                .isInstanceOf(IllegalArgumentException.class)
-                .hasMessageContaining("jdbc-url")
-                .hasMessageContaining("unsafe credential, target, trust, plugin, or session parameters");
-    }
-
-    @Test
-    void databaseModeRejectsJdbcUrlTargetAndTrustOverrides() {
-        assertThatThrownBy(() -> databaseModeProperties(databaseTenant(
-                        TenantIds.ACME.toString(),
-                        ACME_JDBC_URL + "?PGHOST=evil.example",
-                        TENANT_PASSWORD,
-                        null,
-                        STABLE_POOL_NAME,
-                        null,
-                        null)))
-                .isInstanceOf(IllegalArgumentException.class)
-                .hasMessageContaining("unsafe credential, target, trust, plugin, or session parameters");
-
-        assertThatThrownBy(() -> databaseModeProperties(databaseTenant(
-                        TenantIds.ACME.toString(),
-                        ACME_JDBC_URL + "?PGDBNAME=globex",
-                        TENANT_PASSWORD,
-                        null,
-                        STABLE_POOL_NAME,
-                        null,
-                        null)))
-                .isInstanceOf(IllegalArgumentException.class)
-                .hasMessageContaining("unsafe credential, target, trust, plugin, or session parameters");
-
-        assertThatThrownBy(() -> databaseModeProperties(databaseTenant(
-                        TenantIds.ACME.toString(),
-                        ACME_JDBC_URL + "?targetServerType=preferSecondary",
-                        TENANT_PASSWORD,
-                        null,
-                        STABLE_POOL_NAME,
-                        null,
-                        null)))
-                .isInstanceOf(IllegalArgumentException.class)
-                .hasMessageContaining("unsafe credential, target, trust, plugin, or session parameters");
-
-        assertThatThrownBy(() -> databaseModeProperties(databaseTenant(
-                        TenantIds.ACME.toString(),
-                        ACME_JDBC_URL + "?sslrootcert=/run/secrets/root.crt",
-                        TENANT_PASSWORD,
-                        null,
-                        STABLE_POOL_NAME,
-                        null,
-                        null)))
-                .isInstanceOf(IllegalArgumentException.class)
-                .hasMessageContaining("unsafe credential, target, trust, plugin, or session parameters");
-
-        assertThatThrownBy(() -> databaseModeProperties(databaseTenant(
-                        TenantIds.ACME.toString(),
-                        ACME_JDBC_URL + "?sslmode=disable",
-                        TENANT_PASSWORD,
-                        null,
-                        STABLE_POOL_NAME,
-                        null,
-                        null)))
-                .isInstanceOf(IllegalArgumentException.class)
-                .hasMessageContaining("unsafe credential, target, trust, plugin, or session parameters");
-
-        assertThatThrownBy(() -> databaseModeProperties(databaseTenant(
-                        TenantIds.ACME.toString(),
-                        ACME_JDBC_URL + "?channelBinding=disable",
-                        TENANT_PASSWORD,
-                        null,
-                        STABLE_POOL_NAME,
-                        null,
-                        null)))
-                .isInstanceOf(IllegalArgumentException.class)
-                .hasMessageContaining("unsafe credential, target, trust, plugin, or session parameters");
-
-        assertThatThrownBy(() -> databaseModeProperties(databaseTenant(
-                        TenantIds.ACME.toString(),
-                        ACME_JDBC_URL + "?scramMaxIterations=0",
-                        TENANT_PASSWORD,
-                        null,
-                        STABLE_POOL_NAME,
-                        null,
-                        null)))
-                .isInstanceOf(IllegalArgumentException.class)
-                .hasMessageContaining("unsafe credential, target, trust, plugin, or session parameters");
-
-        assertThatThrownBy(() -> databaseModeProperties(databaseTenant(
-                        TenantIds.ACME.toString(),
-                        ACME_JDBC_URL + "?allowEncodingChanges=true",
-                        TENANT_PASSWORD,
-                        null,
-                        STABLE_POOL_NAME,
-                        null,
-                        null)))
-                .isInstanceOf(IllegalArgumentException.class)
-                .hasMessageContaining("unsafe credential, target, trust, plugin, or session parameters");
-
-        assertThatThrownBy(() -> databaseModeProperties(databaseTenant(
-                        TenantIds.ACME.toString(),
-                        ACME_JDBC_URL + "?ssl=false",
-                        TENANT_PASSWORD,
-                        null,
-                        STABLE_POOL_NAME,
-                        null,
-                        null)))
-                .isInstanceOf(IllegalArgumentException.class)
-                .hasMessageContaining("unsafe credential, target, trust, plugin, or session parameters");
-
-        assertThatThrownBy(() -> databaseModeProperties(databaseTenant(
-                        TenantIds.ACME.toString(),
-                        ACME_JDBC_URL + "?preferQueryMode=simple",
-                        TENANT_PASSWORD,
-                        null,
-                        STABLE_POOL_NAME,
-                        null,
-                        null)))
-                .isInstanceOf(IllegalArgumentException.class)
-                .hasMessageContaining("unsafe credential, target, trust, plugin, or session parameters");
+    void databaseModeRejectsRepresentativeJdbcUrlUnsafeParameters() {
+        for (final String query : List.of(
+                "user=postgres",
+                "sslmode=disable",
+                "unknownDriverKnob=true",
+                "connectTimeout=%zz")) {
+            assertThatThrownBy(() -> databaseModeProperties(databaseTenant(
+                            TenantIds.ACME.toString(),
+                            ACME_JDBC_URL + "?" + query,
+                            TENANT_PASSWORD,
+                            null,
+                            STABLE_POOL_NAME,
+                            null,
+                            null)))
+                    .isInstanceOf(IllegalArgumentException.class)
+                    .hasMessageContaining("jdbc-url")
+                    .hasMessageContaining("unsafe JDBC URL query parameter");
+        }
     }
 
     @Test

@@ -14,7 +14,7 @@ import org.springframework.context.annotation.Import;
 @AutoConfiguration(before = DataSourceAutoConfiguration.class)
 @ConditionalOnClass(TenantSessionDataSourceProxy.class)
 @ConditionalOnProperty(
-        prefix = "glyptodon.tenant-isolation",
+        prefix = "bulwark.tenant-isolation",
         name = "enabled",
         havingValue = "true",
         matchIfMissing = true)

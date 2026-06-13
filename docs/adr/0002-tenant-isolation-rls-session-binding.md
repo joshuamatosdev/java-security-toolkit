@@ -2,6 +2,7 @@
 
 - **Status:** Accepted
 - **Date:** 2026-06-02
+- **Amended:** 2026-06-08 — added the system-writer tier (the system-ops write path).
 
 ## Context
 
@@ -129,6 +130,7 @@ shipped init SQL uses this role mesh:
 | runtime | `LOGIN NOSUPERUSER NOBYPASSRLS INHERIT`, member of `tenant_app` | `tenant_user`, the connection pool |
 | bypass marker | `NOLOGIN NOSUPERUSER NOBYPASSRLS NOINHERIT` | `tenant_bypass`, read-only cross-tenant policy marker |
 | system ops | `LOGIN NOSUPERUSER NOBYPASSRLS INHERIT`, member of `tenant_bypass` | `tenant_ops_user`, read-only system-ops pool |
+| system writer | `LOGIN NOSUPERUSER NOBYPASSRLS INHERIT`, member of neither `tenant_app` nor `tenant_bypass` | `tenant_system_writer`, sentinel-pinned system-ops write pool |
 
 The connection pool connects as `tenant_user`. It is never a superuser, never
 `BYPASSRLS`, and not a member of `tenant_bypass`. System-ops code connects as
@@ -156,6 +158,33 @@ connected `current_user` is `NOSUPERUSER NOBYPASSRLS`). This is meaningful here
 because the demo deliberately wires the pool as the non-superuser `tenant_user`.
 The two techniques are complementary; the module README explains when to use
 which.
+
+### The system-writer tier
+
+The read-only `tenant_ops_user` can observe across tenants but cannot write.
+System-owned writes — an audit or event ledger that belongs to no single tenant —
+use a fourth role, `tenant_system_writer`: a `LOGIN NOSUPERUSER NOBYPASSRLS` pool
+that is a member of neither `tenant_app` nor `tenant_bypass`. It may write only the
+`system_audit` ledger, and only rows pinned to the single `SYSTEM_OPS` sentinel
+tenant. Two database controls make that pin non-negotiable:
+
+- A `SECURITY DEFINER` minter, `tenant_security.mint_system_ops_claim()`, signs a
+  claim for the sentinel tenant only — it cannot be coerced into minting another
+  tenant's claim — and binds it transaction-locally. `EXECUTE` is revoked from
+  `PUBLIC` and granted to `tenant_system_writer` alone, so the ordinary runtime
+  pool can never obtain a sentinel claim.
+- A **RESTRICTIVE** policy, `p_system_writer_system_ops_only`, ANDs with the
+  permissive `p_tenant_isolation` (a RESTRICTIVE policy must pass *in addition to*
+  the permissive ones, not as an alternative). The writer holds `INSERT`/`UPDATE`
+  and could bind a captured **valid** claim for another tenant — which satisfies the
+  permissive `WITH CHECK` — yet the cap still rejects the write, because it requires
+  both the row's `tenant_id` and the verified claim to be the sentinel. The pin is
+  enforced by the database, not by the application choosing to mint the right claim.
+
+The writer holds `INSERT (event, detail)` / `UPDATE (event, detail)` and
+`SELECT (id)` only: `id` and `tenant_id` stay database-owned exactly as on
+`document`. `SystemWriterRestrictivePolicyTest` makes the cap a build-breaking
+invariant, including the captured-valid-claim escalation attempt.
 
 ## Rationale
 

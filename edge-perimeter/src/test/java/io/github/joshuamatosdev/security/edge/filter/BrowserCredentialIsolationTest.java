@@ -2,9 +2,14 @@ package io.github.joshuamatosdev.security.edge.filter;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
+import java.net.URI;
 import java.util.concurrent.atomic.AtomicReference;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.ExtendWith;
+import org.springframework.boot.test.system.CapturedOutput;
+import org.springframework.boot.test.system.OutputCaptureExtension;
 import org.springframework.http.HttpHeaders;
+import org.springframework.http.HttpMethod;
 import org.springframework.http.server.reactive.ServerHttpRequest;
 import org.springframework.mock.http.server.reactive.MockServerHttpRequest;
 import org.springframework.mock.web.server.MockServerWebExchange;
@@ -21,6 +26,7 @@ import reactor.core.publisher.Mono;
  * <p>Why this is important to test: browser-supplied bearer headers must not leak into service
  * authorization decisions.
  */
+@ExtendWith(OutputCaptureExtension.class)
 class BrowserCredentialIsolationTest {
 
   private final BrowserCredentialIsolationFilter filter = new BrowserCredentialIsolationFilter();
@@ -79,5 +85,21 @@ class BrowserCredentialIsolationTest {
     assertThat(downstream.getHeaders().getFirst(HttpHeaders.AUTHORIZATION))
         .as("the bare /api/service prefix is service-plane; its bearer must survive the filter")
         .isEqualTo("Bearer legitimate-service-token");
+  }
+
+  @Test
+  void browserPlaneCredentialStripLogUsesRawPathWithoutDecodedControlCharacters(
+      CapturedOutput output) {
+    MockServerWebExchange exchange =
+        MockServerWebExchange.from(
+            MockServerHttpRequest.method(
+                    HttpMethod.GET, URI.create("https://edge.example/api/documents/%0Aforged"))
+                .header(HttpHeaders.AUTHORIZATION, "Bearer smuggled-service-token"));
+
+    runAndCaptureDownstreamRequest(exchange);
+
+    assertThat(output.getAll())
+        .contains("path=/api/documents/%0Aforged")
+        .doesNotContain("path=/api/documents/\nforged");
   }
 }

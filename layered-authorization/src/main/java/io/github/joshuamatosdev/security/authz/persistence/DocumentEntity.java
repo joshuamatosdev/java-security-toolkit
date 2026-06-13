@@ -1,5 +1,6 @@
 package io.github.joshuamatosdev.security.authz.persistence;
 
+import io.github.joshuamatosdev.security.authz.principal.PrincipalType;
 import io.github.joshuamatosdev.security.authz.request.ProtectedResource;
 import io.github.joshuamatosdev.security.shared.OrganizationId;
 import io.github.joshuamatosdev.security.shared.ResourceId;
@@ -41,6 +42,9 @@ public class DocumentEntity {
     @Column(name = "organization_id", updatable = false)
     private UUID organizationId;
 
+    @Column(name = "owner_principal_type")
+    private String ownerPrincipalType;
+
     @Column(name = "owner_principal_key")
     private String ownerPrincipalKey;
 
@@ -51,10 +55,17 @@ public class DocumentEntity {
     public DocumentEntity(
         final TenantId tenantId,
         @Nullable final OrganizationId organizationId,
+        @Nullable final PrincipalType ownerPrincipalType,
         @Nullable final String ownerPrincipalKey) {
         this.tenantId = Objects.requireNonNull(tenantId, "tenantId must not be null").value();
         this.organizationId = organizationId == null ? null : organizationId.value();
-        this.ownerPrincipalKey = requireValidOwnerPrincipalKey(ownerPrincipalKey);
+        final String validatedOwnerPrincipalKey = requireValidOwnerPrincipalKey(ownerPrincipalKey);
+        if ((ownerPrincipalType == null) != (validatedOwnerPrincipalKey == null)) {
+            throw new IllegalArgumentException(
+                "ownerPrincipalType and ownerPrincipalKey must both be present or both be absent");
+        }
+        this.ownerPrincipalType = ownerPrincipalType == null ? null : ownerPrincipalType.name();
+        this.ownerPrincipalKey = validatedOwnerPrincipalKey;
     }
 
     public UUID getId() {
@@ -66,6 +77,7 @@ public class DocumentEntity {
             new ResourceId(id),
             new TenantId(tenantId),
             organizationId == null ? null : new OrganizationId(organizationId),
+            ownerPrincipalType == null ? null : PrincipalType.valueOf(ownerPrincipalType),
             ownerPrincipalKey);
     }
 

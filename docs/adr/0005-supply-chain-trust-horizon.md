@@ -34,6 +34,15 @@ Pin, verify, and enumerate every build input. Each control is a distinct layer o
 
 `gradle-wrapper.properties` carries `distributionSha256Sum`, pinning the exact Gradle distribution
 by content hash (fetched from the distribution host, not transcribed from a build log).
+`WrapperPinPolicy` + `WrapperPinPolicyTest` assert on the **real** repository wrapper properties —
+that the distribution is pinned by a lowercase 64-hex SHA-256, fetched over HTTPS, with
+`validateDistributionUrl` enabled — so the pin is an executable check, not a value that can silently
+regress (for example, a `gradle wrapper` regeneration that drops the checksum).
+
+The committed `gradle-wrapper.jar` is the first code that runs on every `./gradlew` invocation, ahead
+of every other control. CI validates that JAR against Gradle's published checksums via
+`gradle/actions/setup-gradle` with `validate-wrappers: true`, so a tampered bootstrap JAR fails the
+build before it can run.
 
 ### Verify dependencies (a repo-global trust anchor)
 
@@ -58,11 +67,17 @@ a `purl` coordinate so it can be cross-checked against an advisory feed.
 
 ### Scan dependencies — CI-gated, not offline-default
 
-The OWASP dependency-check plugin is applied and configured with `failBuildOnCVSS = 7.0` (any
-High-or-worse finding fails the scan). It is **not** wired into `check`, because the NVD data feed
-requires network access and an API key (`NVD_API_KEY`) — wiring it into the default build would
-break the offline clean-clone contract every other module holds. It is the CI / on-demand gate
-(`NVD_API_KEY=... ./gradlew :supply-chain-core:dependencyCheckAnalyze`).
+The OWASP dependency-check plugin is applied **at the build root** and configured with
+`failBuildOnCVSS = 7.0` (any High-or-worse finding fails the scan). `dependencyCheckAggregate` scans
+every subproject's resolved closure — including the Spring Boot, WebFlux, Netty, Tomcat, and
+PostgreSQL runtime dependencies a consumer actually ships, not only this module's direct
+dependencies.
+
+It is **not** wired into `check`, because the NVD data feed requires network access and an API key
+(`NVD_API_KEY`) — wiring it into the default build would break the offline clean-clone contract every
+module holds. Instead the CI workflow runs it as a dedicated job on a weekly schedule and on demand
+(`workflow_dispatch`), with the `NVD_API_KEY` secret:
+`NVD_API_KEY=... ./gradlew dependencyCheckAggregate`.
 
 ### Pin the base image by digest
 

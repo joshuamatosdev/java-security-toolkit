@@ -4,13 +4,6 @@ plugins {
     alias(libs.plugins.spring.dep.management)
 }
 
-java {
-    toolchain { languageVersion = JavaLanguageVersion.of(21) }
-}
-
-extra["tomcat.version"] = libs.versions.tomcat.get()
-extra["commons-lang3.version"] = libs.versions.commonsLang3.get()
-
 dependencies {
     api(project(":shared"))
     api("org.springframework.boot:spring-boot-starter-web")
@@ -27,14 +20,7 @@ dependencies {
     testRuntimeOnly(libs.commons.lang3)
 }
 
-dependencyManagement {
-    imports {
-        mavenBom("org.testcontainers:testcontainers-bom:${libs.versions.testcontainers.get()}")
-    }
-}
-
 tasks.test {
-    useJUnitPlatform()
     // Match tenant-isolation: PG18 Testcontainers owns database identifier behavior, including uuidv7().
     systemProperty("api.version", "1.44")
 }

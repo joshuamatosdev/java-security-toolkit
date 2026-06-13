@@ -1,1 +1,3 @@
 io.github.joshuamatosdev.security.edge.spring.EdgePerimeterAutoConfiguration
+io.github.joshuamatosdev.security.edge.spring.EdgePerimeterBrowserSecurityAutoConfiguration
+io.github.joshuamatosdev.security.edge.spring.EdgePerimeterServiceApiAutoConfiguration

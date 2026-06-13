@@ -63,6 +63,7 @@ class SystemTenantBoundaryArchitectureTest {
                 "io/github/joshuamatosdev/security/tenant/binding/TenantContext.java",
                 "io/github/joshuamatosdev/security/tenant/binding/SystemTenantBoundary.java",
                 "io/github/joshuamatosdev/security/tenant/config/TenantIsolationProperties.java",
+                "io/github/joshuamatosdev/security/tenant/config/TenantPlacementValidator.java",
                 DATA_SOURCE_CONFIG_SOURCE,
                 "io/github/joshuamatosdev/security/tenant/datasource/routing/SystemOpsRoutingDataSource.java",
                 "io/github/joshuamatosdev/security/tenant/datasource/routing/TenantDatabaseRoutingDataSource.java",

@@ -2,7 +2,14 @@ package io.github.joshuamatosdev.security.tenant;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
+import java.lang.reflect.Method;
+import java.util.Locale;
+import java.util.Set;
+import java.util.TreeSet;
+import java.util.stream.Stream;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.MethodSource;
 
 /**
  * Postgres Jdbc Urls test coverage.
@@ -14,124 +21,227 @@ class PostgresJdbcUrlsTest {
 
     private static final String JDBC_URL = "jdbc:postgresql://db/acme";
 
-    @Test
-    void detectsDirectAndIndirectCredentialQueryParameters() {
-        assertThat(PostgresJdbcUrls.containsCredentialQueryParameter(JDBC_URL + "?user=postgres")).isTrue();
-        assertThat(PostgresJdbcUrls.containsCredentialQueryParameter(JDBC_URL + "?password=secret")).isTrue();
-        assertThat(PostgresJdbcUrls.containsCredentialQueryParameter(JDBC_URL + "?PGHOST=evil.example")).isTrue();
-        assertThat(PostgresJdbcUrls.containsCredentialQueryParameter(JDBC_URL + "?PGPORT=6543")).isTrue();
-        assertThat(PostgresJdbcUrls.containsCredentialQueryParameter(JDBC_URL + "?PGDBNAME=otherdb")).isTrue();
-        assertThat(PostgresJdbcUrls.containsCredentialQueryParameter(JDBC_URL + "?targetServerType=preferSecondary"))
+    @ParameterizedTest
+    @MethodSource("blockedByNameParameters")
+    void detectsBlockedByNameParameters(final String parameterName) {
+        assertThat(PostgresJdbcUrls.containsUnsafeQueryParameter(JDBC_URL + "?" + parameterName + "=value"))
                 .isTrue();
-        assertThat(PostgresJdbcUrls.containsCredentialQueryParameter(JDBC_URL + "?hostRecheckSeconds=0")).isTrue();
-        assertThat(PostgresJdbcUrls.containsCredentialQueryParameter(JDBC_URL + "?loadBalanceHosts=true")).isTrue();
-        assertThat(PostgresJdbcUrls.containsCredentialQueryParameter(JDBC_URL + "?service=tenant-admin")).isTrue();
-        assertThat(PostgresJdbcUrls.containsCredentialQueryParameter(
-                        JDBC_URL + "?authenticationPluginClassName=com.example.SecretPlugin"))
-                .isTrue();
-        assertThat(PostgresJdbcUrls.containsCredentialQueryParameter(JDBC_URL + "?gssUseDefaultCreds=true"))
-                .isTrue();
-        assertThat(PostgresJdbcUrls.containsCredentialQueryParameter(JDBC_URL + "?jaasApplicationName=tenant"))
-                .isTrue();
-        assertThat(PostgresJdbcUrls.containsCredentialQueryParameter(JDBC_URL + "?jaasLogin=true")).isTrue();
-        assertThat(PostgresJdbcUrls.containsCredentialQueryParameter(JDBC_URL + "?kerberosServerName=postgres"))
-                .isTrue();
-        assertThat(PostgresJdbcUrls.containsCredentialQueryParameter(JDBC_URL + "?gsslib=sspi")).isTrue();
-        assertThat(PostgresJdbcUrls.containsCredentialQueryParameter(JDBC_URL + "?sspiServiceClass=POSTGRES"))
-                .isTrue();
-        assertThat(PostgresJdbcUrls.containsCredentialQueryParameter(JDBC_URL + "?useSpnego=true")).isTrue();
-        assertThat(PostgresJdbcUrls.containsCredentialQueryParameter(JDBC_URL + "?replication=database")).isTrue();
-        assertThat(PostgresJdbcUrls.containsCredentialQueryParameter(JDBC_URL + "?requireAuth=none")).isTrue();
-        assertThat(PostgresJdbcUrls.containsCredentialQueryParameter(JDBC_URL + "?scramMaxIterations=0")).isTrue();
-        assertThat(PostgresJdbcUrls.containsCredentialQueryParameter(JDBC_URL + "?ScramMaxIterations=200000"))
-                .isTrue();
-        assertThat(PostgresJdbcUrls.containsCredentialQueryParameter(
-                        JDBC_URL + "?socketFactory=com.example.SocketFactory"))
-                .isTrue();
-        assertThat(PostgresJdbcUrls.containsCredentialQueryParameter(
-                        JDBC_URL + "?socketFactoryArg=classpath:secret.xml"))
-                .isTrue();
-        assertThat(PostgresJdbcUrls.containsCredentialQueryParameter(JDBC_URL + "?sslcert=/run/secrets/client.crt"))
-                .isTrue();
-        assertThat(PostgresJdbcUrls.containsCredentialQueryParameter(
-                        JDBC_URL + "?sslFactory=com.example.SslFactory"))
-                .isTrue();
-        assertThat(PostgresJdbcUrls.containsCredentialQueryParameter(
-                        JDBC_URL + "?sslFactoryArg=classpath:secret.xml"))
-                .isTrue();
-        assertThat(PostgresJdbcUrls.containsCredentialQueryParameter(
-                        JDBC_URL + "?sslHostnameVerifier=com.example.Verifier"))
-                .isTrue();
-        assertThat(PostgresJdbcUrls.containsCredentialQueryParameter(JDBC_URL + "?sslkey=/run/secrets/client.pk8"))
-                .isTrue();
-        assertThat(PostgresJdbcUrls.containsCredentialQueryParameter(JDBC_URL + "?sslpassword=secret")).isTrue();
-        assertThat(PostgresJdbcUrls.containsCredentialQueryParameter(
-                        JDBC_URL + "?sslpasswordcallback=com.example.SecretCallback"))
-                .isTrue();
-        assertThat(PostgresJdbcUrls.containsCredentialQueryParameter(JDBC_URL + "?sslrootcert=/run/secrets/root.crt"))
-                .isTrue();
-        assertThat(PostgresJdbcUrls.containsCredentialQueryParameter(
-                        JDBC_URL + "?xmlFactoryFactory=com.example.UnsafeXmlFactoryFactory"))
-                .isTrue();
-        assertThat(PostgresJdbcUrls.containsCredentialQueryParameter(
-                        JDBC_URL + "?currentSchema=tenant_acme"))
-                .isTrue();
-        assertThat(PostgresJdbcUrls.containsCredentialQueryParameter(
-                        JDBC_URL + "?options=-c%20search_path=tenant_acme"))
-                .isTrue();
-        assertThat(PostgresJdbcUrls.containsCredentialQueryParameter(JDBC_URL + "?UsEr=postgres")).isTrue();
-        assertThat(PostgresJdbcUrls.containsCredentialQueryParameter(JDBC_URL + "?u%73er=postgres")).isTrue();
+    }
+
+    @ParameterizedTest
+    @MethodSource("blockedByValueQueries")
+    void detectsBlockedByValueParameters(final String query) {
+        assertThat(PostgresJdbcUrls.containsUnsafeQueryParameter(JDBC_URL + "?" + query)).isTrue();
+    }
+
+    @ParameterizedTest
+    @MethodSource("allowedQueries")
+    void allowsExplicitlySafeParameters(final String query) {
+        assertThat(PostgresJdbcUrls.containsUnsafeQueryParameter(JDBC_URL + "?" + query)).isFalse();
     }
 
     @Test
-    void detectsExplicitTransportDowngradeParameters() {
-        assertThat(PostgresJdbcUrls.containsCredentialQueryParameter(JDBC_URL + "?sslmode=disable")).isTrue();
-        assertThat(PostgresJdbcUrls.containsCredentialQueryParameter(JDBC_URL + "?sslmode=allow")).isTrue();
-        assertThat(PostgresJdbcUrls.containsCredentialQueryParameter(JDBC_URL + "?sslmode=prefer")).isTrue();
-        assertThat(PostgresJdbcUrls.containsCredentialQueryParameter(JDBC_URL + "?SSLMode=disable")).isTrue();
-        assertThat(PostgresJdbcUrls.containsCredentialQueryParameter(JDBC_URL + "?sslmode=%70refer")).isTrue();
-        assertThat(PostgresJdbcUrls.containsCredentialQueryParameter(JDBC_URL + "?sslmode=")).isTrue();
-        assertThat(PostgresJdbcUrls.containsCredentialQueryParameter(JDBC_URL + "?sslmode=unexpected")).isTrue();
-        assertThat(PostgresJdbcUrls.containsCredentialQueryParameter(JDBC_URL + "?ssl=false")).isTrue();
-        assertThat(PostgresJdbcUrls.containsCredentialQueryParameter(JDBC_URL + "?ssl=0")).isTrue();
-        assertThat(PostgresJdbcUrls.containsCredentialQueryParameter(JDBC_URL + "?allowEncodingChanges=true"))
-                .isTrue();
-        assertThat(PostgresJdbcUrls.containsCredentialQueryParameter(JDBC_URL + "?allow%45ncodingChanges=true"))
-                .isTrue();
-        assertThat(PostgresJdbcUrls.containsCredentialQueryParameter(JDBC_URL + "?channelBinding=disable")).isTrue();
-        assertThat(PostgresJdbcUrls.containsCredentialQueryParameter(JDBC_URL + "?channelBinding=")).isTrue();
-        assertThat(PostgresJdbcUrls.containsCredentialQueryParameter(JDBC_URL + "?gssEncMode=disable")).isTrue();
-        assertThat(PostgresJdbcUrls.containsCredentialQueryParameter(JDBC_URL + "?gssEncMode=allow")).isTrue();
-        assertThat(PostgresJdbcUrls.containsCredentialQueryParameter(JDBC_URL + "?gssEncMode=prefer")).isTrue();
-    }
-
-    @Test
-    void detectsSimpleQueryModeDowngradeParameter() {
-        assertThat(PostgresJdbcUrls.containsCredentialQueryParameter(JDBC_URL + "?preferQueryMode=simple"))
-                .isTrue();
-        assertThat(PostgresJdbcUrls.containsCredentialQueryParameter(JDBC_URL + "?PreferQueryMode=simple"))
-                .isTrue();
-        assertThat(PostgresJdbcUrls.containsCredentialQueryParameter(JDBC_URL + "?preferQueryMode=%73imple"))
+    void treatsUnknownParametersAsUnsafe() {
+        assertThat(PostgresJdbcUrls.containsUnsafeQueryParameter(JDBC_URL + "?unknownDriverKnob=true"))
                 .isTrue();
     }
 
     @Test
-    void ignoresNonCredentialQueryParameters() {
-        assertThat(PostgresJdbcUrls.containsCredentialQueryParameter(
-                        JDBC_URL + "?sslmode=require&connectTimeout=10"))
+    void detectsPercentEncodedNamesAndValues() {
+        assertThat(PostgresJdbcUrls.containsUnsafeQueryParameter(JDBC_URL + "?u%73er=postgres")).isTrue();
+        assertThat(PostgresJdbcUrls.containsUnsafeQueryParameter(JDBC_URL + "?allow%45ncodingChanges=true"))
+                .isTrue();
+        assertThat(PostgresJdbcUrls.containsUnsafeQueryParameter(JDBC_URL + "?sslmode=%70refer")).isTrue();
+        assertThat(PostgresJdbcUrls.containsUnsafeQueryParameter(JDBC_URL + "?connect%54imeout=10")).isFalse();
+    }
+
+    @Test
+    void treatsMalformedEncodedNamesAndValuesAsUnsafe() {
+        assertThat(PostgresJdbcUrls.containsUnsafeQueryParameter(JDBC_URL + "?bad%zz=1")).isTrue();
+        assertThat(PostgresJdbcUrls.containsUnsafeQueryParameter(JDBC_URL + "?connectTimeout=%zz")).isTrue();
+    }
+
+    @Test
+    void reportsFirstUnsafeParameterNameWithoutValue() {
+        assertThat(PostgresJdbcUrls.firstUnsafeQueryParameter(
+                        JDBC_URL + "?connectTimeout=10&password=secret"))
+                .contains("password");
+    }
+
+    @Test
+    void reportsDecodedControlCharactersEscapedInUnsafeParameterName() {
+        final var unsafeParameter =
+                PostgresJdbcUrls.firstUnsafeQueryParameter(JDBC_URL + "?bad%0Aname=1");
+
+        assertThat(unsafeParameter).contains("bad" + "\\u" + "000a" + "name");
+        assertThat(unsafeParameter.orElseThrow()).doesNotContain("\n");
+    }
+
+    @Test
+    void ignoresEmptyQueryTokens() {
+        assertThat(PostgresJdbcUrls.containsUnsafeQueryParameter(
+                        JDBC_URL + "?&connectTimeout=10&&ssl=true"))
                 .isFalse();
-        assertThat(PostgresJdbcUrls.containsCredentialQueryParameter(JDBC_URL + "?sslmode=verify-ca")).isFalse();
-        assertThat(PostgresJdbcUrls.containsCredentialQueryParameter(JDBC_URL + "?sslmode=verify-full")).isFalse();
-        assertThat(PostgresJdbcUrls.containsCredentialQueryParameter(
-                        JDBC_URL + "?ssl=true&connectTimeout=10"))
-                .isFalse();
-        assertThat(PostgresJdbcUrls.containsCredentialQueryParameter(JDBC_URL + "?ssl&connectTimeout=10")).isFalse();
-        assertThat(PostgresJdbcUrls.containsCredentialQueryParameter(JDBC_URL + "?channelBinding=prefer"))
-                .isFalse();
-        assertThat(PostgresJdbcUrls.containsCredentialQueryParameter(JDBC_URL + "?channelBinding=require"))
-                .isFalse();
-        assertThat(PostgresJdbcUrls.containsCredentialQueryParameter(JDBC_URL + "?gssEncMode=require")).isFalse();
-        assertThat(PostgresJdbcUrls.containsCredentialQueryParameter(JDBC_URL + "?preferQueryMode=extended"))
-                .isFalse();
+    }
+
+    @Test
+    void classifiesEveryPinnedPgJdbcProperty() throws Exception {
+        final Set<String> pgJdbcPropertyNames = pgJdbcPropertyNames();
+
+        assertThat(PostgresJdbcUrls.classifiedQueryParameterNames()).containsAll(pgJdbcPropertyNames);
+
+        final Set<String> stalePolicyNames = new TreeSet<>(PostgresJdbcUrls.classifiedQueryParameterNames());
+        stalePolicyNames.removeAll(pgJdbcPropertyNames);
+        stalePolicyNames.removeAll(PostgresJdbcUrls.compatibilityAliasParameterNames());
+        assertThat(stalePolicyNames).isEmpty();
+    }
+
+    private static Stream<String> blockedByNameParameters() {
+        return Stream.of(
+                "adaptiveFetch",
+                "adaptiveFetchMaximum",
+                "adaptiveFetchMinimum",
+                "allowEncodingChanges",
+                "ApplicationName",
+                "assumeMinServerVersion",
+                "authenticationPluginClassName",
+                "autosave",
+                "binaryTransfer",
+                "binaryTransferDisable",
+                "binaryTransferEnable",
+                "cleanupSavepoints",
+                "convertBooleanToNumeric",
+                "currentSchema",
+                "databaseMetadataCacheFields",
+                "databaseMetadataCacheFieldsMiB",
+                "defaultRowFetchSize",
+                "disableColumnSanitiser",
+                "escapeSyntaxCallMode",
+                "groupStartupParameters",
+                "gsslib",
+                "gssUseDefaultCreds",
+                "hideUnprivilegedObjects",
+                "hostRecheckSeconds",
+                "jaasApplicationName",
+                "jaasLogin",
+                "kerberosServerName",
+                "loadBalanceHosts",
+                "localSocketAddress",
+                "loggerFile",
+                "logServerErrorDetail",
+                "logUnclosedConnections",
+                "maxResultBuffer",
+                "maxSendBufferSize",
+                "options",
+                "password",
+                "pemKeyAlgorithm",
+                "PGDBNAME",
+                "PGHOST",
+                "PGPORT",
+                "preparedStatementCacheQueries",
+                "preparedStatementCacheSizeMiB",
+                "prepareThreshold",
+                "protocolVersion",
+                "quoteReturningIdentifiers",
+                "readOnly",
+                "readOnlyMode",
+                "receiveBufferSize",
+                "replication",
+                "requireAuth",
+                "reWriteBatchedInserts",
+                "scramMaxIterations",
+                "sendBufferSize",
+                "service",
+                "socketFactory",
+                "socketFactoryArg",
+                "sslcert",
+                "sslfactory",
+                "sslfactoryarg",
+                "sslhostnameverifier",
+                "sslkey",
+                "sslpassword",
+                "sslpasswordcallback",
+                "sslrootcert",
+                "sspiServiceClass",
+                "stringtype",
+                "targetServerType",
+                "unknownLength",
+                "user",
+                "username",
+                "useSpnego",
+                "xmlFactoryFactory");
+    }
+
+    private static Stream<String> blockedByValueQueries() {
+        return Stream.of(
+                "sslmode=disable",
+                "sslmode=allow",
+                "sslmode=prefer",
+                "SSLMode=disable",
+                "sslmode=",
+                "sslmode=unexpected",
+                "ssl=false",
+                "ssl=0",
+                "channelBinding=disable",
+                "channelBinding=",
+                "gssEncMode=disable",
+                "gssEncMode=allow",
+                "gssEncMode=prefer",
+                "preferQueryMode=simple",
+                "PreferQueryMode=simple",
+                "preferQueryMode=",
+                "preferQueryMode=unknown",
+                "connectTimeout",
+                "connectTimeout=",
+                "connectTimeout=-1",
+                "connectTimeout=fast",
+                "tcpKeepAlive",
+                "tcpKeepAlive=maybe",
+                "loggerLevel=DEBUG",
+                "loggerLevel=TRACE",
+                "sslNegotiation=direct",
+                "sslNegotiation=");
+    }
+
+    private static Stream<String> allowedQueries() {
+        return Stream.of(
+                "cancelSignalTimeout=10",
+                "connectTimeout=10",
+                "gssResponseTimeout=5000",
+                "loginTimeout=1",
+                "queryTimeout=0",
+                "socketTimeout=30",
+                "sslResponseTimeout=5000",
+                "loggerLevel=OFF",
+                "tcpKeepAlive=true",
+                "tcpNoDelay=false",
+                "ssl",
+                "ssl=",
+                "ssl=true",
+                "sslmode=require",
+                "sslmode=verify-ca",
+                "sslmode=verify-full",
+                "channelBinding=prefer",
+                "channelBinding=require",
+                "gssEncMode=require",
+                "preferQueryMode=extended",
+                "preferQueryMode=extendedForPrepared",
+                "preferQueryMode=extendedCacheEverything",
+                "sslNegotiation=postgres",
+                "sslmode=require&connectTimeout=10",
+                "ssl=true&connectTimeout=10",
+                "ssl&connectTimeout=10");
+    }
+
+    private static Set<String> pgJdbcPropertyNames() throws Exception {
+        final Class<?> pgProperty = Class.forName("org.postgresql.PGProperty");
+        final Method values = pgProperty.getMethod("values");
+        final Method getName = pgProperty.getMethod("getName");
+        final Object[] properties = (Object[]) values.invoke(null);
+        final Set<String> names = new TreeSet<>();
+        for (final Object property : properties) {
+            names.add(((String) getName.invoke(property)).toLowerCase(Locale.ROOT));
+        }
+        return names;
     }
 }

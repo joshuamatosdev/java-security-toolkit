@@ -52,10 +52,10 @@ implementation("io.github.joshuamatosdev.security:layered-authorization-spring-b
 ```
 
 The starter imports the reference authorization configuration when
-`glyptodon.layered-authorization.enabled` is true or absent. Disable it with:
+`bulwark.layered-authorization.enabled` is true or absent. Disable it with:
 
 ```yaml
-glyptodon:
+bulwark:
   layered-authorization:
     enabled: false
 ```

@@ -19,11 +19,16 @@ $$;
 CREATE DOMAIN id_v7 AS uuid DEFAULT uuidv7();
 
 CREATE TABLE document (
-    id                  id_v7 PRIMARY KEY,
-    tenant_id           uuid NOT NULL,
-    organization_id     uuid,
-    owner_principal_key text
+    id                   id_v7 PRIMARY KEY,
+    tenant_id            uuid NOT NULL,
+    organization_id      uuid,
+    owner_principal_type text,
+    owner_principal_key  text,
+    -- A resource owner is a (type, key) pair: persist both or neither, never a key whose principal
+    -- type was silently assumed. This keeps cross-principal-type ownership decisions enforceable.
+    CONSTRAINT document_owner_principal_complete
+        CHECK ((owner_principal_type IS NULL) = (owner_principal_key IS NULL))
 );
 
 GRANT SELECT, DELETE ON document TO authz_app;
-GRANT INSERT (tenant_id, organization_id, owner_principal_key) ON document TO authz_app;
+GRANT INSERT (tenant_id, organization_id, owner_principal_type, owner_principal_key) ON document TO authz_app;

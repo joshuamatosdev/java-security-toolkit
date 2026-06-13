@@ -16,6 +16,7 @@ public record OrganizationId(UUID value) {
 
     public OrganizationId {
         Objects.requireNonNull(value, "OrganizationId must not be null");
+        CanonicalUuid.requireNotNil(value, "OrganizationId");
     }
 
     public static OrganizationId fromString(final String raw) {

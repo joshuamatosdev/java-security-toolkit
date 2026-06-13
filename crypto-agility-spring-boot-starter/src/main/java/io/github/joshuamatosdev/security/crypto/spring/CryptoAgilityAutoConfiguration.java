@@ -15,6 +15,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.concurrent.ConcurrentHashMap;
+import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.boot.autoconfigure.AutoConfiguration;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnClass;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
@@ -25,14 +26,14 @@ import org.springframework.context.annotation.Bean;
 /** Spring Boot auto-configuration for crypto-agility consumers. */
 @AutoConfiguration
 @ConditionalOnClass(DocumentSigner.class)
-@ConditionalOnProperty(prefix = "glyptodon.crypto", name = "enabled", havingValue = "true", matchIfMissing = true)
+@ConditionalOnProperty(prefix = "bulwark.crypto", name = "enabled", havingValue = "true", matchIfMissing = true)
 @EnableConfigurationProperties(CryptoAgilityProperties.class)
 public class CryptoAgilityAutoConfiguration {
 
     @Bean
     @ConditionalOnMissingBean(name = "ed25519SignatureProvider")
     @ConditionalOnProperty(
-            prefix = "glyptodon.crypto.providers.jca.ed25519",
+            prefix = "bulwark.crypto.providers.jca.ed25519",
             name = "enabled",
             havingValue = "true",
             matchIfMissing = true)
@@ -43,7 +44,7 @@ public class CryptoAgilityAutoConfiguration {
     @Bean
     @ConditionalOnMissingBean(name = "ecdsaP256SignatureProvider")
     @ConditionalOnProperty(
-            prefix = "glyptodon.crypto.providers.jca.ecdsa-p256",
+            prefix = "bulwark.crypto.providers.jca.ecdsa-p256",
             name = "enabled",
             havingValue = "true")
     SignatureProvider ecdsaP256SignatureProvider() {
@@ -53,7 +54,7 @@ public class CryptoAgilityAutoConfiguration {
     @Bean
     @ConditionalOnMissingBean(name = "mlDsa44PlaceholderSignatureProvider")
     @ConditionalOnProperty(
-            prefix = "glyptodon.crypto.providers.jca.ml-dsa-44-placeholder",
+            prefix = "bulwark.crypto.providers.jca.ml-dsa-44-placeholder",
             name = "enabled",
             havingValue = "true")
     SignatureProvider mlDsa44PlaceholderSignatureProvider() {
@@ -82,13 +83,17 @@ public class CryptoAgilityAutoConfiguration {
     @ConditionalOnMissingBean
     KeyIdStrategy keyIdStrategy(final CryptoAgilityProperties properties) {
         final String defaultKeyId = requireNonBlank(
-                properties.getDefaultKeyId(), "glyptodon.crypto.default-key-id");
+                properties.getDefaultKeyId(), "bulwark.crypto.default-key-id");
         return algorithm -> defaultKeyId;
     }
 
     @Bean
     @ConditionalOnMissingBean
-    KeyHandleResolver keyHandleResolver(final SignatureProviderRegistry registry) {
+    @ConditionalOnProperty(
+            prefix = "bulwark.crypto.local-ephemeral-keys",
+            name = "enabled",
+            havingValue = "true")
+    KeyHandleResolver localEphemeralKeyHandleResolver(final SignatureProviderRegistry registry) {
         final Map<String, KeyHandle> keys = new ConcurrentHashMap<>();
         return (algorithm, keyId) -> keys.computeIfAbsent(
                 algorithm.name() + ":" + keyId,
@@ -100,12 +105,12 @@ public class CryptoAgilityAutoConfiguration {
     DocumentSigner documentSigner(
             final SignatureProviderRegistry registry,
             final CryptoAgilityProperties properties,
-            final KeyHandleResolver keyHandleResolver,
+            final ObjectProvider<KeyHandleResolver> keyHandleResolver,
             final KeyIdStrategy keyIdStrategy,
             final SignatureEnvelopeCodec envelopeCodec,
             final SignatureAuditSink auditSink) {
         final SignatureAlgorithm defaultAlgorithm =
-                Objects.requireNonNull(properties.getDefaultAlgorithm(), "glyptodon.crypto.default-algorithm");
+                Objects.requireNonNull(properties.getDefaultAlgorithm(), "bulwark.crypto.default-algorithm");
         if (!registry.hasProvider(defaultAlgorithm)) {
             throw new IllegalStateException(
                     "No SignatureProvider registered for default algorithm " + defaultAlgorithm);
@@ -113,7 +118,7 @@ public class CryptoAgilityAutoConfiguration {
         return new DocumentSigner(
                 registry,
                 defaultAlgorithm,
-                keyHandleResolver,
+                keyHandleResolver.getIfAvailable(),
                 keyIdStrategy,
                 envelopeCodec,
                 auditSink);

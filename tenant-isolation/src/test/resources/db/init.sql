@@ -183,3 +183,109 @@ CREATE POLICY p_tenant_isolation ON document
 GRANT SELECT, DELETE ON document TO tenant_app;
 GRANT INSERT (title, body), UPDATE (title, body) ON document TO tenant_app;
 GRANT SELECT ON document TO tenant_bypass;
+
+-- 5) System-writer tier (the system-ops write path).
+--    tenant_ops_user above can READ across tenants but cannot write. Some platform work must WRITE
+--    system-owned rows — an audit / event ledger that belongs to no single tenant. That path gets its
+--    own LOGIN pool role, tenant_system_writer. Like every other runtime role it is NOSUPERUSER
+--    NOBYPASSRLS, and unlike tenant_ops_user it is NOT a tenant_bypass member: it is a writer, not a
+--    cross-tenant reader. It may write only the system_audit ledger, and only rows pinned to the
+--    single SYSTEM_OPS sentinel tenant (0190a000-...-c3), enforced by a RESTRICTIVE policy that ANDs
+--    with the ordinary tenant policy. A captured VALID claim for some other tenant cannot be used to
+--    escalate a system write into that tenant's data.
+DO $$
+BEGIN
+    IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'tenant_system_writer') THEN
+        CREATE ROLE tenant_system_writer LOGIN NOSUPERUSER NOBYPASSRLS INHERIT NOCREATEDB NOCREATEROLE
+            PASSWORD 'local_dev_only';
+    END IF;
+    GRANT USAGE ON SCHEMA public TO tenant_system_writer;
+END
+$$;
+
+-- 5a) Sentinel-claim minter. SECURITY DEFINER so it runs as its owner and can read the claim secret
+--     that ordinary roles cannot — but it signs a claim ONLY for the hardcoded SYSTEM_OPS sentinel,
+--     so it cannot be coerced into minting another tenant's claim. EXECUTE is granted to
+--     tenant_system_writer alone (and revoked from PUBLIC), so the ordinary runtime pool can never
+--     obtain a sentinel claim. The claim is bound transaction-locally (set_config local = true), so a
+--     borrowed connection cannot leak it past the unit of work; the mint and the write must therefore
+--     share one transaction. Same v2 format, secret, and HMAC as tenant_security.current_tenant_id().
+CREATE OR REPLACE FUNCTION tenant_security.mint_system_ops_claim()
+RETURNS uuid
+LANGUAGE plpgsql
+VOLATILE
+SECURITY DEFINER
+SET search_path = pg_catalog, tenant_security
+AS $$
+DECLARE
+    sentinel constant uuid := '0190a000-0000-7000-8000-0000000000c3';
+    exp_epoch text := (extract(epoch FROM clock_timestamp())::bigint + 30)::text;
+    secret_value text;
+    payload text;
+    signature text;
+BEGIN
+    SELECT secret INTO secret_value FROM tenant_security.claim_secret WHERE singleton;
+    IF secret_value IS NULL THEN
+        RAISE EXCEPTION 'system-ops claim secret is not configured';
+    END IF;
+    payload := 'v2:' || sentinel::text || ':' || exp_epoch;
+    signature := encode(tenant_security.hmac(payload, secret_value, 'sha256'), 'hex');
+    PERFORM set_config('app.tenant_claim', payload || ':' || signature, true);
+    RETURN sentinel;
+END
+$$;
+
+REVOKE ALL ON FUNCTION tenant_security.mint_system_ops_claim() FROM PUBLIC;
+GRANT USAGE ON SCHEMA tenant_security TO tenant_system_writer;
+GRANT EXECUTE ON FUNCTION tenant_security.mint_system_ops_claim() TO tenant_system_writer;
+GRANT EXECUTE ON FUNCTION tenant_security.current_tenant_id() TO tenant_system_writer;
+
+-- 5b) System-owned audit / event ledger. Not tenant business data: every row is pinned to the
+--     SYSTEM_OPS sentinel tenant. RLS is enabled and FORCED exactly like document; the permissive
+--     p_tenant_isolation policy is the same shape (bypass-read OR own-tenant), so tenant_bypass can
+--     observe the ledger while the verified claim still scopes everyone else.
+CREATE TABLE system_audit (
+    id        id_v7 PRIMARY KEY,
+    tenant_id uuid NOT NULL DEFAULT tenant_security.current_tenant_id(),
+    event     text NOT NULL,
+    detail    text NOT NULL
+);
+
+ALTER TABLE system_audit ENABLE ROW LEVEL SECURITY;
+ALTER TABLE system_audit FORCE ROW LEVEL SECURITY;
+
+CREATE POLICY p_tenant_isolation ON system_audit
+    FOR ALL TO public
+    USING (
+        pg_has_role(current_user, 'tenant_bypass', 'USAGE')
+        OR tenant_id = tenant_security.current_tenant_id()
+    )
+    WITH CHECK (
+        tenant_id = tenant_security.current_tenant_id()
+    );
+
+-- A RESTRICTIVE policy is AND-combined with the permissive policy above (both must pass), unlike the
+-- default PERMISSIVE policies which are OR-combined. tenant_system_writer holds INSERT/UPDATE and
+-- could bind a captured VALID claim for another tenant — which would satisfy the permissive WITH
+-- CHECK. This cap pins it to the sentinel anyway: the row's tenant_id AND the verified claim must
+-- both be the SYSTEM_OPS sentinel. This is what makes "the system writer writes ONLY sentinel rows"
+-- true at the database, not by convention.
+CREATE POLICY p_system_writer_system_ops_only ON system_audit
+    AS RESTRICTIVE
+    FOR ALL TO tenant_system_writer
+    USING (
+        tenant_id = '0190a000-0000-7000-8000-0000000000c3'::uuid
+        AND tenant_security.current_tenant_id() = '0190a000-0000-7000-8000-0000000000c3'::uuid
+    )
+    WITH CHECK (
+        tenant_id = '0190a000-0000-7000-8000-0000000000c3'::uuid
+        AND tenant_security.current_tenant_id() = '0190a000-0000-7000-8000-0000000000c3'::uuid
+    );
+
+-- The system writer mints the sentinel claim, then writes the ledger row. It holds INSERT/UPDATE on
+-- the mutable business columns only and SELECT on id alone (enough for INSERT ... RETURNING id); id
+-- and tenant_id stay database-owned exactly as on document. The read-only system-ops pool reads the
+-- ledger for cross-tenant observability. The ordinary runtime pool gets nothing here.
+GRANT INSERT (event, detail), UPDATE (event, detail) ON system_audit TO tenant_system_writer;
+GRANT SELECT (id) ON system_audit TO tenant_system_writer;
+GRANT SELECT ON system_audit TO tenant_bypass;

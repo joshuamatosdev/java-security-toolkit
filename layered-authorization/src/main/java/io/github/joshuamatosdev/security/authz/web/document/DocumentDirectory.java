@@ -2,6 +2,7 @@ package io.github.joshuamatosdev.security.authz.web.document;
 
 import io.github.joshuamatosdev.security.authz.persistence.DocumentEntity;
 import io.github.joshuamatosdev.security.authz.persistence.DocumentRepository;
+import io.github.joshuamatosdev.security.authz.principal.PrincipalType;
 import io.github.joshuamatosdev.security.authz.request.ProtectedResource;
 import io.github.joshuamatosdev.security.shared.OrganizationId;
 import io.github.joshuamatosdev.security.shared.ResourceId;
@@ -47,7 +48,10 @@ public class DocumentDirectory {
     public ProtectedResource create(
         final TenantId tenantId,
         final OrganizationId organizationId,
+        final PrincipalType ownerPrincipalType,
         final String ownerPrincipalKey) {
-        return repository.save(new DocumentEntity(tenantId, organizationId, ownerPrincipalKey)).toProtectedResource();
+        return repository
+            .save(new DocumentEntity(tenantId, organizationId, ownerPrincipalType, ownerPrincipalKey))
+            .toProtectedResource();
     }
 }

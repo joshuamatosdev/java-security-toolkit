@@ -101,6 +101,16 @@ pooling layer, it must preserve the session state this module relies on. If it
 does not pin session state to the same backend connection, it can break
 session-bound tenant claims.
 
+## RESTRICTIVE Policy
+
+A Row-Level Security policy that a row must satisfy *in addition to* the ordinary
+(permissive) policies, rather than as an alternative to them. Permissive policies
+are OR-combined — passing any one grants access — while RESTRICTIVE policies are
+AND-combined, so each one can only further narrow access. In `tenant-isolation`
+the system-writer role is capped this way: it may hold `INSERT` and even a valid
+tenant claim, but a RESTRICTIVE policy still pins its writes to the single
+system-ops sentinel tenant.
+
 ## RLS
 
 Row-Level Security. RLS is a PostgreSQL feature that applies a policy to each row
