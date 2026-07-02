@@ -7,6 +7,7 @@ import io.github.joshuamatosdev.security.crypto.jca.JcaSignatureProviders;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 import org.junit.jupiter.api.Test;
 
 class DocumentSignerTest {
@@ -35,10 +36,56 @@ class DocumentSignerTest {
     }
 
     @Test
-    void sealAliasUsesTheSameEnvelopeAsSign() {
+    void trustAnchoredVerifyAcceptsTheDeploymentsPinnedKey() {
         final KeyHandle key = registry.resolve(SignatureAlgorithm.ED25519).generateKey("k1");
+        final SignedDocument signed = signer.sign(key, DOCUMENT);
+        final TrustAnchor anchor = TrustAnchor.pinnedKeys(Map.of("k1", key.publicKey()));
 
-        assertThat(signer.verify(signer.seal(key, DOCUMENT))).isTrue();
+        assertThat(signer.verify(signed, anchor)).isTrue();
+    }
+
+    @Test
+    void trustAnchoredVerifyDefeatsKeySubstitution() {
+        // The attack the embedded-key verify cannot see: tamper the payload, re-sign it with an
+        // attacker-generated key, embed the attacker's public key under the SAME key id.
+        final KeyHandle legitimate = registry.resolve(SignatureAlgorithm.ED25519).generateKey("k1");
+        final KeyHandle attacker = registry.resolve(SignatureAlgorithm.ED25519).generateKey("k1");
+        final SignedDocument forged =
+                signer.sign(attacker, "transcript of fraud".getBytes(StandardCharsets.UTF_8));
+        final TrustAnchor anchor = TrustAnchor.pinnedKeys(Map.of("k1", legitimate.publicKey()));
+
+        assertThat(signer.verify(forged))
+                .as("integrity-only verify accepts the forgery — this is the documented gap")
+                .isTrue();
+        assertThat(signer.verify(forged, anchor))
+                .as("the anchored verify rejects the untrusted key before any signature check")
+                .isFalse();
+    }
+
+    @Test
+    void trustAnchoredVerifyRejectsUnknownKeyIds() {
+        final KeyHandle key = registry.resolve(SignatureAlgorithm.ED25519).generateKey("k2");
+        final SignedDocument signed = signer.sign(key, DOCUMENT);
+        final TrustAnchor anchor = TrustAnchor.pinnedKeys(Map.of("k1", key.publicKey()));
+
+        assertThat(signer.verify(signed, anchor)).isFalse();
+    }
+
+    @Test
+    void trustAnchoredVerifyAuditsTheUntrustedKeyReason() {
+        final List<SignatureAuditEvent> events = new ArrayList<>();
+        final DocumentSigner audited = new DocumentSigner(
+                registry,
+                null,
+                null,
+                null,
+                new io.github.joshuamatosdev.security.crypto.internal.DefaultSignatureEnvelopeCodec(),
+                events::add);
+        final KeyHandle key = registry.resolve(SignatureAlgorithm.ED25519).generateKey("k1");
+        final SignedDocument signed = audited.sign(key, DOCUMENT);
+
+        assertThat(audited.verify(signed, TrustAnchor.pinnedKeys(Map.of()))).isFalse();
+        assertThat(events.getLast().reason()).isEqualTo("untrusted key");
     }
 
     @Test

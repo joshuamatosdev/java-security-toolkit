@@ -71,7 +71,7 @@ flowchart LR
 
 | Module | Security pattern | What the tests prove |
 |---|---|---|
-| `shared` | Typed identity kernel | Tenant, organization, and resource IDs cannot be casually mixed as raw UUIDs. |
+| `shared` | Typed identity kernel | Tenant, organization, team, and resource IDs cannot be casually mixed as raw UUIDs. |
 | `shared-testkit` | Typed identifier contracts | Adopters can reuse constructor, equality, and formatting contracts for shared identifier implementations. |
 | `tenant-isolation` | Tenant placement, signed PostgreSQL session claims, organization scope, cross-tenant read entitlements, and RLS | Tenant context reaches the database boundary and isolation — including the organization dimension within a tenant and explicit read-only sharing across tenants — holds under real PostgreSQL behavior. |
 | `tenant-isolation-spring-boot-starter` | Spring Boot auto-configuration | A Spring app can import the tenant isolation configuration through one starter dependency. |
@@ -82,9 +82,9 @@ flowchart LR
 | `edge-perimeter` | Browser/service credential plane separation | Browser sessions, service JWTs, CORS, CSRF, and headers stay in their intended boundary. |
 | `edge-perimeter-spring-boot-starter` | Spring Boot auto-configuration | A WebFlux edge app can import the reference perimeter chains and properties through a starter. |
 | `edge-perimeter-testkit` | Edge policy contracts | Consumers can reuse property and perimeter policy checks around CORS, headers, and credential-plane defaults. |
-| `supply-chain` | Build trust horizon | SBOM evidence and base-image pinning are executable checks, not review-only guidance. |
-| `supply-chain-testkit` | Supply-chain contracts | Build-policy implementers can reuse SBOM and base-image-pin contract tests. |
-| `crypto-agility` | Provider seam and algorithm registry | Signing call sites stay stable while algorithms and providers can change behind the seam. |
+| `supply-chain` | Build trust horizon | SBOM evidence, base-image pinning, wrapper pinning, and workflow-action pinning are executable checks, not review-only guidance. |
+| `supply-chain-testkit` | Supply-chain contracts | Build-policy implementers can reuse SBOM, base-image-pin, and action-pin contract tests. |
+| `crypto-agility` | Provider seam and algorithm registry | Signing call sites stay stable while algorithms and providers change behind the seam, and verification can be anchored to deployment-trusted keys. |
 | `crypto-agility-spring-boot-starter` | Spring Boot auto-configuration | A Spring app can inject `DocumentSigner`; default signing requires app-owned key custody or explicit local-demo opt-in. |
 | `crypto-agility-testkit` | Provider and signer contracts | Provider implementers can reuse contract tests instead of copying internal test code. |
 
@@ -148,7 +148,7 @@ explicit, and deny-by-default.
 | 3. Secrets / config | No production secret in source or image | ADR-0001 and release checklist |
 | 4. Transport / runtime | Perimeter routing, browser headers, actuator lockdown | `edge-perimeter` |
 | 5. Data | Tenant placement, least-privilege roles, RLS | `tenant-isolation` |
-| 6. Supply chain | SBOM, dependency, wrapper, and base-image verification | `supply-chain` |
+| 6. Supply chain | SBOM, dependency, wrapper, base-image, and workflow-action verification | `supply-chain` |
 | Cross-cutting | Signature-provider agility and migration strategy | `crypto-agility` |
 
 ## Public Release Posture

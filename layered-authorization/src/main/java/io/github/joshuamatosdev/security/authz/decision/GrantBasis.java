@@ -22,5 +22,11 @@ public enum GrantBasis {
     /**
      * A tenant-scoped ALLOW rule matched a tenant-wide role the actor holds.
      */
-    EFFECTIVE_PERMISSION
+    EFFECTIVE_PERMISSION,
+    /**
+     * A team-scoped ALLOW rule matched the actor's membership in the resource's organization and
+     * team — the most specific grant basis. Appended after {@link #EFFECTIVE_PERMISSION} so
+     * existing ordinals stay stable for adopters who persisted audit records.
+     */
+    TEAM_MEMBER
 }

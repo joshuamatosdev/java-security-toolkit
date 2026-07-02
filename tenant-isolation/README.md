@@ -111,8 +111,20 @@ class TenantBindingFilter extends OncePerRequestFilter {
     @Override
     protected void doFilterInternal(HttpServletRequest req, HttpServletResponse res, FilterChain chain)
             throws ServletException, IOException {
-        Jwt jwt = ((JwtAuthenticationToken) SecurityContextHolder.getContext().getAuthentication()).getToken();
-        TenantId tenant = TenantId.fromString(jwt.getClaimAsString("tenant_id"));
+        // Unauthenticated / non-JWT requests carry no tenant to bind. Passing through is safe:
+        // a connection borrow with no binding fails closed before any SQL runs.
+        if (!(SecurityContextHolder.getContext().getAuthentication()
+                instanceof JwtAuthenticationToken jwtAuthentication)) {
+            chain.doFilter(req, res);
+            return;
+        }
+        Jwt jwt = jwtAuthentication.getToken();
+        String tenantClaim = jwt.getClaimAsString("tenant_id");
+        if (tenantClaim == null) {
+            res.sendError(HttpServletResponse.SC_FORBIDDEN);
+            return;
+        }
+        TenantId tenant = TenantId.fromString(tenantClaim);
         String org = jwt.getClaimAsString("organization_id");
         Runnable work = () -> { try { chain.doFilter(req, res); } catch (Exception e) { throw new IllegalStateException(e); } };
         if (org == null) TenantContext.runAs(tenant, work);
@@ -157,6 +169,13 @@ ALTER TABLE your_table FORCE ROW LEVEL SECURITY;
 -- permissive tenant policy + RESTRICTIVE org cap: copy p_tenant_isolation and
 -- p_organization_scope from init.sql verbatim, table name swapped
 ```
+
+The one-statement `ADD COLUMN ... NOT NULL DEFAULT` form is for new or empty
+tables. A migration session binds no tenant claim, so on a populated table the
+default evaluates NULL and the statement fails the NOT NULL constraint.
+Retrofit an existing table in three steps: add the column nullable, backfill
+`tenant_id` per tenant from your ownership data, then
+`ALTER TABLE your_table ALTER COLUMN tenant_id SET NOT NULL`.
 
 Semantics: an org-bound session reads/writes only its org's rows; an
 org-unscoped session sees the whole tenant (org **subdivides** tenancy, never

@@ -59,7 +59,9 @@ new `keyId`. No call site holds, copies, or passes a private key.
 
 `DocumentSigner.sign`/`seal`/`verify` is the demonstration: it reads the algorithm off the handle when
 sealing and resolves the provider off the document's `alg` label when verifying, and it names no
-algorithm. The same two method bodies serve Ed25519, ECDSA P-256, and the post-quantum slot. The
+algorithm. *(Amended: the `seal` alias was later removed — one entry point per operation; `sign` is
+the single signing call site. A trust-anchored `verify(document, trustAnchor)` overload was added so
+signer authenticity, not only payload integrity, is part of the demonstrated surface.)* The same two method bodies serve Ed25519, ECDSA P-256, and the post-quantum slot. The
 agility test parameterises over every algorithm through that single call site.
 
 ### A reserved, exercised post-quantum slot

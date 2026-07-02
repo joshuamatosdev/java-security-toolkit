@@ -1,6 +1,7 @@
 # ADR-0007: Organization Scope Within Tenant Isolation
 
-- **Status:** Accepted
+- **Status:** Accepted, amended by
+  [ADR-0008](0008-entitlement-cross-tenant-read-grants.md)
 - **Date:** 2026-07-02
 
 ## Context
@@ -80,3 +81,14 @@ the same connection boundary with a second signed claim.
   DDL demonstrates the verifier and the RESTRICTIVE policy. Schema- and
   database-mode DDL can adopt the same pattern where organization boundaries
   matter inside those placements.
+
+## Amendment (ADR-0008)
+
+ADR-0008 adds a tenant-mismatch escape to the RESTRICTIVE cap's `USING` clause:
+the cap scopes only the session's **own** tenant, so a foreign-tenant row —
+reachable at all only through bypass membership or an explicit read
+entitlement — is not filtered by the reader's own organization binding. The
+organization dimension is an intra-tenant concept. `WITH CHECK` is unchanged,
+and every write still passes the tenant policy's own-tenant `WITH CHECK`, so
+the escape cannot widen writes. Within the session's own tenant, the behavior
+specified above is unchanged.

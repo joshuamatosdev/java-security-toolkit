@@ -75,16 +75,12 @@ public final class DocumentSigner {
         }
     }
 
-    /** Backwards-readable alias for {@link #sign(KeyHandle, byte[])}. */
-    public SignedDocument seal(final KeyHandle key, final byte[] payload) {
-        return sign(key, payload);
-    }
-
     /**
      * Verifies a signed document against the public key carried in the document.
      *
-     * <p>This proves payload integrity under the embedded public key. Callers that need signer
-     * authenticity must validate the public key against a trust anchor before trusting the payload.
+     * <p>This proves payload integrity under the embedded public key <em>only</em>. Callers that
+     * need signer authenticity — the guarantee that the embedded key is one the deployment allows
+     * to speak for the document's key id — must use {@link #verify(SignedDocument, TrustAnchor)}.
      */
     public boolean verify(final SignedDocument document) {
         if (document == null) {
@@ -119,6 +115,28 @@ public final class DocumentSigner {
                 verified,
                 verified ? "verified" : "verification failed");
         return verified;
+    }
+
+    /**
+     * Verifies a signed document <em>and</em> that its embedded public key is the one the trust
+     * anchor allows for the document's key id — integrity plus signer authenticity.
+     *
+     * <p>The anchor is consulted first and fails closed: a document whose embedded key the anchor
+     * does not trust is rejected (audited as {@code untrusted key}) before any signature
+     * computation, so a key-substitution forgery — tampered payload re-signed under an
+     * attacker-chosen key — never reaches cryptographic verification at all.
+     */
+    public boolean verify(final SignedDocument document, final TrustAnchor trustAnchor) {
+        Objects.requireNonNull(trustAnchor, "trustAnchor must not be null");
+        if (document == null) {
+            record(SignatureAuditEvent.Operation.VERIFY, null, null, false, "document is null");
+            return false;
+        }
+        if (!trustAnchor.trusts(document.keyId(), document.publicKey())) {
+            record(SignatureAuditEvent.Operation.VERIFY, document.alg(), document.keyId(), false, "untrusted key");
+            return false;
+        }
+        return verify(document);
     }
 
     private static void requireDefaultKey(

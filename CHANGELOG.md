@@ -9,6 +9,35 @@ once public version tags begin.
 
 ### Added
 
+- `TrustAnchor` in crypto-agility and a trust-anchored
+  `DocumentSigner.verify(document, trustAnchor)` overload: the embedded-key
+  verify proves payload integrity only, so a key-substitution forgery (tampered
+  payload re-signed under an attacker-chosen key) verified. The anchor holds
+  the deployment's own opinion of which public key may speak for a key id —
+  `TrustAnchor.pinnedKeys(...)` is the constant-time pinned-set implementation —
+  and the anchored verify fails closed on an untrusted key (audited as
+  `untrusted key`) before any signature computation.
+- `ActionPinPolicy` in supply-chain — the third pin policy, completing the
+  triad with `BaseImagePolicy` and `WrapperPinPolicy`: every external GitHub
+  Actions `uses:` reference must name an immutable revision (40-hex commit SHA;
+  `docker://` refs digest-pinned; repository-local composite actions exempt).
+  Asserted continuously against this repository's own workflows — the CI SHA
+  pins were previously a hand-maintained convention — and exported as
+  `ActionPinPolicyContract` for adopters.
+- `PolicyScopeType.TEAM` and `shared`'s `TeamId`: a team is the narrowest
+  role-assignment scope — a discretionary grant boundary inside one
+  organization, never a data-plane isolation dimension. A team-scoped
+  assignment carries both its organization and its team and matches only a
+  resource placed in the same organization *and* team, so a grant cannot escape
+  its organization even if a team identifier were reused. New `TEAM_MEMBER`
+  grant basis reports team as the most specific allowing scope;
+  `ProtectedResource` gains an optional team placement (existing constructors
+  unchanged).
+- `Action.CREATE` in the layered-authorization policy vocabulary: creation is
+  decided against the prospective resource's placement, holds the same
+  per-action granularity (a `CREATE` grant inherits nothing from `UPDATE` and
+  vice versa), and is appended after `DELETE` so persisted ordinals stay
+  stable.
 - Entitlement-based cross-tenant read grants (ADR-0008): an explicit,
   platform-administered grant ledger (`tenant_security.read_grant`) and a
   `PERMISSIVE FOR SELECT` policy let one tenant read another tenant's rows of
@@ -57,6 +86,11 @@ once public version tags begin.
 
 ### Changed
 
+- The edge-perimeter CORS registrations are derived from the same
+  `RouteAuthorities` constants the authorization rules use, so the browser-plane
+  route truth lives once and the CORS surface cannot drift from the routes.
+  (`SignatureAlgorithm.fromJoseAlg` also moved from a per-call scan to a
+  precomputed map — it sits on the verification hot path.)
 - `CryptoAgilityProperties` is now an immutable `@ConfigurationProperties`
   record binding only the values the wiring consumes (`default-algorithm`,
   `default-key-id`). The provider and ephemeral-key toggles remain
@@ -73,6 +107,11 @@ once public version tags begin.
 - Document ownership persists the owner principal type alongside the key, so the
   policy's cross-principal-type ownership check holds for database-backed
   resources (added an `owner_principal_type` column and a both-or-neither check).
+
+### Removed
+
+- `DocumentSigner.seal(...)`, the alias of `sign(...)` — one entry point per
+  operation. ADR-0006 carries the amendment note.
 
 ### Fixed
 
@@ -93,3 +132,6 @@ once public version tags begin.
 - The exported `AuthorizationPolicyContract` now also asserts deny-by-default and
   organization-scope isolation, so an adopter's policy is verified against those
   boundaries, not only tenant mismatch and explicit deny.
+- The exported `AuthorizationPolicyContract` additionally asserts team-scope
+  isolation: a team-scoped grant reaches neither another team's resources nor
+  team-unplaced resources of the same organization.
