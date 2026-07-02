@@ -2,6 +2,7 @@ package io.github.joshuamatosdev.security.tenant.datasource.factory;
 
 import com.zaxxer.hikari.HikariDataSource;
 import io.github.joshuamatosdev.security.shared.TenantId;
+import io.github.joshuamatosdev.security.tenant.binding.OrganizationScope;
 import io.github.joshuamatosdev.security.tenant.binding.SystemTenantBoundary;
 import io.github.joshuamatosdev.security.tenant.config.TenantIsolationMode;
 import io.github.joshuamatosdev.security.tenant.config.TenantIsolationProperties;
@@ -32,6 +33,7 @@ final class TenantDataSourceFactory {
     private final TenantIsolationProperties isolationProperties;
     private final TenantPoolFactory poolFactory;
     private final TenantClaimSignerFactory claimSignerFactory;
+    private final OrganizationScope organizationScope;
     private Map<TenantId, HikariDataSource> databasePools;
 
     /**
@@ -40,14 +42,17 @@ final class TenantDataSourceFactory {
      * @param isolationProperties typed tenant placement topology
      * @param poolFactory raw Hikari pool factory
      * @param claimSignerFactory tenant claim signer factory
+     * @param organizationScope how borrows treat the organization dimension of the binding
      */
     TenantDataSourceFactory(
             final TenantIsolationProperties isolationProperties,
             final TenantPoolFactory poolFactory,
-            final TenantClaimSignerFactory claimSignerFactory) {
+            final TenantClaimSignerFactory claimSignerFactory,
+            final OrganizationScope organizationScope) {
         this.isolationProperties = Objects.requireNonNull(isolationProperties, "isolationProperties");
         this.poolFactory = Objects.requireNonNull(poolFactory, "poolFactory");
         this.claimSignerFactory = Objects.requireNonNull(claimSignerFactory, "claimSignerFactory");
+        this.organizationScope = Objects.requireNonNull(organizationScope, "organizationScope");
     }
 
     /**
@@ -94,6 +99,7 @@ final class TenantDataSourceFactory {
                 new SystemOpsRoutingDataSource(runtimePool.get(), systemOpsPool.get()),
                 ID_POOL_NAME,
                 claimSignerFactory.tenantClaimSigner(),
+                organizationScope,
                 tenantPoolInspection);
     }
 
@@ -107,6 +113,7 @@ final class TenantDataSourceFactory {
                         tenantPoolInspection),
                 SCHEMA_POOL_NAME,
                 claimSignerFactory.tenantClaimSigner(),
+                organizationScope,
                 tenantPoolInspection);
     }
 
@@ -116,6 +123,7 @@ final class TenantDataSourceFactory {
                 new TenantDatabaseRoutingDataSource(pools, tenantPoolInspection),
                 DATABASE_POOL_NAME,
                 claimSignerFactory.tenantClaimSigner(),
+                organizationScope,
                 tenantPoolInspection);
     }
 

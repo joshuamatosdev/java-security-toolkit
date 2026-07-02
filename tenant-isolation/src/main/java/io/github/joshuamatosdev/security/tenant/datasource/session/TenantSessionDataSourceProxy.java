@@ -9,10 +9,13 @@ import java.sql.ShardingKeyBuilder;
 import java.sql.Types;
 import java.util.List;
 import java.util.Objects;
+import java.util.Optional;
 import javax.sql.DataSource;
 
 import io.github.joshuamatosdev.security.shared.RequiredText;
 import io.github.joshuamatosdev.security.shared.TenantId;
+import io.github.joshuamatosdev.security.tenant.TenantIds;
+import io.github.joshuamatosdev.security.tenant.binding.OrganizationScope;
 import io.github.joshuamatosdev.security.tenant.binding.SystemTenantBoundary;
 import io.github.joshuamatosdev.security.tenant.binding.TenantBindingObserver;
 import io.github.joshuamatosdev.security.tenant.binding.TenantContext;
@@ -20,6 +23,7 @@ import io.github.joshuamatosdev.security.tenant.datasource.ResettingConnectionPr
 import io.github.joshuamatosdev.security.tenant.datasource.pool.TenantPoolInspection;
 import io.github.joshuamatosdev.security.tenant.datasource.pool.TenantPoolSnapshot;
 import org.jspecify.annotations.NonNull;
+import org.jspecify.annotations.Nullable;
 import org.springframework.jdbc.datasource.AbstractDataSource;
 
 /**
@@ -29,6 +33,13 @@ import org.springframework.jdbc.datasource.AbstractDataSource;
  * <p>The setting is a signed claim, not the tenant authority by itself. PostgreSQL verifies the
  * HMAC with a DB-private secret before RLS trusts it. The returned connection is wrapped so {@link
  * Connection#close()} clears the claim before the connection returns to the pool.
+ *
+ * <p>When {@code tenant.binding.organization-scope} is {@code optional} or {@code required}, the
+ * proxy also binds {@code app.org_claim} — a separately versioned signed claim for the
+ * organization dimension of the binding — so organization-aware row policies can subdivide the
+ * tenant. Under {@code required}, an ordinary tenant borrow without a bound organization fails
+ * closed before a connection is taken; the system-operations tenant is exempt because cross-tenant
+ * operational work carries no organization.
  *
  * <p>Fail-closed: if no {@link TenantContext} is populated at borrow time, borrowing throws
  * {@link IllegalStateException} before any SQL can run.
@@ -41,10 +52,12 @@ public final class TenantSessionDataSourceProxy extends AbstractDataSource imple
 
     private static final String SET_CONFIG_SQL = "SELECT set_config(?, ?, ?)";
     private static final String TENANT_CLAIM_SETTING = "app.tenant_claim";
+    private static final String ORGANIZATION_CLAIM_SETTING = "app.org_claim";
 
     private final DataSource delegate;
     private final String poolName;
     private final TenantClaimSigner claimSigner;
+    private final OrganizationScope organizationScope;
     private final TenantBindingObserver observer;
     private final TenantPoolInspection poolInspection;
 
@@ -57,7 +70,8 @@ public final class TenantSessionDataSourceProxy extends AbstractDataSource imple
      */
     public TenantSessionDataSourceProxy(
             final DataSource delegate, final String poolName, final TenantClaimSigner claimSigner) {
-        this(delegate, poolName, claimSigner, TenantBindingObserver.NOOP, TenantPoolInspection.NONE);
+        this(delegate, poolName, claimSigner, OrganizationScope.OFF,
+                TenantBindingObserver.NOOP, TenantPoolInspection.NONE);
     }
 
     /**
@@ -73,7 +87,26 @@ public final class TenantSessionDataSourceProxy extends AbstractDataSource imple
             final String poolName,
             final TenantClaimSigner claimSigner,
             final TenantPoolInspection poolInspection) {
-        this(delegate, poolName, claimSigner, TenantBindingObserver.NOOP, poolInspection);
+        this(delegate, poolName, claimSigner, OrganizationScope.OFF,
+                TenantBindingObserver.NOOP, poolInspection);
+    }
+
+    /**
+     * Creates a tenant-binding datasource proxy with an organization scope and pool inspection.
+     *
+     * @param delegate the datasource that owns the physical or pooled JDBC connections
+     * @param poolName the metric/logging name used when reporting binding events
+     * @param claimSigner signs the tenant and organization claims verified inside RLS policies
+     * @param organizationScope how the borrow treats the organization dimension of the binding
+     * @param poolInspection exposes read-only pool state for trusted infrastructure
+     */
+    public TenantSessionDataSourceProxy(
+            final DataSource delegate,
+            final String poolName,
+            final TenantClaimSigner claimSigner,
+            final OrganizationScope organizationScope,
+            final TenantPoolInspection poolInspection) {
+        this(delegate, poolName, claimSigner, organizationScope, TenantBindingObserver.NOOP, poolInspection);
     }
 
     /**
@@ -92,7 +125,7 @@ public final class TenantSessionDataSourceProxy extends AbstractDataSource imple
             final String poolName,
             final TenantClaimSigner claimSigner,
             final TenantBindingObserver observer) {
-        this(delegate, poolName, claimSigner, observer, TenantPoolInspection.NONE);
+        this(delegate, poolName, claimSigner, OrganizationScope.OFF, observer, TenantPoolInspection.NONE);
     }
 
     /**
@@ -100,7 +133,8 @@ public final class TenantSessionDataSourceProxy extends AbstractDataSource imple
      *
      * @param delegate the datasource that owns the physical or pooled JDBC connections
      * @param poolName the metric/logging name used when reporting binding events
-     * @param claimSigner signs the tenant claim that PostgreSQL verifies inside RLS policies
+     * @param claimSigner signs the tenant and organization claims verified inside RLS policies
+     * @param organizationScope how the borrow treats the organization dimension of the binding
      * @param observer receives binding, missing-binding, and reset-failure events
      * @param poolInspection exposes read-only pool state for trusted infrastructure
      */
@@ -108,11 +142,13 @@ public final class TenantSessionDataSourceProxy extends AbstractDataSource imple
             final DataSource delegate,
             final String poolName,
             final TenantClaimSigner claimSigner,
+            final OrganizationScope organizationScope,
             final TenantBindingObserver observer,
-        final TenantPoolInspection poolInspection) {
+            final TenantPoolInspection poolInspection) {
         this.delegate = Objects.requireNonNull(delegate, "delegate");
         this.poolName = RequiredText.require(poolName, "poolName");
         this.claimSigner = Objects.requireNonNull(claimSigner, "claimSigner");
+        this.organizationScope = Objects.requireNonNull(organizationScope, "organizationScope");
         this.observer = Objects.requireNonNull(observer, "observer");
         this.poolInspection = Objects.requireNonNull(poolInspection, "poolInspection");
     }
@@ -132,19 +168,23 @@ public final class TenantSessionDataSourceProxy extends AbstractDataSource imple
     }
 
     /**
-     * Signs the current tenant claim, borrows a connection, and immediately binds the claim to the
-     * PostgreSQL session.
+     * Signs the current tenant claim (and, per the configured {@link OrganizationScope}, the
+     * organization claim), borrows a connection, and immediately binds the claims to the PostgreSQL
+     * session.
      *
      * <p>Fail-closed behavior is enforced before the caller receives the connection: if no
-     * {@link TenantContext} exists, no connection is borrowed and no SQL can run.
+     * {@link TenantContext} exists — or the scope is {@code required} and an ordinary tenant borrow
+     * has no organization — no connection is borrowed and no SQL can run.
      *
-     * @return a guarded connection whose {@link Connection#close()} clears the tenant claim
+     * @return a guarded connection whose {@link Connection#close()} clears the bound claims
      * @throws SQLException when borrowing or binding, the underlying connection fails
      */
     @Override
     public @NonNull Connection getConnection() throws SQLException {
-        final String tenantClaim = requireTenantClaimOrFail();
-        return bind(delegate.getConnection(), tenantClaim);
+        final TenantId tenant = requireTenantOrFail();
+        final String tenantClaim = claimSigner.sign(tenant.value());
+        final String organizationClaim = organizationClaimFor(tenant);
+        return bind(delegate.getConnection(), tenantClaim, organizationClaim);
     }
 
     /**
@@ -207,44 +247,73 @@ public final class TenantSessionDataSourceProxy extends AbstractDataSource imple
     }
 
     /**
-     * Applies the signed tenant claim to a freshly borrowed raw connection.
+     * Applies the signed claims to a freshly borrowed raw connection.
      *
      * <p>If binding fails, the connection is aborted instead of returned normally to the pool because
      * its session state is unknown.
      *
      * @param raw the raw connection returned by the delegate datasource
-     * @param tenantClaim signed claim to bind into the PostgreSQL session
-     * @return a guarded connection that resets the tenant session binding on close
-     * @throws SQLException when tenant binding fails
+     * @param tenantClaim signed tenant claim to bind into the PostgreSQL session
+     * @param organizationClaim signed organization claim, or {@code null} when this borrow binds none
+     * @return a guarded connection that resets the session binding on close
+     * @throws SQLException when claim binding fails
      */
-    private Connection bind(final Connection raw, final String tenantClaim) throws SQLException {
+    private Connection bind(
+            final Connection raw, final String tenantClaim, final @Nullable String organizationClaim)
+            throws SQLException {
         try {
-            applyBinding(raw, tenantClaim);
+            applyBinding(raw, tenantClaim, organizationClaim);
         } catch (SQLException | RuntimeException ex) {
             ResettingConnectionProxy.abortQuietly(raw);
             throw ex;
         }
         notifyObserver(() -> observer.onBindingSet(poolName));
-        return wrapForSessionReset(raw);
+        return wrapForSessionReset(raw, organizationClaim != null);
     }
 
     /**
-     * Returns a signed claim for the current tenant or fails before a raw connection is borrowed.
+     * Returns the current tenant or fails before a raw connection is borrowed.
      *
      * <p>No pool connection is touched on missing context, so an unbound borrow cannot leak a usable
      * untenanted session to the caller or churn the pool.
      *
-     * @return signed PostgreSQL tenant claim for the current tenant
+     * @return the tenant bound to the calling thread
      * @throws IllegalStateException when no tenant is present in {@link TenantContext}
      */
-    private String requireTenantClaimOrFail() {
-        return claimSigner.sign(TenantContext.current()
-                .map(TenantId::value)
+    private TenantId requireTenantOrFail() {
+        return TenantContext.current()
                 .orElseThrow(() -> {
                     notifyObserver(() -> observer.onBindingMissing(poolName));
                     return new IllegalStateException("TenantContext not populated — tenant-scoped datasource '"
                             + poolName + "' requires tenant binding");
-                }));
+                });
+    }
+
+    /**
+     * Returns the signed organization claim this borrow should bind, or fails closed.
+     *
+     * <p>{@link OrganizationScope#OFF} never binds one. The system-operations tenant never carries
+     * one — cross-tenant operational work is not organization-scoped — so the {@code required}
+     * check applies to ordinary tenants only.
+     *
+     * @param tenant the tenant bound to the calling thread
+     * @return signed organization claim, or {@code null} when this borrow binds none
+     * @throws IllegalStateException when the scope is {@code required} and an ordinary tenant borrow
+     *     has no bound organization
+     */
+    private @Nullable String organizationClaimFor(final TenantId tenant) {
+        if (organizationScope == OrganizationScope.OFF || TenantIds.SYSTEM_OPS.equals(tenant)) {
+            return null;
+        }
+        final Optional<String> claim = TenantContext.currentOrganization()
+                .map(organization -> claimSigner.signOrganization(organization.value()));
+        if (claim.isEmpty() && organizationScope == OrganizationScope.REQUIRED) {
+            notifyObserver(() -> observer.onOrganizationBindingMissing(poolName));
+            throw new IllegalStateException("TenantContext organization not populated — tenant-scoped"
+                    + " datasource '" + poolName + "' requires organization binding"
+                    + " (tenant.binding.organization-scope=required)");
+        }
+        return claim.orElse(null);
     }
 
     /**
@@ -262,30 +331,37 @@ public final class TenantSessionDataSourceProxy extends AbstractDataSource imple
     }
 
     /**
-     * Writes the signed tenant claim into the PostgreSQL session.
+     * Writes the signed claims into the PostgreSQL session.
      *
-     * @param raw the connection whose session setting should be updated
+     * @param raw the connection whose session settings should be updated
      * @param tenantClaim the signed tenant claim to bind into {@code app.tenant_claim}
-     * @throws SQLException when PostgreSQL rejects the session setting update
+     * @param organizationClaim signed organization claim for {@code app.org_claim}, or {@code null}
+     * @throws SQLException when PostgreSQL rejects a session setting update
      */
-    private static void applyBinding(final Connection raw, final String tenantClaim) throws SQLException {
-        setConfig(raw, tenantClaim);
+    private static void applyBinding(
+            final Connection raw, final String tenantClaim, final @Nullable String organizationClaim)
+            throws SQLException {
+        setConfig(raw, TENANT_CLAIM_SETTING, tenantClaim);
+        if (organizationClaim != null) {
+            setConfig(raw, ORGANIZATION_CLAIM_SETTING, organizationClaim);
+        }
     }
 
     /**
-     * Stores the signed tenant claim in PostgreSQL's custom session setting.
+     * Stores a signed claim in a PostgreSQL custom session setting.
      *
      * <p>The third {@code set_config} argument is {@code false} so the value is session-scoped
      * rather than transaction-local; this lets RLS see it for the full borrow until close resets it.
      *
      * @param raw the connection whose PostgreSQL session setting should be populated
-     * @param value the signed tenant claim
+     * @param setting the custom session setting name
+     * @param value the signed claim
      * @throws SQLException when the setting cannot be written
      */
-    private static void setConfig(final Connection raw, final String value)
+    private static void setConfig(final Connection raw, final String setting, final String value)
             throws SQLException {
         try (PreparedStatement stmt = raw.prepareStatement(SET_CONFIG_SQL)) {
-            stmt.setString(1, TenantSessionDataSourceProxy.TENANT_CLAIM_SETTING);
+            stmt.setString(1, setting);
             stmt.setString(2, value);
             stmt.setBoolean(3, false);
             stmt.execute();
@@ -293,41 +369,60 @@ public final class TenantSessionDataSourceProxy extends AbstractDataSource imple
     }
 
     /**
-     * Clears the tenant claim from PostgreSQL's custom session setting.
+     * Clears the bound claims from PostgreSQL's custom session settings.
      *
-     * <p>A SQL-level clear is used because the claim lives in the PostgreSQL session state, not in the Java
-     * connection wrapper state. The caller is responsible for ensuring this clear cannot be rolled
-     * back by an open transaction.
+     * <p>A SQL-level clear is used because the claims live in the PostgreSQL session state, not in the
+     * Java connection wrapper state. The caller is responsible for ensuring this clear cannot be
+     * rolled back by an open transaction.
      *
-     * @param raw the connection whose PostgreSQL session setting should be cleared
-     * @throws SQLException when the setting cannot be cleared
+     * @param raw the connection whose PostgreSQL session settings should be cleared
+     * @param clearOrganization whether this borrow also bound an organization claim
+     * @throws SQLException when a setting cannot be cleared
      */
-    private static void clearConfig(final Connection raw) throws SQLException {
+    private static void clearConfig(final Connection raw, final boolean clearOrganization)
+            throws SQLException {
         try (PreparedStatement stmt = raw.prepareStatement(SET_CONFIG_SQL)) {
-            stmt.setString(1, TenantSessionDataSourceProxy.TENANT_CLAIM_SETTING);
-            stmt.setNull(2, Types.VARCHAR);
-            stmt.setBoolean(3, false);
-            stmt.execute();
+            clearSetting(stmt, TENANT_CLAIM_SETTING);
+            if (clearOrganization) {
+                clearSetting(stmt, ORGANIZATION_CLAIM_SETTING);
+            }
         }
     }
 
     /**
-     * Restores transaction state before clearing the tenant claim.
+     * Clears one custom session setting through the shared {@code set_config} statement.
+     *
+     * @param stmt prepared {@code set_config} statement
+     * @param setting the custom session setting name to clear
+     * @throws SQLException when the setting cannot be cleared
+     */
+    private static void clearSetting(final PreparedStatement stmt, final String setting)
+            throws SQLException {
+        stmt.setString(1, setting);
+        stmt.setNull(2, Types.VARCHAR);
+        stmt.setBoolean(3, false);
+        stmt.execute();
+    }
+
+    /**
+     * Restores transaction state before clearing the bound claims.
      *
      * <p>This order is intentional: PostgreSQL session-level {@code set_config(..., false)} calls
      * made inside an open transaction can be undone by a later rollback. If a caller leaves
      * {@code autoCommit=false}, the proxy rolls back first, restores autocommit, and only then
-     * clears the tenant claim so Hikari's close-time rollback cannot resurrect the prior binding.
+     * clears the claims so Hikari's close-time rollback cannot resurrect the prior binding.
      *
      * @param raw the connection being returned to the pool
+     * @param clearOrganization whether this borrow also bound an organization claim
      * @throws SQLException when rollback, autocommit restoration, or claim clearing fails
      */
-    private static void resetSessionBinding(final Connection raw) throws SQLException {
+    private static void resetSessionBinding(final Connection raw, final boolean clearOrganization)
+            throws SQLException {
         if (!raw.getAutoCommit()) {
             raw.rollback();
             raw.setAutoCommit(true);
         }
-        clearConfig(raw);
+        clearConfig(raw, clearOrganization);
     }
 
     /**
@@ -338,18 +433,19 @@ public final class TenantSessionDataSourceProxy extends AbstractDataSource imple
      * implementation class.
      *
      * @param raw the tenant-bound raw connection
-     * @return a connection proxy that resets the tenant binding before returning to the pool
+     * @param clearOrganization whether this borrow also bound an organization claim
+     * @return a connection proxy that resets the session binding before returning to the pool
      */
-    private Connection wrapForSessionReset(final Connection raw) {
+    private Connection wrapForSessionReset(final Connection raw, final boolean clearOrganization) {
         return ResettingConnectionProxy.wrap(
                 raw,
                 "tenant-guarded connection is closed",
                 "tenant-guarded connection does not expose its delegate",
-                this::closeTenantSession);
+                connection -> closeTenantSession(connection, clearOrganization));
     }
 
     /**
-     * Clears the tenant session binding, then returns the connection to the pool.
+     * Clears the session binding, then returns the connection to the pool.
      *
      * <p>The reset catch MUST cover {@link RuntimeException} as well as {@link SQLException}: schema
      * mode wraps the delegate and can surface driver exception causes verbatim. A claim-bearing
@@ -357,11 +453,13 @@ public final class TenantSessionDataSourceProxy extends AbstractDataSource imple
      * reset fails.
      *
      * @param raw the tenant-bound connection returned by the underlying pool
+     * @param clearOrganization whether this borrow also bound an organization claim
      * @throws SQLException when returning the connection to the pool fails
      */
-    private void closeTenantSession(final Connection raw) throws SQLException {
+    private void closeTenantSession(final Connection raw, final boolean clearOrganization)
+            throws SQLException {
         try {
-            resetSessionBinding(raw);
+            resetSessionBinding(raw, clearOrganization);
         } catch (SQLException | RuntimeException ex) {
             notifyObserver(() -> observer.onResetFailed(poolName));
             ResettingConnectionProxy.abortQuietly(raw);

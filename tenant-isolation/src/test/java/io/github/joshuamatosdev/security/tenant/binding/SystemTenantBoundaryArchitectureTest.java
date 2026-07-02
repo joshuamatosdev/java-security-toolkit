@@ -68,7 +68,11 @@ class SystemTenantBoundaryArchitectureTest {
                 "io/github/joshuamatosdev/security/tenant/datasource/routing/SystemOpsRoutingDataSource.java",
                 "io/github/joshuamatosdev/security/tenant/datasource/routing/TenantDatabaseRoutingDataSource.java",
                 TENANT_POOL_FACTORY_SOURCE,
-                "io/github/joshuamatosdev/security/tenant/datasource/routing/TenantSchemaDataSource.java");
+                "io/github/joshuamatosdev/security/tenant/datasource/routing/TenantSchemaDataSource.java",
+                // The proxy exempts the system-ops tenant from organization-scope=required: cross-tenant
+                // operational work carries no organization, and the exemption must live at the same
+                // annotated boundary that binds the claims.
+                "io/github/joshuamatosdev/security/tenant/datasource/session/TenantSessionDataSourceProxy.java");
 
         try (var paths = Files.walk(sourceRoot)) {
             final var offenders = paths.filter(path -> path.toString().endsWith(JAVA_SUFFIX))

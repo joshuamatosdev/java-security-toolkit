@@ -11,6 +11,8 @@ tradeoffs rejected. They are the methodology behind the modules.
 | [0004](0004-edge-perimeter-dual-plane.md) | Edge perimeter: dual credential planes, deny-by-default routing | `edge-perimeter` |
 | [0005](0005-supply-chain-trust-horizon.md) | Supply-chain trust horizon: pin, verify, enumerate build inputs | `supply-chain` |
 | [0006](0006-crypto-agility-provider-seam.md) | Cryptographic agility: one provider seam, a registry, a reserved post-quantum slot | `crypto-agility` |
+| [0007](0007-organization-scope-within-tenant-isolation.md) | Organization scope within tenant isolation: co-equal binding dimension, second signed claim, RESTRICTIVE cap | `tenant-isolation` |
+| [0008](0008-entitlement-cross-tenant-read-grants.md) | Entitlement-based cross-tenant read grants: explicit grant ledger, SELECT-only policy, platform-plane administration | `tenant-isolation` |
 
 Template: [TEMPLATE.md](TEMPLATE.md).
 

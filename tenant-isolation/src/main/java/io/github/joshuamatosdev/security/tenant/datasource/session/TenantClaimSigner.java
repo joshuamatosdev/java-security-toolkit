@@ -29,6 +29,7 @@ import javax.crypto.spec.SecretKeySpec;
 public final class TenantClaimSigner {
 
     private static final String VERSION = "v2";
+    private static final String ORGANIZATION_VERSION = "v2o";
     private static final String HMAC_ALGORITHM = "HmacSHA256";
     private static final int MIN_SECRET_BYTES = 32;
     private static final Duration MIN_CLAIM_TTL = Duration.ofSeconds(1);
@@ -86,8 +87,35 @@ public final class TenantClaimSigner {
      * @return {@code v2:<tenant_uuid>:<exp_epoch_seconds>:<hmac_sha256>}
      */
     String sign(final UUID tenantUuid) {
+        return signedClaim(VERSION, Objects.requireNonNull(tenantUuid, "tenantUuid"));
+    }
+
+    /**
+     * Builds and signs a versioned organization claim for one connection borrow.
+     *
+     * <p>The organization claim carries its own version marker ({@code v2o}) inside the signed
+     * payload, so tenant and organization claims can never satisfy each other's verifier even though
+     * they share one secret: a valid tenant claim replayed into {@code app.org_claim} fails the
+     * {@code v2o} check, and vice versa. Same TTL, secret, and HMAC as the tenant claim.
+     *
+     * @param organizationUuid organization identifier to place in the signed claim
+     * @return {@code v2o:<organization_uuid>:<exp_epoch_seconds>:<hmac_sha256>}
+     */
+    String signOrganization(final UUID organizationUuid) {
+        return signedClaim(
+                ORGANIZATION_VERSION, Objects.requireNonNull(organizationUuid, "organizationUuid"));
+    }
+
+    /**
+     * Signs one claim payload of the given kind.
+     *
+     * @param version claim kind marker covered by the signature
+     * @param id identifier placed in the claim
+     * @return the full claim including the trailing HMAC field
+     */
+    private String signedClaim(final String version, final UUID id) {
         final long exp = clock.instant().plus(claimTtl).getEpochSecond();
-        final String payload = VERSION + ":" + Objects.requireNonNull(tenantUuid, "tenantUuid") + ":" + exp;
+        final String payload = version + ":" + id + ":" + exp;
         return payload + ":" + HexFormat.of().formatHex(hmac(payload));
     }
 

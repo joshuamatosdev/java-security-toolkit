@@ -1,7 +1,9 @@
 package io.github.joshuamatosdev.security.tenant.config;
 
 import io.github.joshuamatosdev.security.shared.RequiredText;
+import io.github.joshuamatosdev.security.tenant.binding.OrganizationScope;
 import org.springframework.boot.context.properties.ConfigurationProperties;
+import org.springframework.boot.context.properties.bind.ConstructorBinding;
 
 /**
  * Tenant session-claim settings shared by all isolation modes.
@@ -15,9 +17,31 @@ import org.springframework.boot.context.properties.ConfigurationProperties;
  *
  * @param claimSecret HMAC secret shared with the PostgreSQL verifier
  * @param systemOpsPassword password for the read-only system-ops pool
+ * @param organizationScope how the datasource boundary treats the organization dimension: off
+ *     (tenant-only, the default), optional (emit the signed organization claim when one is bound),
+ *     or required (fail closed when an ordinary tenant borrow has no organization)
  */
 @ConfigurationProperties("tenant.binding")
-public record TenantBindingProperties(String claimSecret, String systemOpsPassword) {
+public record TenantBindingProperties(
+        String claimSecret, String systemOpsPassword, OrganizationScope organizationScope) {
+
+    /**
+     * Applies the tenant-only default for the organization dimension.
+     */
+    @ConstructorBinding
+    public TenantBindingProperties {
+        organizationScope = organizationScope == null ? OrganizationScope.OFF : organizationScope;
+    }
+
+    /**
+     * Creates tenant-only binding settings.
+     *
+     * @param claimSecret HMAC secret shared with the PostgreSQL verifier
+     * @param systemOpsPassword password for the read-only system-ops pool
+     */
+    public TenantBindingProperties(final String claimSecret, final String systemOpsPassword) {
+        this(claimSecret, systemOpsPassword, null);
+    }
 
     /**
      * Returns the required tenant claim secret.

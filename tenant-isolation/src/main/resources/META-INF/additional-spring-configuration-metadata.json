@@ -3,6 +3,10 @@
     {
       "name": "tenant.isolation.mode",
       "defaultValue": "id"
+    },
+    {
+      "name": "tenant.binding.organization-scope",
+      "defaultValue": "off"
     }
   ]
 }

@@ -40,6 +40,17 @@ public interface TenantBindingObserver {
     void onResetFailed(String poolName);
 
     /**
+     * Records that an ordinary tenant borrow required an organization but none was bound.
+     *
+     * <p>Emitted only when {@code tenant.binding.organization-scope=required}. The borrow fails
+     * closed after this callback; this signal is for metrics or alerts, not for recovery. Default
+     * no-op so existing observer implementations stay source-compatible.
+     *
+     * @param poolName logical pool name supplied by the datasource proxy
+     */
+    default void onOrganizationBindingMissing(final String poolName) {}
+
+    /**
      * Default observer used by the reference module when no metrics implementation is wired.
      */
     TenantBindingObserver NOOP = new TenantBindingObserver() {

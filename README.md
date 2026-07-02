@@ -73,7 +73,7 @@ flowchart LR
 |---|---|---|
 | `shared` | Typed identity kernel | Tenant, organization, and resource IDs cannot be casually mixed as raw UUIDs. |
 | `shared-testkit` | Typed identifier contracts | Adopters can reuse constructor, equality, and formatting contracts for shared identifier implementations. |
-| `tenant-isolation` | Tenant placement, signed PostgreSQL session claims, and RLS | Tenant context reaches the database boundary and isolation holds under real PostgreSQL behavior. |
+| `tenant-isolation` | Tenant placement, signed PostgreSQL session claims, organization scope, cross-tenant read entitlements, and RLS | Tenant context reaches the database boundary and isolation — including the organization dimension within a tenant and explicit read-only sharing across tenants — holds under real PostgreSQL behavior. |
 | `tenant-isolation-spring-boot-starter` | Spring Boot auto-configuration | A Spring app can import the tenant isolation configuration through one starter dependency. |
 | `tenant-isolation-testkit` | Tenant context contracts | Adopters can prove context binding, clearing, and cross-tenant rejection without copying reference tests. |
 | `layered-authorization` | Coarse route gate plus fine-grained resource policy | Route, resource, deny-overrides, and audit behavior are enforced from the same decision point. |
