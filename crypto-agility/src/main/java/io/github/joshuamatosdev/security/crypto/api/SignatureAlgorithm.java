@@ -1,6 +1,9 @@
 package io.github.joshuamatosdev.security.crypto.api;
 
 import java.util.Arrays;
+import java.util.Map;
+import java.util.function.Function;
+import java.util.stream.Collectors;
 
 /**
  * Stable algorithm identities supported by the crypto-agility API.
@@ -49,16 +52,22 @@ public enum SignatureAlgorithm {
         return fipsApproved;
     }
 
+    // Built once: fromJoseAlg sits on the verification hot path, so resolution is a map hit
+    // rather than a per-call scan over values().
+    private static final Map<String, SignatureAlgorithm> BY_JOSE_ALG =
+            Arrays.stream(values())
+                    .collect(Collectors.toUnmodifiableMap(algorithm -> algorithm.joseAlg, Function.identity()));
+
     /**
      * Resolves a registered algorithm from its wire identifier.
      *
      * @throws IllegalArgumentException when the value is unknown
      */
     public static SignatureAlgorithm fromJoseAlg(final String joseAlg) {
-        return Arrays.stream(values())
-                .filter(algorithm -> algorithm.joseAlg.equals(joseAlg))
-                .findFirst()
-                .orElseThrow(
-                        () -> new IllegalArgumentException("Unsupported signature algorithm: " + joseAlg));
+        final SignatureAlgorithm algorithm = BY_JOSE_ALG.get(joseAlg);
+        if (algorithm == null) {
+            throw new IllegalArgumentException("Unsupported signature algorithm: " + joseAlg);
+        }
+        return algorithm;
     }
 }

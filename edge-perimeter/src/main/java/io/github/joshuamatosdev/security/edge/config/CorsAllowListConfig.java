@@ -1,5 +1,6 @@
 package io.github.joshuamatosdev.security.edge.config;
 
+import io.github.joshuamatosdev.security.edge.chain.RouteAuthorities;
 import java.net.URI;
 import java.util.List;
 import org.springframework.context.annotation.Bean;
@@ -49,10 +50,20 @@ public class CorsAllowListConfig {
     }
     origins.forEach(CorsAllowListConfig::validateCredentialedOrigin);
 
+    // Browser-plane route truth lives once, in RouteAuthorities — registering from the same
+    // constants the authorization rules use means the CORS surface cannot drift from the routes.
     var source = new UrlBasedCorsConfigurationSource();
-    source.registerCorsConfiguration("/api/public/**", credentialedCors(origins, GET_ONLY_METHODS));
-    source.registerCorsConfiguration("/api/documents/**", credentialedCors(origins, DOCUMENT_METHODS));
-    source.registerCorsConfiguration("/api/admin/**", credentialedCors(origins, GET_ONLY_METHODS));
+    for (String path : RouteAuthorities.PUBLIC_PATHS) {
+      source.registerCorsConfiguration(path, credentialedCors(origins, GET_ONLY_METHODS));
+    }
+    for (String path : RouteAuthorities.DOCUMENT_PATHS) {
+      source.registerCorsConfiguration(path, credentialedCors(origins, DOCUMENT_METHODS));
+    }
+    for (String path : RouteAuthorities.ADMIN_PATHS) {
+      source.registerCorsConfiguration(path, credentialedCors(origins, GET_ONLY_METHODS));
+    }
+    // The actuator is not a RouteAuthorities surface (its permit/deny split lives in the browser
+    // chain); only its read-only health/info exposure is reachable, so GET-only CORS is correct.
     source.registerCorsConfiguration("/actuator/**", credentialedCors(origins, GET_ONLY_METHODS));
     return source;
   }

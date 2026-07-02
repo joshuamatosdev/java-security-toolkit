@@ -14,12 +14,14 @@ import io.github.joshuamatosdev.security.authz.policy.RoleAssignment;
 import io.github.joshuamatosdev.security.authz.policy.Roles;
 import io.github.joshuamatosdev.security.authz.policy.rule.EffectivePolicy;
 import io.github.joshuamatosdev.security.authz.policy.rule.PolicyRule;
+import io.github.joshuamatosdev.security.authz.principal.PrincipalType;
 import io.github.joshuamatosdev.security.authz.principal.UserPrincipal;
 import io.github.joshuamatosdev.security.authz.request.ProtectedResource;
 import io.github.joshuamatosdev.security.authz.request.RequestContext;
 import io.github.joshuamatosdev.security.authz.service.AuthorizationPolicy;
 import io.github.joshuamatosdev.security.shared.OrganizationId;
 import io.github.joshuamatosdev.security.shared.ResourceId;
+import io.github.joshuamatosdev.security.shared.TeamId;
 import io.github.joshuamatosdev.security.shared.TenantId;
 import java.util.List;
 import java.util.Set;
@@ -46,6 +48,14 @@ public interface AuthorizationPolicyContract {
 
     default OrganizationId otherOrganization() {
         return OrganizationId.fromString("0190a000-0000-7000-8000-0000000000c3");
+    }
+
+    default TeamId team() {
+        return TeamId.fromString("0190a000-0000-7000-8000-0000000000a7");
+    }
+
+    default TeamId otherTeam() {
+        return TeamId.fromString("0190a000-0000-7000-8000-0000000000b8");
     }
 
     @Test
@@ -137,6 +147,36 @@ public interface AuthorizationPolicyContract {
     }
 
     @Test
+    default void teamMemberIsAllowedWithinTheirTeam() {
+        final Decision decision = policy().decide(
+                memberActor(organization(), Set.of(RoleAssignment.team(Roles.MEMBER, organization(), team()))),
+                teamResource(organization(), team()),
+                Action.READ,
+                teamMemberPolicy());
+
+        assertThat(decision).isEqualTo(new Allow(GrantBasis.TEAM_MEMBER));
+    }
+
+    @Test
+    default void teamScopedGrantIsIsolatedToItsTeam() {
+        // Team-scope isolation: a team-scoped grant must reach neither another team's resources nor
+        // team-unplaced resources of the same organization.
+        final Decision otherTeamDecision = policy().decide(
+                memberActor(organization(), Set.of(RoleAssignment.team(Roles.MEMBER, organization(), team()))),
+                teamResource(organization(), otherTeam()),
+                Action.READ,
+                teamMemberPolicy());
+        final Decision teamlessDecision = policy().decide(
+                memberActor(organization(), Set.of(RoleAssignment.team(Roles.MEMBER, organization(), team()))),
+                organizationResource(organization()),
+                Action.READ,
+                teamMemberPolicy());
+
+        assertThat(otherTeamDecision).isEqualTo(new Deny(DenialReason.NO_MATCHING_RULE));
+        assertThat(teamlessDecision).isEqualTo(new Deny(DenialReason.NO_MATCHING_RULE));
+    }
+
+    @Test
     default void tenantScopedAdminIsAllowedAsWideScope() {
         final Decision decision = policy().decide(
                 memberActor(organization(), Set.of(RoleAssignment.tenant(Roles.PLATFORM_ADMIN))),
@@ -164,10 +204,25 @@ public interface AuthorizationPolicyContract {
                 "other-owner");
     }
 
+    private ProtectedResource teamResource(final OrganizationId resourceOrganization, final TeamId resourceTeam) {
+        return new ProtectedResource(
+                ResourceId.fromString("0190a000-0000-7000-8000-0000000000e5"),
+                tenant(),
+                resourceOrganization,
+                resourceTeam,
+                PrincipalType.USER,
+                "other-owner");
+    }
+
     private static EffectivePolicy organizationMemberPolicy() {
         return new EffectivePolicy(List.of(
                 PolicyRule.allow(Roles.MEMBER, Action.READ, PolicyScopeType.ORGANIZATION),
                 PolicyRule.allow(Roles.MEMBER, Action.UPDATE, PolicyScopeType.ORGANIZATION),
                 PolicyRule.allow(Roles.MEMBER, Action.READ, PolicyScopeType.TENANT)));
+    }
+
+    private static EffectivePolicy teamMemberPolicy() {
+        return new EffectivePolicy(List.of(
+                PolicyRule.allow(Roles.MEMBER, Action.READ, PolicyScopeType.TEAM)));
     }
 }

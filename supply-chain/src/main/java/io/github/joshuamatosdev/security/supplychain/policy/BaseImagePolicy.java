@@ -103,12 +103,12 @@ public final class BaseImagePolicy {
     }
     String name = instructionWithArgs.group(1).toUpperCase(Locale.ROOT);
     String args = instructionWithArgs.group(2);
-      return switch (name) {
-          case "ONBUILD" -> imageSourceRefs(args, false);
-          case "COPY" -> copyFromRefs(args, allowCurrentStageReferences);
-          case "RUN" -> runMountFromRefs(args, allowCurrentStageReferences);
-          default -> List.of();
-      };
+    return switch (name) {
+      case "ONBUILD" -> imageSourceRefs(args, false);
+      case "COPY" -> copyFromRefs(args, allowCurrentStageReferences);
+      case "RUN" -> runMountFromRefs(args, allowCurrentStageReferences);
+      default -> List.of();
+    };
   }
 
   private static List<ImageSourceRef> copyFromRefs(String args, boolean allowCurrentStageReferences) {

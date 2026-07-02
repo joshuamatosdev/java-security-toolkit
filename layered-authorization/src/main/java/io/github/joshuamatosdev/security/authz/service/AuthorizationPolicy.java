@@ -23,6 +23,8 @@ import java.util.Optional;
  *   <li><b>Wide-scope admin</b> — a tenant-scoped admin grant short-circuits to allow (audited as
  *       wide-scope by the caller).
  *   <li><b>Resource grant</b> — the resource owner is allowed.
+ *   <li><b>Team membership</b> — a team-scoped ALLOW rule matched in the resource's organization
+ *       and team (the most specific rule scope).
  *   <li><b>Organization membership</b> — an organization-scoped ALLOW rule matched in the resource's
  *       organization.
  *   <li><b>Effective permission</b> — a tenant-scoped ALLOW rule matched a tenant-wide role.
@@ -46,7 +48,7 @@ public final class AuthorizationPolicy {
         }
 
         // 2. Explicit deny — deny overrides every allow, including broad grants.
-        if (effectivePolicy.denies(actor.roleAssignments(), resource.organizationId(), action)) {
+        if (effectivePolicy.denies(actor.roleAssignments(), resource.organizationId(), resource.teamId(), action)) {
             return new Deny(DenialReason.EXPLICIT_DENY);
         }
 
@@ -63,17 +65,19 @@ public final class AuthorizationPolicy {
             return new Allow(GrantBasis.RESOURCE_OWNER);
         }
 
-        // 5/6. Effective ALLOW rule — organization membership (specific) before tenant-wide permission.
-        final Optional<PolicyScopeType> allowingScope =
-            effectivePolicy.allowingScope(actor.roleAssignments(), resource.organizationId(), action);
+        // 5/6/7. Effective ALLOW rule — most specific scope first: team, then organization, then
+        // tenant-wide permission. The basis names the scope that actually granted.
+        final Optional<PolicyScopeType> allowingScope = effectivePolicy.allowingScope(
+            actor.roleAssignments(), resource.organizationId(), resource.teamId(), action);
         if (allowingScope.isPresent()) {
-            return new Allow(
-                allowingScope.get() == PolicyScopeType.ORGANIZATION
-                    ? GrantBasis.ORGANIZATION_MEMBER
-                    : GrantBasis.EFFECTIVE_PERMISSION);
+            return new Allow(switch (allowingScope.get()) {
+                case TEAM -> GrantBasis.TEAM_MEMBER;
+                case ORGANIZATION -> GrantBasis.ORGANIZATION_MEMBER;
+                case TENANT -> GrantBasis.EFFECTIVE_PERMISSION;
+            });
         }
 
-        // 7. Deny by default.
+        // 8. Deny by default.
         return new Deny(DenialReason.NO_MATCHING_RULE);
     }
 }

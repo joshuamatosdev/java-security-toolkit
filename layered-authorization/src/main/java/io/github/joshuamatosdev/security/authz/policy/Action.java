@@ -11,5 +11,16 @@ package io.github.joshuamatosdev.security.authz.policy;
 public enum Action {
     READ,
     UPDATE,
-    DELETE
+    DELETE,
+    /**
+     * Authorizes bringing a resource into existence. The resource passed to the decision is the
+     * prospective resource's placement (tenant, organization, owner-to-be) — creation is decided
+     * against where the resource will live, since it does not exist yet. The owner grant applies
+     * to {@code CREATE} like any other action: if the prospective owner is the caller itself,
+     * creation is allowed as resource owner before any {@code CREATE} rule is consulted; a policy
+     * that wants explicit {@code CREATE} rules to gate creation must not pre-assign the caller as
+     * owner in the decision input. Appended after {@link #DELETE} so existing ordinals stay stable
+     * for adopters who persisted them.
+     */
+    CREATE
 }

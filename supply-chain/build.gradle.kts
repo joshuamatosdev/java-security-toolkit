@@ -30,4 +30,8 @@ tasks.test {
         "wrapper.properties.path",
         rootProject.file("gradle/wrapper/gradle-wrapper.properties").absolutePath,
     )
+    systemProperty(
+        "workflows.dir",
+        rootProject.file(".github/workflows").absolutePath,
+    )
 }

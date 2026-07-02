@@ -65,9 +65,11 @@ bulwark:
 - Deny-by-default route protection.
 - Typed principals instead of bare strings.
 - Immutable request context resolved once at the web boundary.
-- Resource-aware policy for `READ`, `UPDATE`, and `DELETE`. `UPDATE` is modeled
-  in the policy layer; the HTTP surface exposes `READ` and `DELETE`.
-- Tenant, organization, owner, and role-scope checks.
+- Resource-aware policy for `CREATE`, `READ`, `UPDATE`, and `DELETE`. `CREATE`
+  and `UPDATE` are modeled in the policy layer (creation is decided against the
+  prospective resource's placement); the HTTP surface exposes `READ` and
+  `DELETE`.
+- Tenant, organization, team, owner, and role-scope checks.
 - Deny-overrides behavior.
 - Audit records for every allow and deny.
 - PostgreSQL-backed document facts with database-owned identifiers.
@@ -96,12 +98,16 @@ permit.
 2. Explicit `DENY` for the action wins over every allow.
 3. Tenant-wide admin allows after deny checks.
 4. Resource owner allows.
-5. Organization-scoped `ALLOW` allows within the resource organization.
-6. Tenant-scoped `ALLOW` allows through effective permissions.
-7. No matching rule denies.
+5. Team-scoped `ALLOW` allows within the resource's organization and team.
+6. Organization-scoped `ALLOW` allows within the resource organization.
+7. Tenant-scoped `ALLOW` allows through effective permissions.
+8. No matching rule denies.
 
 A role grant is action-specific and scope-specific. A grant to `READ` is not a
-grant to `DELETE`, and an organization-scoped grant is not tenant-wide access.
+grant to `DELETE`, an organization-scoped grant is not tenant-wide access, and a
+team-scoped grant is narrower still: it reaches only resources placed in its own
+organization *and* team. Teams group people for grants — they are a
+discretionary boundary in this layer, never a data-plane isolation dimension.
 
 ## Request Context
 
@@ -124,6 +130,7 @@ Typed identifiers come from `:shared`:
 
 - `TenantId`
 - `OrganizationId`
+- `TeamId`
 - `ResourceId`
 
 ## Audit

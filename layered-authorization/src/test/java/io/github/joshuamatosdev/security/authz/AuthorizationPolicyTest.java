@@ -16,6 +16,7 @@ import io.github.joshuamatosdev.security.authz.request.RequestContext;
 import io.github.joshuamatosdev.security.authz.service.AuthorizationPolicy;
 import io.github.joshuamatosdev.security.shared.OrganizationId;
 import io.github.joshuamatosdev.security.shared.ResourceId;
+import io.github.joshuamatosdev.security.shared.TeamId;
 import io.github.joshuamatosdev.security.shared.TenantId;
 import org.junit.jupiter.api.Test;
 
@@ -48,12 +49,21 @@ class AuthorizationPolicyTest {
     private static final String MEMBER_SUBJECT = "bob";
     private static final String OTHER_OWNER = "someone-else";
 
+    private static final TeamId PLATFORM_TEAM =
+        new TeamId(UUID.fromString("44444444-4444-4444-4444-444444444444"));
+    private static final TeamId WEB_TEAM =
+        new TeamId(UUID.fromString("45454545-4545-4545-4545-454545454545"));
+
     // The same sane policy the InMemory repository seeds: members read/update within their org, and
     // read tenant-wide; nobody but owner/admin may delete.
     private static final EffectivePolicy SANE_POLICY = new EffectivePolicy(List.of(
         PolicyRule.allow(Roles.MEMBER, Action.READ, PolicyScopeType.ORGANIZATION),
         PolicyRule.allow(Roles.MEMBER, Action.UPDATE, PolicyScopeType.ORGANIZATION),
         PolicyRule.allow(Roles.MEMBER, Action.READ, PolicyScopeType.TENANT)));
+
+    // A team-only policy: the sole read grant is TEAM-scoped, so nothing wider can satisfy it.
+    private static final EffectivePolicy TEAM_POLICY = new EffectivePolicy(List.of(
+        PolicyRule.allow(Roles.MEMBER, Action.READ, PolicyScopeType.TEAM)));
 
     private final AuthorizationPolicy policy = new AuthorizationPolicy();
 
@@ -151,6 +161,125 @@ class AuthorizationPolicyTest {
         final Decision decision = policy.decide(orgMember, doc, Action.DELETE, SANE_POLICY);
 
         assertThat(decision).isEqualTo(new Deny(DenialReason.NO_MATCHING_RULE));
+    }
+
+    @Test
+    void teamScopedGrantAllowsWithinItsTeam() {
+        final RequestContext teamMember = context(
+            ACME, ENGINEERING,
+            Set.of(RoleAssignment.team(Roles.MEMBER, ENGINEERING, PLATFORM_TEAM)),
+            user(MEMBER_SUBJECT));
+        final ProtectedResource teamDoc =
+            new ProtectedResource(DOC, ACME, ENGINEERING, PLATFORM_TEAM, PrincipalType.USER, OTHER_OWNER);
+
+        final Decision decision = policy.decide(teamMember, teamDoc, Action.READ, TEAM_POLICY);
+
+        assertThat(decision).isEqualTo(new Allow(GrantBasis.TEAM_MEMBER));
+    }
+
+    @Test
+    void teamScopedGrantDoesNotReachAnotherTeam() {
+        final RequestContext platformTeamMember = context(
+            ACME, ENGINEERING,
+            Set.of(RoleAssignment.team(Roles.MEMBER, ENGINEERING, PLATFORM_TEAM)),
+            user(MEMBER_SUBJECT));
+        final ProtectedResource webTeamDoc =
+            new ProtectedResource(DOC, ACME, ENGINEERING, WEB_TEAM, PrincipalType.USER, OTHER_OWNER);
+
+        final Decision decision = policy.decide(platformTeamMember, webTeamDoc, Action.READ, TEAM_POLICY);
+
+        assertThat(decision).isEqualTo(new Deny(DenialReason.NO_MATCHING_RULE));
+    }
+
+    @Test
+    void teamScopedGrantDoesNotReachTeamlessResources() {
+        // The org-wide resource is broader than the team grant — narrower scope never widens.
+        final RequestContext teamMember = context(
+            ACME, ENGINEERING,
+            Set.of(RoleAssignment.team(Roles.MEMBER, ENGINEERING, PLATFORM_TEAM)),
+            user(MEMBER_SUBJECT));
+        final ProtectedResource orgWideDoc = new ProtectedResource(DOC, ACME, ENGINEERING, OTHER_OWNER);
+
+        final Decision decision = policy.decide(teamMember, orgWideDoc, Action.READ, TEAM_POLICY);
+
+        assertThat(decision).isEqualTo(new Deny(DenialReason.NO_MATCHING_RULE));
+    }
+
+    @Test
+    void teamScopedGrantDoesNotReachTheSameTeamIdInAnotherOrganization() {
+        // Defense against team-identifier reuse: the assignment carries its organization, and both
+        // must match the resource.
+        final RequestContext salesTeamMember = context(
+            ACME, SALES,
+            Set.of(RoleAssignment.team(Roles.MEMBER, SALES, PLATFORM_TEAM)),
+            user(MEMBER_SUBJECT));
+        final ProtectedResource engineeringTeamDoc =
+            new ProtectedResource(DOC, ACME, ENGINEERING, PLATFORM_TEAM, PrincipalType.USER, OTHER_OWNER);
+
+        final Decision decision = policy.decide(salesTeamMember, engineeringTeamDoc, Action.READ, TEAM_POLICY);
+
+        assertThat(decision).isEqualTo(new Deny(DenialReason.NO_MATCHING_RULE));
+    }
+
+    @Test
+    void organizationScopedGrantStillReachesTeamPlacedResources() {
+        // Teams narrow grants; they do not wall the organization off from its own org-scoped roles.
+        final RequestContext orgMember = context(
+            ACME, ENGINEERING,
+            Set.of(RoleAssignment.organization(Roles.MEMBER, ENGINEERING)),
+            user(MEMBER_SUBJECT));
+        final ProtectedResource teamDoc =
+            new ProtectedResource(DOC, ACME, ENGINEERING, PLATFORM_TEAM, PrincipalType.USER, OTHER_OWNER);
+
+        final Decision decision = policy.decide(orgMember, teamDoc, Action.READ, SANE_POLICY);
+
+        assertThat(decision).isEqualTo(new Allow(GrantBasis.ORGANIZATION_MEMBER));
+    }
+
+    @Test
+    void teamAllowReportsTheMostSpecificGrantBasis() {
+        // The actor qualifies through BOTH a team rule and an org rule; the basis names the narrower.
+        final EffectivePolicy teamAndOrg = new EffectivePolicy(List.of(
+            PolicyRule.allow(Roles.MEMBER, Action.READ, PolicyScopeType.TEAM),
+            PolicyRule.allow(Roles.MEMBER, Action.READ, PolicyScopeType.ORGANIZATION)));
+        final RequestContext dualMember = context(
+            ACME, ENGINEERING,
+            Set.of(
+                RoleAssignment.team(Roles.MEMBER, ENGINEERING, PLATFORM_TEAM),
+                RoleAssignment.organization(Roles.MEMBER, ENGINEERING)),
+            user(MEMBER_SUBJECT));
+        final ProtectedResource teamDoc =
+            new ProtectedResource(DOC, ACME, ENGINEERING, PLATFORM_TEAM, PrincipalType.USER, OTHER_OWNER);
+
+        final Decision decision = policy.decide(dualMember, teamDoc, Action.READ, teamAndOrg);
+
+        assertThat(decision).isEqualTo(new Allow(GrantBasis.TEAM_MEMBER));
+    }
+
+    @Test
+    void createIsDeniedByDefaultEvenWhereUpdateIsAllowed() {
+        final RequestContext orgMember =
+            context(ACME, ENGINEERING, Set.of(RoleAssignment.organization(Roles.MEMBER, ENGINEERING)), user(MEMBER_SUBJECT));
+        // Placement with a non-caller owner, so the owner grant stays out of the branch under test.
+        final ProtectedResource prospectiveDoc = new ProtectedResource(DOC, ACME, ENGINEERING, OTHER_OWNER);
+
+        // SANE_POLICY allows in-org READ and UPDATE; the new CREATE verb must inherit neither.
+        final Decision decision = policy.decide(orgMember, prospectiveDoc, Action.CREATE, SANE_POLICY);
+
+        assertThat(decision).isEqualTo(new Deny(DenialReason.NO_MATCHING_RULE));
+    }
+
+    @Test
+    void organizationMemberIsAllowedToCreateOnlyByAnExplicitCreateRule() {
+        final EffectivePolicy allowCreate = new EffectivePolicy(List.of(
+            PolicyRule.allow(Roles.MEMBER, Action.CREATE, PolicyScopeType.ORGANIZATION)));
+        final RequestContext orgMember =
+            context(ACME, ENGINEERING, Set.of(RoleAssignment.organization(Roles.MEMBER, ENGINEERING)), user(MEMBER_SUBJECT));
+        final ProtectedResource prospectiveDoc = new ProtectedResource(DOC, ACME, ENGINEERING, OTHER_OWNER);
+
+        final Decision decision = policy.decide(orgMember, prospectiveDoc, Action.CREATE, allowCreate);
+
+        assertThat(decision).isEqualTo(new Allow(GrantBasis.ORGANIZATION_MEMBER));
     }
 
     @Test
