@@ -27,7 +27,13 @@ import org.springframework.context.annotation.Import;
  * OAuth2 configuration gets a clean context (the always-on hardening, no perimeter chains) instead
  * of a context-startup failure on a missing {@code ReactiveClientRegistrationRepository}.
  */
-@AutoConfiguration
+// Ordered before Boot's WebSessionIdResolverAutoConfiguration: both define a bean named
+// webSessionIdResolver, and Boot's carries @ConditionalOnMissingBean while the edge policy bean is
+// unconditional (hardened cookie flags are the point of the starter). Registering the edge bean
+// first lets Boot's back off; the reverse order fails the context with a bean-override error.
+@AutoConfiguration(
+        beforeName =
+            "org.springframework.boot.autoconfigure.web.reactive.WebSessionIdResolverAutoConfiguration")
 @ConditionalOnClass(BrowserCredentialIsolationFilter.class)
 @ConditionalOnWebApplication(type = ConditionalOnWebApplication.Type.REACTIVE)
 @ConditionalOnProperty(
