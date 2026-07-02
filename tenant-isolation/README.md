@@ -78,7 +78,7 @@ compiled, tested consumer application in
 
 ```kotlin
 implementation("io.github.joshuamatosdev.security:tenant-isolation-spring-boot-starter:0.1.0-SNAPSHOT")
-implementation("io.github.joshuamatosdev.security:layered-authorization-spring-boot-starter:0.1.0-SNAPSHOT") // optional, for org-scoped authz decisions
+implementation("io.github.joshuamatosdev.security:authorization-spring-boot-starter:0.1.0-SNAPSHOT") // optional, for org-scoped authz decisions
 testImplementation("io.github.joshuamatosdev.security:tenant-isolation-testkit:0.1.0-SNAPSHOT")
 ```
 
@@ -187,7 +187,7 @@ them, forget them, or lie about them.
 ### 5. Authorization layer (org-aware decisions, optional)
 
 The data plane above filters *rows*. For endpoint/resource decisions,
-[`layered-authorization`](../layered-authorization/README.md)'s
+[`authorization`](../authorization/README.md)'s
 `RequestContext` carries the same two dimensions (`tenantId`,
 `organizationId`, org-scoped `RoleAssignment`s) — build it in the same filter
 from the same token, call `AuthorizationService.enforce(...)` in your service

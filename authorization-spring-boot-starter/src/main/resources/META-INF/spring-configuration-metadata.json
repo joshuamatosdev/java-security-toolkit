@@ -1,0 +1,11 @@
+{
+  "properties": [
+    {
+      "name": "bulwark.authorization.enabled",
+      "type": "java.lang.Boolean",
+      "sourceType": "io.github.joshuamatosdev.security.authz.spring.AuthorizationAutoConfiguration",
+      "description": "Whether the authorization auto-configuration activates and wires the reference AuthorizationService, policy, rule repository, audit sink, and clock (each individually replaceable via @ConditionalOnMissingBean).",
+      "defaultValue": true
+    }
+  ]
+}

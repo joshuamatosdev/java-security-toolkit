@@ -21,7 +21,7 @@ Run one module:
 
 ```bash
 ./gradlew :tenant-isolation:test
-./gradlew :edge-perimeter:test
+./gradlew :edge:test
 ```
 
 ## Contribution Rules

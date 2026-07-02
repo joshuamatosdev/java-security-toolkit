@@ -13,7 +13,7 @@ import org.springframework.security.web.SecurityFilterChain;
  *
  * <p>CSRF protection is disabled because this API authenticates every request with a bearer JWT
  * and issues no session cookie a cross-site request could ride on. Browser-session concerns
- * (cookies, CORS, CSRF, headers) belong to the edge-perimeter module, not to this service.
+ * (cookies, CORS, CSRF, headers) belong to the edge module, not to this service.
  */
 @Configuration
 @EnableWebSecurity

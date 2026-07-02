@@ -26,12 +26,12 @@ dependencyCheck {
 }
 
 val bootLibraryPublicApiDependencies = mapOf(
-    ":edge-perimeter" to setOf(
+    ":edge" to setOf(
         "spring-boot-starter-webflux",
         "spring-boot-starter-oauth2-client",
         "spring-boot-starter-oauth2-resource-server"
     ),
-    ":layered-authorization" to setOf(
+    ":authorization" to setOf(
         "spring-boot-starter-web",
         "spring-boot-starter-security",
         "spring-boot-starter-data-jpa"
@@ -40,7 +40,7 @@ val bootLibraryPublicApiDependencies = mapOf(
 )
 
 val jspecifyPublicApiDependencies = setOf(
-    ":layered-authorization",
+    ":authorization",
     ":tenant-isolation",
     ":shared",
     ":supply-chain"
@@ -53,7 +53,7 @@ val pinnedPostgresqlVersion = libs.versions.postgresql.get()
 val pinnedTomcatVersion = libs.versions.tomcat.get()
 
 val securityPinnedDependencyVersions = mapOf(
-    ":edge-perimeter" to mapOf(
+    ":edge" to mapOf(
         "runtimeClasspath" to mapOf(
             "io.netty:netty-codec" to pinnedNettyVersion,
             "io.netty:netty-codec-dns" to pinnedNettyVersion,
@@ -62,7 +62,7 @@ val securityPinnedDependencyVersions = mapOf(
             "io.netty:netty-handler-proxy" to pinnedNettyVersion
         )
     ),
-    ":edge-perimeter-spring-boot-starter" to mapOf(
+    ":edge-spring-boot-starter" to mapOf(
         "runtimeClasspath" to mapOf(
             "io.netty:netty-codec" to pinnedNettyVersion,
             "io.netty:netty-codec-dns" to pinnedNettyVersion,
@@ -71,7 +71,7 @@ val securityPinnedDependencyVersions = mapOf(
             "io.netty:netty-handler-proxy" to pinnedNettyVersion
         )
     ),
-    ":layered-authorization" to mapOf(
+    ":authorization" to mapOf(
         "runtimeClasspath" to mapOf(
             "org.apache.tomcat.embed:tomcat-embed-core" to pinnedTomcatVersion,
             "org.apache.tomcat.embed:tomcat-embed-websocket" to pinnedTomcatVersion,
@@ -82,7 +82,7 @@ val securityPinnedDependencyVersions = mapOf(
             "org.apache.commons:commons-lang3" to pinnedCommonsLang3Version
         )
     ),
-    ":layered-authorization-spring-boot-starter" to mapOf(
+    ":authorization-spring-boot-starter" to mapOf(
         "runtimeClasspath" to mapOf(
             "org.apache.tomcat.embed:tomcat-embed-core" to pinnedTomcatVersion,
             "org.apache.tomcat.embed:tomcat-embed-websocket" to pinnedTomcatVersion,
@@ -198,22 +198,22 @@ val tomcatVersion = libs.versions.tomcat.get()
 
 subprojects {
     when (project.path) {
-        ":edge-perimeter",
-        ":edge-perimeter-spring-boot-starter" ->
+        ":edge",
+        ":edge-spring-boot-starter" ->
             extra["netty.version"] = nettyVersion
 
-        ":layered-authorization",
-        ":layered-authorization-spring-boot-starter" ->
+        ":authorization",
+        ":authorization-spring-boot-starter" ->
             extra["tomcat.version"] = tomcatVersion
     }
 
-    if (project.path in setOf(":tenant-isolation", ":layered-authorization")) {
+    if (project.path in setOf(":tenant-isolation", ":authorization")) {
         extra["commons-lang3.version"] = commonsLang3Version
     }
 
     if (project.path in setOf(
             ":tenant-isolation-spring-boot-starter",
-            ":layered-authorization-spring-boot-starter"
+            ":authorization-spring-boot-starter"
         )) {
         extra["postgresql.version"] = postgresqlVersion
     }
@@ -382,7 +382,7 @@ subprojects {
             imports {
                 mavenBom("org.springframework.boot:spring-boot-dependencies:$springBootVersion")
 
-                if (project.path in setOf(":tenant-isolation", ":layered-authorization")) {
+                if (project.path in setOf(":tenant-isolation", ":authorization")) {
                     mavenBom("org.testcontainers:testcontainers-bom:$testcontainersVersion")
                 }
             }

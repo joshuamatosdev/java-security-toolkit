@@ -24,16 +24,16 @@ Then consume selected modules:
 dependencies {
     implementation("io.github.joshuamatosdev.security:shared:0.1.0-SNAPSHOT")
     implementation("io.github.joshuamatosdev.security:tenant-isolation:0.1.0-SNAPSHOT")
-    implementation("io.github.joshuamatosdev.security:layered-authorization:0.1.0-SNAPSHOT")
-    implementation("io.github.joshuamatosdev.security:edge-perimeter:0.1.0-SNAPSHOT")
+    implementation("io.github.joshuamatosdev.security:authorization:0.1.0-SNAPSHOT")
+    implementation("io.github.joshuamatosdev.security:edge:0.1.0-SNAPSHOT")
     implementation("io.github.joshuamatosdev.security:supply-chain:0.1.0-SNAPSHOT")
-    implementation("io.github.joshuamatosdev.security:crypto-agility:0.1.0-SNAPSHOT")
+    implementation("io.github.joshuamatosdev.security:crypto:0.1.0-SNAPSHOT")
     testImplementation("io.github.joshuamatosdev.security:shared-testkit:0.1.0-SNAPSHOT")
     testImplementation("io.github.joshuamatosdev.security:tenant-isolation-testkit:0.1.0-SNAPSHOT")
-    testImplementation("io.github.joshuamatosdev.security:layered-authorization-testkit:0.1.0-SNAPSHOT")
-    testImplementation("io.github.joshuamatosdev.security:edge-perimeter-testkit:0.1.0-SNAPSHOT")
+    testImplementation("io.github.joshuamatosdev.security:authorization-testkit:0.1.0-SNAPSHOT")
+    testImplementation("io.github.joshuamatosdev.security:edge-testkit:0.1.0-SNAPSHOT")
     testImplementation("io.github.joshuamatosdev.security:supply-chain-testkit:0.1.0-SNAPSHOT")
-    testImplementation("io.github.joshuamatosdev.security:crypto-agility-testkit:0.1.0-SNAPSHOT")
+    testImplementation("io.github.joshuamatosdev.security:crypto-testkit:0.1.0-SNAPSHOT")
 }
 ```
 
@@ -42,9 +42,9 @@ Spring Boot applications can instead add:
 ```kotlin
 dependencies {
     implementation("io.github.joshuamatosdev.security:tenant-isolation-spring-boot-starter:0.1.0-SNAPSHOT")
-    implementation("io.github.joshuamatosdev.security:layered-authorization-spring-boot-starter:0.1.0-SNAPSHOT")
-    implementation("io.github.joshuamatosdev.security:edge-perimeter-spring-boot-starter:0.1.0-SNAPSHOT")
-    implementation("io.github.joshuamatosdev.security:crypto-agility-spring-boot-starter:0.1.0-SNAPSHOT")
+    implementation("io.github.joshuamatosdev.security:authorization-spring-boot-starter:0.1.0-SNAPSHOT")
+    implementation("io.github.joshuamatosdev.security:edge-spring-boot-starter:0.1.0-SNAPSHOT")
+    implementation("io.github.joshuamatosdev.security:crypto-spring-boot-starter:0.1.0-SNAPSHOT")
 }
 ```
 
@@ -93,7 +93,7 @@ because downstream modules use it to prevent tenant, organization, and resource
 identity confusion. `shared-testkit` carries reusable contracts for identifier
 factories, value equality, and string round-trips.
 
-### `crypto-agility`, `crypto-agility-spring-boot-starter`, and `crypto-agility-testkit`
+### `crypto`, `crypto-spring-boot-starter`, and `crypto-testkit`
 
 Good candidates for library adoption. Stable contracts live in
 `io.github.joshuamatosdev.security.crypto.api`; local JCA code lives outside
@@ -121,22 +121,22 @@ use:
 - prove transaction ordering and tenant context binding under your framework stack
 - add operational alerts for pool identity and RLS verification failures
 
-### `layered-authorization`
+### `authorization`
 
 Adopt the decision model, audit contract, and deny-overrides behavior. Spring
-applications can start with `layered-authorization-spring-boot-starter`; policy
-implementers can reuse `layered-authorization-testkit`. Before production use:
+applications can start with `authorization-spring-boot-starter`; policy
+implementers can reuse `authorization-testkit`. Before production use:
 
 - replace demo role resolution with an authorization store
 - model revocation and authorization-version behavior
 - send audit records to durable storage
 - decide how policy changes are reviewed, staged, and rolled back
 
-### `edge-perimeter`
+### `edge`
 
 Adopt the security-chain shape and tests. Spring WebFlux edge applications can
-start with `edge-perimeter-spring-boot-starter`; perimeter policy adopters can
-reuse `edge-perimeter-testkit`. Before production use:
+start with `edge-spring-boot-starter`; perimeter policy adopters can
+reuse `edge-testkit`. Before production use:
 
 - register real OAuth2/OIDC clients
 - pin issuer and audience values
