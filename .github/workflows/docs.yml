@@ -1,0 +1,77 @@
+# Publishes every published module's Javadoc to GitHub Pages as one browsable site.
+# Assembly happens in shell from each module's own javadoc task output — no extra build
+# logic or aggregation plugin in the Gradle build.
+name: docs
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  javadoc:
+    name: build and publish javadoc
+    runs-on: ubuntu-latest
+    permissions:
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - name: Check out the repository
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+        with:
+          persist-credentials: false
+
+      - name: Set up JDK 21
+        uses: actions/setup-java@c1e323688fd81a25caa38c78aa6df2d33d3e20d9 # v4
+        with:
+          distribution: temurin
+          java-version: "21"
+
+      - name: Set up Gradle
+        uses: gradle/actions/setup-gradle@ed408507eac070d1f99cc633dbcf757c94c7933a # v4
+        with:
+          validate-wrappers: true
+
+      - name: Generate Javadoc
+        run: ./gradlew javadoc --console=plain --no-daemon
+
+      - name: Assemble the site
+        run: |
+          modules="shared shared-testkit \
+            tenant-isolation tenant-isolation-spring-boot-starter tenant-isolation-testkit \
+            authorization authorization-spring-boot-starter authorization-testkit \
+            edge edge-spring-boot-starter edge-testkit \
+            supply-chain supply-chain-testkit \
+            crypto crypto-spring-boot-starter crypto-testkit"
+          mkdir -p site
+          {
+            echo "<!doctype html><meta charset=\"utf-8\"><title>Bulwark API documentation</title>"
+            echo "<h1>Bulwark API documentation</h1><ul>"
+          } > site/index.html
+          for m in $modules; do
+            if [ -d "$m/build/docs/javadoc" ]; then
+              mkdir -p "site/$m"
+              cp -r "$m/build/docs/javadoc/." "site/$m/"
+              echo "<li><a href=\"$m/\">$m</a></li>" >> site/index.html
+            fi
+          done
+          echo "</ul>" >> site/index.html
+
+      - name: Configure Pages
+        uses: actions/configure-pages@983d7736d9b0ae728b81ab479565c72886d7745b # v5
+
+      - name: Upload the site
+        uses: actions/upload-pages-artifact@56afc609e74202658d3ffba0e8f6dda462b719fa # v3
+        with:
+          path: site/
+
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@d6db90164ac5ed86f2b6aed7e0febac5b3c0c03e # v4

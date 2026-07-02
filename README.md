@@ -1,5 +1,10 @@
 # Bulwark
 
+[![CI](https://github.com/joshuamatosdev/bulwark/actions/workflows/ci.yml/badge.svg)](https://github.com/joshuamatosdev/bulwark/actions/workflows/ci.yml)
+[![Docs](https://github.com/joshuamatosdev/bulwark/actions/workflows/docs.yml/badge.svg)](https://joshuamatosdev.github.io/bulwark/)
+[![License](https://img.shields.io/badge/license-Apache--2.0-blue.svg)](LICENSE)
+[![Java](https://img.shields.io/badge/Java-21-orange.svg)](https://openjdk.org/projects/jdk/21/)
+
 A production-oriented Java 21 security toolkit for multi-tenant SaaS systems.
 
 Bulwark is built by Joshua Matos and DoctrineOne Industries. It turns
