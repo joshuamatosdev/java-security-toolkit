@@ -39,6 +39,14 @@ jobs:
       - name: Build, test, and verify local publication metadata
         run: ./gradlew build publishToMavenLocal --console=plain --no-daemon
 
+      - name: Build and test the consumer examples
+        # Each example is a standalone composite build against the current checkout, so a module
+        # change that breaks the documented adoption path fails here, not on an adopter's machine.
+        run: |
+          ./gradlew -p examples/crypto-agility-plain-java build --console=plain --no-daemon
+          ./gradlew -p examples/crypto-agility-spring-boot build --console=plain --no-daemon
+          ./gradlew -p examples/tenant-isolation-spring-boot build --console=plain --no-daemon
+
   dependency-review:
     name: dependency review
     runs-on: ubuntu-latest

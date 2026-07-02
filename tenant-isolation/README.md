@@ -66,7 +66,13 @@ bulwark:
 ## Implementation Walkthrough
 
 Full walkthrough — tenant + organization, using the modules as published. Four
-things you own; everything else ships in the starter.
+things you own; everything else ships in the starter. Every step exists as a
+compiled, tested consumer application in
+[`examples/tenant-isolation-spring-boot`](../examples/tenant-isolation-spring-boot/):
+
+```bash
+./gradlew -p examples/tenant-isolation-spring-boot test
+```
 
 ### 1. Depend
 
@@ -87,6 +93,15 @@ spring:
     url: ${DB_URL}
     username: ${DB_RUNTIME_USER}      # NOSUPERUSER NOBYPASSRLS role
     password: ${DB_RUNTIME_PASSWORD}
+  jpa:
+    database-platform: org.hibernate.dialect.PostgreSQLDialect
+    hibernate:
+      ddl-auto: none                  # your migrations own the schema
+    open-in-view: false
+    properties:
+      hibernate:
+        boot:
+          allow_jdbc_metadata_access: false
 tenant:
   isolation:
     mode: id                          # shared tables + RLS
@@ -96,6 +111,12 @@ tenant:
     organization-scope: optional      # off -> optional -> required
 ```
 
+The `spring.jpa` block is load-bearing, not styling: the starter's classpath
+includes JPA, and Hibernate's default boot-time metadata connection would
+borrow from the tenant-bound proxy with no tenant bound — which fails closed
+and aborts startup. `allow_jdbc_metadata_access: false` plus an explicit
+dialect removes that boot-time borrow.
+
 `organization-scope` is the whole org rollout dial: `off` = tenant-only,
 `optional` = org claim flows when bound (adopt policies while old callers still
 work), `required` = borrow fails closed if an ordinary tenant binds no org.
@@ -103,35 +124,12 @@ work), `required` = borrow fails closed if an ordinary tenant binds no org.
 ### 3. Write one filter — the only code you own
 
 Resolve both IDs from your **verified** token (never a client-writable header),
-bind atomically:
-
-```java
-@Component
-class TenantBindingFilter extends OncePerRequestFilter {
-    @Override
-    protected void doFilterInternal(HttpServletRequest req, HttpServletResponse res, FilterChain chain)
-            throws ServletException, IOException {
-        // Unauthenticated / non-JWT requests carry no tenant to bind. Passing through is safe:
-        // a connection borrow with no binding fails closed before any SQL runs.
-        if (!(SecurityContextHolder.getContext().getAuthentication()
-                instanceof JwtAuthenticationToken jwtAuthentication)) {
-            chain.doFilter(req, res);
-            return;
-        }
-        Jwt jwt = jwtAuthentication.getToken();
-        String tenantClaim = jwt.getClaimAsString("tenant_id");
-        if (tenantClaim == null) {
-            res.sendError(HttpServletResponse.SC_FORBIDDEN);
-            return;
-        }
-        TenantId tenant = TenantId.fromString(tenantClaim);
-        String org = jwt.getClaimAsString("organization_id");
-        Runnable work = () -> { try { chain.doFilter(req, res); } catch (Exception e) { throw new IllegalStateException(e); } };
-        if (org == null) TenantContext.runAs(tenant, work);
-        else TenantContext.runAs(tenant, OrganizationId.fromString(org), work);
-    }
-}
-```
+bind atomically. The compiled, tested filter is
+[`TenantBindingFilter.java`](../examples/tenant-isolation-spring-boot/src/main/java/example/TenantBindingFilter.java)
+in the example app: non-JWT requests pass through (an unbound borrow fails
+closed anyway), a JWT without `tenant_id` is rejected with 403, and the tenant —
+plus `organization_id` when present — is bound with `TenantContext.runAs(...)`
+around the rest of the chain.
 
 Key properties you get for free: org can never bind without tenant (no API for
 it), `runAs` restores the prior binding, switching tenant *or* org inside an
@@ -150,7 +148,10 @@ Backfills that assign orgs to unassigned rows run org-unscoped:
 
 Copy the reference DDL from
 [`src/test/resources/db/init.sql`](src/test/resources/db/init.sql) into your
-migrations, adapted per table:
+migrations, adapted per table. (A complete adapted copy — the same roles,
+verifiers, and policies applied to an adopter's own `note` table — is the
+example app's
+[`db/init.sql`](../examples/tenant-isolation-spring-boot/src/test/resources/db/init.sql).)
 
 1. Roles: runtime role `NOSUPERUSER NOBYPASSRLS`; `tenant_bypass` (NOLOGIN
    marker) granted only to the ops role.
@@ -198,7 +199,10 @@ Per-entity annotations, `@Filter`s, or `WHERE tenant_id`/`organization_id`
 predicates — anywhere. The testkit plus the pattern of
 `OrganizationScopeRlsIsolationTest` let you prove that in your own CI:
 repository with zero predicates, isolation still holds against real
-PostgreSQL.
+PostgreSQL. The example app's
+[`TenantIsolationFlowTest`](../examples/tenant-isolation-spring-boot/src/test/java/example/TenantIsolationFlowTest.java)
+is that proof running over HTTP: two tenants and two organizations through one
+zero-predicate controller.
 
 ## What It Demonstrates
 

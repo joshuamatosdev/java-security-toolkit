@@ -1,0 +1,32 @@
+spring:
+  datasource:
+    url: ${DB_URL}
+    username: ${DB_RUNTIME_USER}          # NOSUPERUSER NOBYPASSRLS role, e.g. tenant_user
+    password: ${DB_RUNTIME_PASSWORD}
+  jpa:
+    # The starter's classpath includes JPA. Hibernate must not open a metadata
+    # connection at startup: the runtime pool is the tenant-bound proxy and a
+    # boot-time borrow with no TenantContext fails closed (by design).
+    database-platform: org.hibernate.dialect.PostgreSQLDialect
+    hibernate:
+      ddl-auto: none                      # init-db SQL owns the schema
+    open-in-view: false
+    properties:
+      hibernate:
+        boot:
+          allow_jdbc_metadata_access: false
+  # Production: point the resource server at your issuer. The integration tests
+  # fabricate JWTs with spring-security-test instead, so no issuer is configured here.
+  # security:
+  #   oauth2:
+  #     resourceserver:
+  #       jwt:
+  #         issuer-uri: https://issuer.acme.example
+
+tenant:
+  isolation:
+    mode: id                              # shared tables + RLS
+  binding:
+    claim-secret: ${TENANT_BINDING_CLAIM_SECRET}
+    system-ops-password: ${TENANT_BINDING_SYSTEM_OPS_PASSWORD}
+    organization-scope: optional          # off -> optional -> required

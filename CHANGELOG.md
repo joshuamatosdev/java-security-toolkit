@@ -9,6 +9,18 @@ once public version tags begin.
 
 ### Added
 
+- `examples/tenant-isolation-spring-boot` — the tenant-isolation implementation
+  walkthrough as a compiled, tested consumer application: one starter
+  dependency, environment-bound configuration, the single `TenantBindingFilter`
+  an adopter owns, and an adopter-adapted copy of the reference DDL around a
+  zero-predicate `/notes` API. Its integration test drives two tenants and two
+  organizations through real HTTP into RLS-enforced PostgreSQL 18, and the
+  testkit contract runs as a consumer would run it. Building the example
+  surfaced a walkthrough gap, now fixed in the module README: adopter
+  configuration must disable Hibernate's boot-time metadata connection
+  (`spring.jpa.properties.hibernate.boot.allow_jdbc_metadata_access: false`)
+  because that borrow happens before any tenant is bound and fails closed. The
+  walkthrough's inline filter listing moved into the example as compiled code.
 - `TrustAnchor` in crypto-agility and a trust-anchored
   `DocumentSigner.verify(document, trustAnchor)` overload: the embedded-key
   verify proves payload integrity only, so a key-substitution forgery (tampered
