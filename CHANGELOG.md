@@ -9,6 +9,13 @@ once public version tags begin.
 
 ### Added
 
+- Spring Boot configuration metadata across the toolkit: IDE completion and
+  documentation for every module property (`edge.*`, `tenant.isolation.*`,
+  `tenant.binding.*`, `bulwark.crypto.*`), every starter gate flag
+  (`bulwark.*.enabled`), and `showcase.demo-identity`, including default values.
+- `shared`: `RequiredText`, the single required-text rule set (non-blank, no
+  edge whitespace, no control characters) now used by tenant-isolation and the
+  crypto-agility starter instead of per-module copies.
 - Public release documentation: security policy, contribution guide, changelog,
   and public release checklist.
 - Production adoption guide and stronger public positioning as a Java 21
@@ -30,6 +37,13 @@ once public version tags begin.
 
 ### Changed
 
+- `CryptoAgilityProperties` is now an immutable `@ConfigurationProperties`
+  record binding only the values the wiring consumes (`default-algorithm`,
+  `default-key-id`). The provider and ephemeral-key toggles remain
+  `@ConditionalOnProperty`-driven and are documented in configuration metadata.
+  A malformed `bulwark.crypto.default-key-id` is rejected at bind time with
+  `IllegalArgumentException` (previously `IllegalStateException` at bean
+  creation).
 - The edge-perimeter Spring Boot starter now activates each credential plane only
   when its OAuth2 infrastructure is configured — the browser OIDC login chain when
   a client registration is present, the service resource-server chain when a JWT

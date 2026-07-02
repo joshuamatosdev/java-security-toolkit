@@ -94,22 +94,29 @@ class CryptoAgilityAutoConfigurationTest {
         contextRunner
                 .withPropertyValues("bulwark.crypto.default-key-id= ")
                 .run(context -> assertThat(context.getStartupFailure())
-                        .hasMessageContaining("bulwark.crypto.default-key-id must not be blank"));
+                        .rootCause()
+                        .hasMessage("bulwark.crypto.default-key-id must not be blank"));
     }
 
     @Test
-    void keyIdStrategyRejectsMalformedConfiguredDefaultKeyIds() {
-        final CryptoAgilityAutoConfiguration configuration = new CryptoAgilityAutoConfiguration();
-
-        assertThatThrownBy(() -> configuration.keyIdStrategy(propertiesWithDefaultKeyId(" local-ed25519-1")))
-                .isInstanceOf(IllegalStateException.class)
+    void malformedDefaultKeyIdsAreRejectedAtBind() {
+        assertThatThrownBy(() -> new CryptoAgilityProperties(null, " local-ed25519-1"))
+                .isInstanceOf(IllegalArgumentException.class)
                 .hasMessage("bulwark.crypto.default-key-id must not include leading or trailing whitespace");
-        assertThatThrownBy(() -> configuration.keyIdStrategy(propertiesWithDefaultKeyId("local-ed25519-1 ")))
-                .isInstanceOf(IllegalStateException.class)
+        assertThatThrownBy(() -> new CryptoAgilityProperties(null, "local-ed25519-1 "))
+                .isInstanceOf(IllegalArgumentException.class)
                 .hasMessage("bulwark.crypto.default-key-id must not include leading or trailing whitespace");
-        assertThatThrownBy(() -> configuration.keyIdStrategy(propertiesWithDefaultKeyId("local-ed25519-1\u0000")))
-                .isInstanceOf(IllegalStateException.class)
+        assertThatThrownBy(() -> new CryptoAgilityProperties(null, "local-ed25519-1" + (char) 0x00))
+                .isInstanceOf(IllegalArgumentException.class)
                 .hasMessage("bulwark.crypto.default-key-id must not contain control characters");
+    }
+
+    @Test
+    void unsetPropertiesFallBackToEd25519Defaults() {
+        final CryptoAgilityProperties properties = new CryptoAgilityProperties(null, null);
+
+        assertThat(properties.defaultAlgorithm()).isEqualTo(SignatureAlgorithm.ED25519);
+        assertThat(properties.defaultKeyId()).isEqualTo("local-ed25519-1");
     }
 
     @Test
@@ -134,11 +141,5 @@ class CryptoAgilityAutoConfigurationTest {
         KeyHandleResolver applicationKeyHandleResolver(final SignatureProviderRegistry registry) {
             return (algorithm, keyId) -> registry.resolve(algorithm).generateKey(keyId);
         }
-    }
-
-    private static CryptoAgilityProperties propertiesWithDefaultKeyId(final String defaultKeyId) {
-        final CryptoAgilityProperties properties = new CryptoAgilityProperties();
-        properties.setDefaultKeyId(defaultKeyId);
-        return properties;
     }
 }

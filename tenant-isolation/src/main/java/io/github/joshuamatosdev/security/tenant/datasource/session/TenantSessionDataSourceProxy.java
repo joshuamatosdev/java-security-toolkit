@@ -11,6 +11,7 @@ import java.util.List;
 import java.util.Objects;
 import javax.sql.DataSource;
 
+import io.github.joshuamatosdev.security.shared.RequiredText;
 import io.github.joshuamatosdev.security.shared.TenantId;
 import io.github.joshuamatosdev.security.tenant.binding.SystemTenantBoundary;
 import io.github.joshuamatosdev.security.tenant.binding.TenantBindingObserver;
@@ -110,7 +111,7 @@ public final class TenantSessionDataSourceProxy extends AbstractDataSource imple
             final TenantBindingObserver observer,
         final TenantPoolInspection poolInspection) {
         this.delegate = Objects.requireNonNull(delegate, "delegate");
-        this.poolName = requireNonBlankWithoutEdgeWhitespace(poolName, "poolName");
+        this.poolName = RequiredText.require(poolName, "poolName");
         this.claimSigner = Objects.requireNonNull(claimSigner, "claimSigner");
         this.observer = Objects.requireNonNull(observer, "observer");
         this.poolInspection = Objects.requireNonNull(poolInspection, "poolInspection");
@@ -258,21 +259,6 @@ public final class TenantSessionDataSourceProxy extends AbstractDataSource imple
         } catch (RuntimeException suppressed) {
             // Observability must not change tenant-binding behavior.
         }
-    }
-
-    private static String requireNonBlankWithoutEdgeWhitespace(final String value, final String field) {
-        Objects.requireNonNull(value, field + " must not be null");
-        if (value.isBlank()) {
-            throw new IllegalArgumentException(field + " must not be blank");
-        }
-        if (!value.equals(value.strip())) {
-            throw new IllegalArgumentException(
-                    field + " must not include leading or trailing whitespace");
-        }
-        if (value.chars().anyMatch(Character::isISOControl)) {
-            throw new IllegalArgumentException(field + " must not contain control characters");
-        }
-        return value;
     }
 
     /**

@@ -1,0 +1,24 @@
+{
+  "properties": [
+    {
+      "name": "edge.cors.allowed-origins",
+      "defaultValue": []
+    },
+    {
+      "name": "edge.cookie.secure",
+      "defaultValue": true
+    },
+    {
+      "name": "edge.hsts.unconditional",
+      "defaultValue": true
+    },
+    {
+      "name": "edge.identity.issuer-uri",
+      "defaultValue": "https://idp.acme.example"
+    },
+    {
+      "name": "edge.service-jwt.audiences",
+      "defaultValue": ["edge-service-api"]
+    }
+  ]
+}

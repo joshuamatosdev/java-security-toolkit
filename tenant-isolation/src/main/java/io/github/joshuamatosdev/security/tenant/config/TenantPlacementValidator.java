@@ -1,5 +1,6 @@
 package io.github.joshuamatosdev.security.tenant.config;
 
+import io.github.joshuamatosdev.security.shared.RequiredText;
 import io.github.joshuamatosdev.security.shared.TenantId;
 import io.github.joshuamatosdev.security.tenant.PostgresJdbcUrls;
 import io.github.joshuamatosdev.security.tenant.binding.SystemTenantBoundary;
@@ -68,14 +69,9 @@ final class TenantPlacementValidator {
     static String requireNonBlankWithoutEdgeWhitespace(
             final String alias, final String raw, final String property) {
         final String value = requireNonBlank(alias, raw, property);
-        if (!value.equals(value.strip())) {
-            throw new IllegalArgumentException(
-                    tenantMessage(alias, property + " must not include leading or trailing whitespace"));
-        }
-        if (containsControlCharacter(value)) {
-            throw new IllegalArgumentException(
-                    tenantMessage(alias, property + " must not contain control characters"));
-        }
+        RequiredText.violation(value).ifPresent(violation -> {
+            throw new IllegalArgumentException(tenantMessage(alias, property + " " + violation));
+        });
         return value;
     }
 

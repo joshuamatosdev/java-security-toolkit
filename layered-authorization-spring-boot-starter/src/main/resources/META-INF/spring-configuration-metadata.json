@@ -1,0 +1,11 @@
+{
+  "properties": [
+    {
+      "name": "bulwark.layered-authorization.enabled",
+      "type": "java.lang.Boolean",
+      "sourceType": "io.github.joshuamatosdev.security.authz.spring.LayeredAuthorizationAutoConfiguration",
+      "description": "Whether the layered-authorization auto-configuration activates and wires the reference AuthorizationService, policy, rule repository, audit sink, and clock (each individually replaceable via @ConditionalOnMissingBean).",
+      "defaultValue": true
+    }
+  ]
+}
