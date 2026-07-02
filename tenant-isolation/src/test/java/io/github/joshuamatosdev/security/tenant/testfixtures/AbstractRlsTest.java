@@ -1,5 +1,6 @@
 package io.github.joshuamatosdev.security.tenant.testfixtures;
 
+import io.github.joshuamatosdev.security.shared.OrganizationId;
 import io.github.joshuamatosdev.security.shared.TenantId;
 import io.github.joshuamatosdev.security.tenant.testfixtures.TenantTestConstants;
 import org.junit.jupiter.api.BeforeEach;
@@ -12,6 +13,7 @@ import java.sql.Connection;
 import java.sql.DriverManager;
 import java.sql.PreparedStatement;
 import java.sql.Statement;
+import java.time.OffsetDateTime;
 import java.util.UUID;
 
 /**
@@ -53,13 +55,17 @@ public abstract class AbstractRlsTest {
         registry.add("tenant.binding.system-ops-password", () -> DEV_PASSWORD);
     }
 
-    /** Truncates the shared singleton table so each test starts from a clean, deterministic state. */
+    /**
+     * Truncates the shared singleton table — and the cross-tenant read-grant ledger — so each test
+     * starts from a clean, deterministic state. Grants are part of that state: a leftover
+     * entitlement from one test class would silently widen tenant visibility in the next.
+     */
     @BeforeEach
     protected void cleanDocuments() throws Exception {
         try (Connection c = DriverManager.getConnection(
                 POSTGRES.getJdbcUrl(), POSTGRES.getUsername(), POSTGRES.getPassword());
                 Statement st = c.createStatement()) {
-            st.execute("TRUNCATE TABLE " + DOCUMENT_TABLE);
+            st.execute("TRUNCATE TABLE " + DOCUMENT_TABLE + ", tenant_security.read_grant");
         }
     }
 
@@ -74,6 +80,65 @@ public abstract class AbstractRlsTest {
             ps.setObject(2, tenant.value());
             ps.setString(3, title);
             ps.setString(4, body);
+            ps.executeUpdate();
+        }
+    }
+
+    /**
+     * Installs a cross-tenant read entitlement as the bootstrap superuser — models the
+     * platform-plane grant administration path (ordinary tenant roles cannot write the grant
+     * ledger). A null {@code expiresAt} is an until-revoked grant.
+     */
+    protected static void grantReadAsSuperuser(
+            final TenantId grantor,
+            final TenantId grantee,
+            final String resourceClass,
+            final OffsetDateTime expiresAt)
+            throws Exception {
+        try (Connection c = DriverManager.getConnection(
+                        POSTGRES.getJdbcUrl(), POSTGRES.getUsername(), POSTGRES.getPassword());
+                PreparedStatement ps = c.prepareStatement(
+                        "INSERT INTO tenant_security.read_grant"
+                                + " (grantor_tenant_id, grantee_tenant_id, resource_class, expires_at)"
+                                + " VALUES (?, ?, ?, ?)")) {
+            ps.setObject(1, grantor.value());
+            ps.setObject(2, grantee.value());
+            ps.setString(3, resourceClass);
+            ps.setObject(4, expiresAt);
+            ps.executeUpdate();
+        }
+    }
+
+    /** Removes every grant from one grantor to one grantee, bypassing RLS via the superuser. */
+    protected static void revokeReadAsSuperuser(final TenantId grantor, final TenantId grantee) throws Exception {
+        try (Connection c = DriverManager.getConnection(
+                        POSTGRES.getJdbcUrl(), POSTGRES.getUsername(), POSTGRES.getPassword());
+                PreparedStatement ps = c.prepareStatement(
+                        "DELETE FROM tenant_security.read_grant"
+                                + " WHERE grantor_tenant_id = ? AND grantee_tenant_id = ?")) {
+            ps.setObject(1, grantor.value());
+            ps.setObject(2, grantee.value());
+            ps.executeUpdate();
+        }
+    }
+
+    /** Seeds a row assigned to an organization within its tenant, bypassing RLS via the superuser. */
+    protected static void seedAsSuperuser(
+            final UUID id,
+            final TenantId tenant,
+            final OrganizationId organization,
+            final String title,
+            final String body)
+            throws Exception {
+        try (Connection c = DriverManager.getConnection(
+                        POSTGRES.getJdbcUrl(), POSTGRES.getUsername(), POSTGRES.getPassword());
+                PreparedStatement ps = c.prepareStatement(
+                        "INSERT INTO document (id, tenant_id, organization_id, title, body) VALUES (?, ?, ?, ?, ?)")) {
+            ps.setObject(1, id);
+            ps.setObject(2, tenant.value());
+            ps.setObject(3, organization.value());
+            ps.setString(4, title);
+            ps.setString(5, body);
             ps.executeUpdate();
         }
     }

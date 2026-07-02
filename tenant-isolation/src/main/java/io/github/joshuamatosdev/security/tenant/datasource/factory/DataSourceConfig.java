@@ -67,7 +67,8 @@ public class DataSourceConfig {
         this.dataSourceFactory = new TenantDataSourceFactory(
                 isolationProperties,
                 poolFactory,
-                new TenantClaimSignerFactory(bindingProperties, clock));
+                new TenantClaimSignerFactory(bindingProperties, clock),
+                bindingProperties.organizationScope());
     }
 
     @Bean

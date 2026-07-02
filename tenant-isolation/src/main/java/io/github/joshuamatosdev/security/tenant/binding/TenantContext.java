@@ -1,5 +1,6 @@
 package io.github.joshuamatosdev.security.tenant.binding;
 
+import io.github.joshuamatosdev.security.shared.OrganizationId;
 import io.github.joshuamatosdev.security.shared.TenantId;
 import io.github.joshuamatosdev.security.tenant.TenantIds;
 import io.github.joshuamatosdev.security.tenant.datasource.session.TenantSessionDataSourceProxy;
@@ -11,25 +12,34 @@ import org.jspecify.annotations.Nullable;
 import org.springframework.transaction.support.TransactionSynchronizationManager;
 
 /**
- * Holds the active {@link TenantId} for the current thread. The {@link TenantSessionDataSourceProxy}
- * reads this on every connection borrow to bind the PostgreSQL session.
+ * Holds the active {@link TenantId} — and, when bound, the actor's {@link OrganizationId} within
+ * that tenant — for the current thread. The {@link TenantSessionDataSourceProxy} reads this on
+ * every connection borrow to bind the PostgreSQL session.
+ *
+ * <p>The organization is a dimension of the tenant binding, never a separate binding: it is set
+ * and restored atomically with the tenant through the two-argument {@link #runAs(TenantId,
+ * OrganizationId, Runnable)} / {@link #supplyAs(TenantId, OrganizationId, Supplier)} entry points,
+ * so tenant and organization can never skew. The system-operations tenant carries no organization
+ * because cross-tenant operational work is not organization-scoped.
  *
  * <p>Three fail-closed rules:
  *
  * <ul>
  *   <li>{@link #requireCurrent()} throws if no tenant is bound, so a tenant-scoped operation cannot
- *       silently run without a tenant.
+ *       silently run without a tenant. {@link #requireCurrentOrganization()} does the same for the
+ *       organization dimension.
  *   <li>The system-operations tenant — which routes to the read-only bypass-role pool — can be
  *       entered only via {@link #runAsSystemOps}/{@link #supplyAsSystemOps}. Every ordinary entry
  *       point ({@link #runAs}, {@link #supplyAs}) <strong>rejects</strong> it, so system-ops
  *       access can never be activated through a request-style setter.
  *   <li><strong>Tenant before transaction.</strong> A transaction borrows its tenant-bound
  *       connection at begin, so the tenant must be bound <em>before</em> a tenant transaction is
- *       active. Binding the first tenant, or switching to a different tenant, once such a transaction
- *       is active is rejected — the database session is already (or about to be) bound and the change
- *       could not be honored. (Re-entering the already-bound tenant is allowed.) This guard is an
- *       early, clear-error layer; {@link TenantSessionDataSourceProxy} independently fails closed at
- *       borrow time regardless of this guard, so relaxing the check (see
+ *       active. Binding the first tenant, switching to a different tenant, or switching the
+ *       organization dimension once such a transaction is active is rejected — the database session
+ *       is already (or about to be) bound and the change could not be honored. (Re-entering the
+ *       already-bound tenant and organization is allowed.) This guard is an early, clear-error
+ *       layer; {@link TenantSessionDataSourceProxy} independently fails closed at borrow time
+ *       regardless of this guard, so relaxing the check (see
  *       {@link #useTenantTransactionActiveCheck}) never weakens isolation.
  * </ul>
  *
@@ -45,7 +55,17 @@ import org.springframework.transaction.support.TransactionSynchronizationManager
 @SystemTenantBoundary
 public final class TenantContext {
 
-    private static final ThreadLocal<TenantId> CURRENT = new ThreadLocal<>();
+    /**
+     * One thread's tenant binding. The organization rides inside the same value so the two
+     * dimensions are set, restored, and cleared as a unit.
+     *
+     * @param tenant the bound tenant
+     * @param organization the actor's organization within the tenant, or {@code null} when the
+     *     binding is tenant-only
+     */
+    private record Binding(TenantId tenant, @Nullable OrganizationId organization) {}
+
+    private static final ThreadLocal<Binding> CURRENT = new ThreadLocal<>();
 
     /**
      * Decides whether a transaction that would have bound the tenant datasource's connection is
@@ -104,7 +124,17 @@ public final class TenantContext {
      * @return the current tenant, or empty when no tenant has been bound
      */
     public static Optional<TenantId> current() {
-        return Optional.ofNullable(CURRENT.get());
+        return Optional.ofNullable(CURRENT.get()).map(Binding::tenant);
+    }
+
+    /**
+     * Returns the organization dimension of the current binding.
+     *
+     * @return the current organization, or empty when no binding exists or the binding is
+     *     tenant-only
+     */
+    public static Optional<OrganizationId> currentOrganization() {
+        return Optional.ofNullable(CURRENT.get()).map(Binding::organization);
     }
 
     /**
@@ -114,12 +144,27 @@ public final class TenantContext {
      * @throws SecurityException when a tenant-scoped operation runs without a tenant
      */
     public static TenantId requireCurrent() {
-        final TenantId current = CURRENT.get();
+        final Binding current = CURRENT.get();
         if (current == null) {
             throw new SecurityException(
                     "TenantContext not populated — tenant-scoped operation attempted without tenant binding");
         }
-        return current;
+        return current.tenant();
+    }
+
+    /**
+     * Returns the organization dimension of the current binding or fails closed when absent.
+     *
+     * @return the organization currently bound to the calling thread
+     * @throws SecurityException when an organization-scoped operation runs without an organization
+     */
+    public static OrganizationId requireCurrentOrganization() {
+        final Binding current = CURRENT.get();
+        if (current == null || current.organization() == null) {
+            throw new SecurityException("TenantContext organization not populated — organization-scoped"
+                    + " operation attempted without organization binding");
+        }
+        return current.organization();
     }
 
     /**
@@ -133,12 +178,12 @@ public final class TenantContext {
      */
     static void set(final TenantId tenant) {
         rejectSystemOpsTenant(tenant);
-        rejectBindInActiveTransaction(tenant);
-        CURRENT.set(tenant);
+        rejectBindInActiveTransaction(tenant, null);
+        CURRENT.set(new Binding(tenant, null));
     }
 
     /**
-     * Clears the current thread's tenant binding.
+     * Clears the current thread's tenant binding, including its organization dimension.
      *
      * <p>This is intended for test cleanup and infrastructure cleanup paths. Normal application work
      * should prefer scoped methods that restore the prior tenant automatically. Clearing is rejected
@@ -162,15 +207,30 @@ public final class TenantContext {
      */
     public static void runAs(final TenantId tenant, final Runnable work) {
         Objects.requireNonNull(work, "work must not be null");
-        rejectSystemOpsTenant(tenant);
-        rejectBindInActiveTransaction(tenant);
-        final TenantId prior = CURRENT.get();
-        CURRENT.set(tenant);
-        try {
+        scoped(tenant, null, () -> {
             work.run();
-        } finally {
-            restore(prior);
-        }
+            return null;
+        });
+    }
+
+    /**
+     * Runs work as an ordinary tenant with an organization dimension and restores the prior binding
+     * afterward.
+     *
+     * <p>The organization is bound atomically with the tenant: there is deliberately no entry point
+     * that binds an organization alone, so the organization can never outlive or precede its tenant.
+     *
+     * @param tenant ordinary tenant to bind for the duration of {@code work}
+     * @param organization the actor's organization within {@code tenant}
+     * @param work tenant- and organization-scoped work to execute
+     */
+    public static void runAs(final TenantId tenant, final OrganizationId organization, final Runnable work) {
+        Objects.requireNonNull(work, "work must not be null");
+        Objects.requireNonNull(organization, "organization must not be null");
+        scoped(tenant, organization, () -> {
+            work.run();
+            return null;
+        });
     }
 
     /**
@@ -183,15 +243,24 @@ public final class TenantContext {
      */
     public static <T> T supplyAs(final TenantId tenant, final Supplier<T> work) {
         Objects.requireNonNull(work, "work must not be null");
-        rejectSystemOpsTenant(tenant);
-        rejectBindInActiveTransaction(tenant);
-        final TenantId prior = CURRENT.get();
-        CURRENT.set(tenant);
-        try {
-            return work.get();
-        } finally {
-            restore(prior);
-        }
+        return scoped(tenant, null, work);
+    }
+
+    /**
+     * Supplies a value as an ordinary tenant with an organization dimension and restores the prior
+     * binding afterward.
+     *
+     * @param tenant ordinary tenant to bind for the duration of {@code work}
+     * @param organization the actor's organization within {@code tenant}
+     * @param work tenant- and organization-scoped supplier to execute
+     * @param <T> result type
+     * @return the value produced by {@code work}
+     */
+    public static <T> T supplyAs(
+            final TenantId tenant, final OrganizationId organization, final Supplier<T> work) {
+        Objects.requireNonNull(work, "work must not be null");
+        Objects.requireNonNull(organization, "organization must not be null");
+        return scoped(tenant, organization, work);
     }
 
     /**
@@ -199,19 +268,16 @@ public final class TenantContext {
      *
      * <p>This is the only runnable entry point that may bind {@link TenantIds#SYSTEM_OPS}; the
      * datasource router interprets that binding as permission to use the read-only bypass-role pool.
+     * The system-ops binding never carries an organization.
      *
      * @param work system-operations work to execute
      */
     public static void runAsSystemOps(final Runnable work) {
         Objects.requireNonNull(work, "work must not be null");
-        rejectBindInActiveTransaction(TenantIds.SYSTEM_OPS);
-        final TenantId prior = CURRENT.get();
-        CURRENT.set(TenantIds.SYSTEM_OPS);
-        try {
+        systemOpsScoped(() -> {
             work.run();
-        } finally {
-            restore(prior);
-        }
+            return null;
+        });
     }
 
     /**
@@ -223,9 +289,43 @@ public final class TenantContext {
      */
     public static <T> T supplyAsSystemOps(final Supplier<T> work) {
         Objects.requireNonNull(work, "work must not be null");
-        rejectBindInActiveTransaction(TenantIds.SYSTEM_OPS);
-        final TenantId prior = CURRENT.get();
-        CURRENT.set(TenantIds.SYSTEM_OPS);
+        return systemOpsScoped(work);
+    }
+
+    /**
+     * Binds an ordinary tenant (with an optional organization dimension) around {@code work} and
+     * restores the prior binding afterward.
+     *
+     * @param tenant ordinary tenant to bind
+     * @param organization organization dimension, or {@code null} for a tenant-only binding
+     * @param work scoped work to execute
+     * @param <T> result type
+     * @return the value produced by {@code work}
+     */
+    private static <T> T scoped(
+            final TenantId tenant, final @Nullable OrganizationId organization, final Supplier<T> work) {
+        rejectSystemOpsTenant(tenant);
+        rejectBindInActiveTransaction(tenant, organization);
+        final Binding prior = CURRENT.get();
+        CURRENT.set(new Binding(tenant, organization));
+        try {
+            return work.get();
+        } finally {
+            restore(prior);
+        }
+    }
+
+    /**
+     * Binds the system-operations tenant around {@code work} and restores the prior binding.
+     *
+     * @param work system-operations work to execute
+     * @param <T> result type
+     * @return the value produced by {@code work}
+     */
+    private static <T> T systemOpsScoped(final Supplier<T> work) {
+        rejectBindInActiveTransaction(TenantIds.SYSTEM_OPS, null);
+        final Binding prior = CURRENT.get();
+        CURRENT.set(new Binding(TenantIds.SYSTEM_OPS, null));
         try {
             return work.get();
         } finally {
@@ -246,26 +346,37 @@ public final class TenantContext {
     }
 
     /**
-     * Rejects (re)binding a tenant once a tenant transaction is active — the transaction borrows its
-     * tenant-bound connection at the beginning, so the tenant must be bound first. Re-entering the same
-     * tenant is allowed; a first bind or a switch is rejected. Whether a tenant transaction is active
-     * is decided by the configurable {@link #tenantTransactionActive} check.
+     * Rejects (re)binding once a tenant transaction is active — the transaction borrows its
+     * tenant-bound connection at the beginning, so the binding must be complete first. Re-entering
+     * the same tenant and organization is allowed; a first bind, a tenant switch, or an organization
+     * switch is rejected. Whether a tenant transaction is active is decided by the configurable
+     * {@link #tenantTransactionActive} check.
      *
-     * @param target tenant that the caller wants to bind
+     * @param targetTenant tenant that the caller wants to bind
+     * @param targetOrganization organization dimension that the caller wants to bind, or {@code null}
      */
-    private static void rejectBindInActiveTransaction(final TenantId target) {
+    private static void rejectBindInActiveTransaction(
+            final TenantId targetTenant, final @Nullable OrganizationId targetOrganization) {
         if (!tenantTransactionActive.getAsBoolean()) {
             return;
         }
-        final TenantId current = CURRENT.get();
+        final Binding current = CURRENT.get();
         if (current == null) {
-            throw new SecurityException("cannot bind tenant " + target
+            throw new SecurityException("cannot bind tenant " + targetTenant
                     + " inside an active transaction — the transaction borrows a tenant-bound database"
                     + " connection at begin, so the tenant must be bound before the transaction starts"
                     + " (fail-closed)");
         }
-        if (!current.equals(target)) {
-            throw new SecurityException("cannot switch tenant binding from " + current + " to " + target
+        if (!current.tenant().equals(targetTenant)) {
+            throw new SecurityException("cannot switch tenant binding from " + current.tenant() + " to "
+                    + targetTenant
+                    + " inside an active transaction — the transaction has already borrowed a"
+                    + " tenant-bound database session, so the switch could not be enforced (fail-closed)");
+        }
+        if (!Objects.equals(current.organization(), targetOrganization)) {
+            throw new SecurityException("cannot switch organization binding from "
+                    + describeOrganization(current.organization()) + " to "
+                    + describeOrganization(targetOrganization)
                     + " inside an active transaction — the transaction has already borrowed a"
                     + " tenant-bound database session, so the switch could not be enforced (fail-closed)");
         }
@@ -275,9 +386,9 @@ public final class TenantContext {
      * Rejects clearing the current tenant while a tenant transaction is active.
      */
     private static void rejectClearInActiveTransaction() {
-        final TenantId current = CURRENT.get();
+        final Binding current = CURRENT.get();
         if (current != null && tenantTransactionActive.getAsBoolean()) {
-            throw new SecurityException("cannot clear tenant binding for " + current
+            throw new SecurityException("cannot clear tenant binding for " + current.tenant()
                     + " inside an active transaction — the transaction may already hold a"
                     + " tenant-bound database session, so clearing the application boundary could"
                     + " desynchronize it from the database session (fail-closed)");
@@ -285,17 +396,18 @@ public final class TenantContext {
     }
 
     /**
-     * Restores a previously bound tenant after scoped work completes.
+     * Restores a previously bound tenant (and organization dimension) after scoped work completes.
      *
-     * <p>Removing the thread-local when there was no prior tenant avoids leaking a completed request's
-     * tenant into later work on the same thread.
+     * <p>Removing the thread-local when there was no prior binding avoids leaking a completed
+     * request's tenant into later work on the same thread.
      *
-     * @param prior tenant that was bound before the scoped work, or {@code null} when none existed
+     * @param prior binding that existed before the scoped work, or {@code null} when none existed
      */
-    private static void restore(final @Nullable TenantId prior) {
-        final TenantId current = CURRENT.get();
+    private static void restore(final @Nullable Binding prior) {
+        final Binding current = CURRENT.get();
         if (tenantTransactionActive.getAsBoolean() && !Objects.equals(current, prior)) {
-            throw new SecurityException("cannot restore tenant binding from " + current + " to " + prior
+            throw new SecurityException("cannot restore tenant binding from " + describeBinding(current)
+                    + " to " + describeBinding(prior)
                     + " inside an active transaction — the transaction may already hold a"
                     + " tenant-bound database session, so restoring the application boundary could"
                     + " desynchronize it from the database session (fail-closed)");
@@ -305,5 +417,31 @@ public final class TenantContext {
         } else {
             CURRENT.set(prior);
         }
+    }
+
+    /**
+     * Renders a binding for guard messages.
+     *
+     * @param binding binding to describe, possibly {@code null}
+     * @return tenant plus organization dimension, or {@code "none"} when no binding exists
+     */
+    private static String describeBinding(final @Nullable Binding binding) {
+        if (binding == null) {
+            return "none";
+        }
+        if (binding.organization() == null) {
+            return binding.tenant().toString();
+        }
+        return binding.tenant() + " (organization " + binding.organization() + ")";
+    }
+
+    /**
+     * Renders an organization dimension for guard messages.
+     *
+     * @param organization organization to describe, possibly {@code null}
+     * @return the organization identifier or {@code "none"}
+     */
+    private static String describeOrganization(final @Nullable OrganizationId organization) {
+        return organization == null ? "none" : organization.toString();
     }
 }

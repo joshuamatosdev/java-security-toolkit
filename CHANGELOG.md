@@ -9,6 +9,26 @@ once public version tags begin.
 
 ### Added
 
+- Entitlement-based cross-tenant read grants (ADR-0008): an explicit,
+  platform-administered grant ledger (`tenant_security.read_grant`) and a
+  `PERMISSIVE FOR SELECT` policy let one tenant read another tenant's rows of
+  one resource class — directional, expiring, revocable on the next statement,
+  structurally read-only, and unforgeable/unenumerable from inside a tenant
+  session. The RESTRICTIVE organization cap now scopes only the session's own
+  tenant, so organization-bound sessions keep their entitled foreign reads.
+- Tenant-isolation README implementation walkthrough: an end-to-end adoption
+  guide for tenancy plus organizations — dependencies, configuration, the one
+  request-binding filter an adopter owns, the database-side DDL contract, and
+  the layered-authorization tie-in.
+- Organization scope within tenant isolation (ADR-0007): the organization is a
+  co-equal dimension of the tenant binding (`TenantContext.runAs(tenant,
+  organization, work)`), emitted as a second kind-separated signed claim
+  (`app.org_claim`, `v2o`) on every borrow, verified by
+  `tenant_security.current_org_id()`, and capped by a RESTRICTIVE row policy
+  AND-combined with the tenant policy. Posture is selected with
+  `tenant.binding.organization-scope` (`off` default, `optional`, `required`
+  with fail-closed borrows), so multi-tenancy with organizations is
+  database-enforced, not a query-predicate convention.
 - Spring Boot configuration metadata across the toolkit: IDE completion and
   documentation for every module property (`edge.*`, `tenant.isolation.*`,
   `tenant.binding.*`, `bulwark.crypto.*`), every starter gate flag
