@@ -6,13 +6,33 @@ import org.gradle.api.tasks.bundling.Jar
 import org.gradle.api.tasks.testing.Test
 import org.gradle.external.javadoc.StandardJavadocDocletOptions
 import org.gradle.jvm.toolchain.JavaLanguageVersion
+import org.gradle.plugins.signing.SigningExtension
 import org.gradle.testing.jacoco.tasks.JacocoReport
 
 plugins {
     base
+    // Gradle-built-in aggregation (no external plugin): merges every module's JaCoCo execution
+    // data into one repo-wide report at build/reports/jacoco/testCodeCoverageReport/.
+    `jacoco-report-aggregation`
     alias(libs.plugins.spring.dep.management) apply false
     alias(libs.plugins.cyclonedx.bom) apply false
     alias(libs.plugins.owasp.dependencycheck)
+}
+
+reporting {
+    reports {
+        create<org.gradle.testing.jacoco.plugins.JacocoCoverageReport>("testCodeCoverageReport") {
+            testSuiteName = "test"
+        }
+    }
+}
+
+dependencies {
+    // The aggregation scope resolves each module's runtime graph at the root, where Spring's
+    // dependency-management plugin is not applied — supply the same Boot BOM so the modules'
+    // version-less Boot coordinates resolve identically.
+    jacocoAggregation(platform("org.springframework.boot:spring-boot-dependencies:${libs.versions.springBoot.get()}"))
+    subprojects.forEach { jacocoAggregation(it) }
 }
 
 // Repo-wide CVE gate. `dependencyCheckAggregate` scans every subproject's resolved closure —
@@ -39,6 +59,14 @@ val jspecifyPublicApiDependencies = setOf(
     ":tenant-isolation",
     ":shared",
     ":supply-chain"
+)
+
+// The authorization split's promise — and shared's stronger one — as an executable check: the
+// runtime closure of these library modules must stay framework-free. A group allowlist rather
+// than a framework denylist, so any new transitive dependency fails loudly until it is judged.
+val frameworkFreeRuntimeAllowedGroups = mapOf(
+    ":shared" to setOf("io.github.joshuamatosdev.security", "org.jspecify"),
+    ":authorization" to setOf("io.github.joshuamatosdev.security", "org.jspecify", "org.slf4j")
 )
 
 val pinnedCommonsCompressVersion = libs.versions.commonsCompress.get()
@@ -209,6 +237,7 @@ subprojects {
 
     plugins.withId("java") {
         apply(plugin = "maven-publish")
+        apply(plugin = "signing")
         apply(plugin = "jacoco")
 
         extensions.configure<JavaPluginExtension>("java") {
@@ -242,6 +271,18 @@ subprojects {
 
         tasks.withType<Javadoc>().configureEach {
             (options as StandardJavadocDocletOptions).addStringOption("Xdoclint:none", "-quiet")
+        }
+
+        // Maven Central requires signed artifacts. Signing engages only when the key is present
+        // in the environment (CI release secrets); local and offline builds stay unaffected and
+        // publishToMavenLocal never demands a key.
+        extensions.configure<SigningExtension>("signing") {
+            val signingKey = System.getenv("SIGNING_KEY")
+            val signingPassword = System.getenv("SIGNING_PASSWORD")
+            if (!signingKey.isNullOrBlank()) {
+                useInMemoryPgpKeys(signingKey, signingPassword)
+                sign(extensions.getByType(PublishingExtension::class.java).publications)
+            }
         }
 
         extensions.configure<PublishingExtension>("publishing") {
@@ -312,6 +353,37 @@ subprojects {
 
             tasks.named("check") {
                 dependsOn(assertJSpecifyPublicApiDependencyIsCompileScoped)
+            }
+        }
+
+        frameworkFreeRuntimeAllowedGroups[project.path]?.let { allowedGroups ->
+            val assertFrameworkFreeRuntimeClasspath =
+                tasks.register("assertFrameworkFreeRuntimeClasspath") {
+                    description =
+                        "Fails the build if this module's runtime closure gains a dependency group outside its framework-free allowlist."
+                    doLast {
+                        val offending = configurations
+                            .getByName("runtimeClasspath")
+                            .incoming
+                            .resolutionResult
+                            .allComponents
+                            .mapNotNull { component -> component.moduleVersion }
+                            .map { module -> "${module.group}:${module.name}" }
+                            .filterNot { coordinate ->
+                                allowedGroups.any { group -> coordinate.startsWith("$group:") }
+                            }
+
+                        if (offending.isNotEmpty()) {
+                            throw GradleException(
+                                "${project.path} must stay framework-free at runtime; " +
+                                    "unexpected dependencies: ${offending.joinToString()}"
+                            )
+                        }
+                    }
+                }
+
+            tasks.named("check") {
+                dependsOn(assertFrameworkFreeRuntimeClasspath)
             }
         }
 

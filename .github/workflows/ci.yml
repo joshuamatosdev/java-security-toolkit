@@ -48,6 +48,24 @@ jobs:
           ./gradlew -p examples/tenant-isolation-spring-boot build --console=plain --no-daemon
           ./gradlew -p examples/five-layer-spring-boot build --console=plain --no-daemon
 
+      - name: Aggregate coverage
+        # Gradle-built-in jacoco-report-aggregation: one repo-wide report from every module's
+        # execution data (tests already ran in the build step; this only merges and reports).
+        run: ./gradlew testCodeCoverageReport --console=plain --no-daemon
+
+      - name: Publish coverage summary
+        run: |
+          xml=build/reports/jacoco/testCodeCoverageReport/testCodeCoverageReport.xml
+          echo "### Repository coverage" >> "$GITHUB_STEP_SUMMARY"
+          awk -F'"' '/<counter type="LINE"/{m=$4;c=$6} END{printf "- Line: **%.1f%%** (%d/%d)\n",100*c/(m+c),c,m+c}' "$xml" >> "$GITHUB_STEP_SUMMARY"
+          awk -F'"' '/<counter type="BRANCH"/{m=$4;c=$6} END{printf "- Branch: **%.1f%%** (%d/%d)\n",100*c/(m+c),c,m+c}' "$xml" >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Upload coverage report
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: coverage-report
+          path: build/reports/jacoco/testCodeCoverageReport/
+
   dependency-review:
     name: dependency review
     runs-on: ubuntu-latest

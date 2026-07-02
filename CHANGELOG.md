@@ -9,6 +9,33 @@ once public version tags begin.
 
 ### Added
 
+- Env-gated artifact signing: the `signing` plugin engages only when
+  `SIGNING_KEY` / `SIGNING_PASSWORD` are present (CI release secrets), so
+  Maven Central's signed-artifact requirement is wired without affecting
+  local, offline, or `publishToMavenLocal` builds.
+- Release and docs workflows: a `v*` tag runs the full verification build and
+  creates a GitHub Release with generated notes (Maven Central publication
+  stays a commented placeholder until the namespace, signing key, and portal
+  credentials exist); pushes to `main` publish every published module's
+  Javadoc to GitHub Pages as one browsable site, assembled in shell from each
+  module's own `javadoc` output — no new build logic. All new actions are
+  SHA-pinned and pass `ActionPinPolicy`.
+- Dependabot configuration: weekly grouped updates for the Gradle version
+  catalog / Boot BOM (root and every example build) and for the SHA-pinned
+  GitHub Actions — the freshness half of the supply-chain story whose
+  immutability half `ActionPinPolicy` and `WrapperPinPolicy` already enforce.
+- Repo-wide coverage aggregation: the Gradle-built-in `jacoco-report-aggregation`
+  plugin merges every module's execution data into one report
+  (`./gradlew testCodeCoverageReport`), CI publishes the totals to the job
+  summary and uploads the HTML/XML report as an artifact. Mutation testing
+  (PIT) was considered and deliberately not added — it would be the build's
+  first third-party quality plugin, against the lean supply-chain posture.
+- `assertFrameworkFreeRuntimeClasspath` — the authorization split's promise as
+  an executable check: `:shared` and `:authorization` fail the build if their
+  runtime closure gains any dependency group outside an explicit allowlist
+  (jspecify; plus SLF4J for authorization). An allowlist rather than a
+  framework denylist, so a new transitive dependency fails loudly until it is
+  judged. Zero new build dependencies.
 - `examples/five-layer-spring-boot` — the composed five-layer example: a BFF
   (edge starter — session, PKCE login shape, CORS/CSRF/cookie hardening, token
   relay) in front of a resource service (authorization starter + tenant-isolation
