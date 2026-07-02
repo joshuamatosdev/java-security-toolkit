@@ -1,5 +1,6 @@
 package io.github.joshuamatosdev.security.shared;
 
+import java.util.Objects;
 import java.util.UUID;
 import org.jspecify.annotations.NonNull;
 
@@ -14,14 +15,8 @@ import org.jspecify.annotations.NonNull;
 public record TenantId(UUID value) {
 
     public TenantId {
-        if (value == null) {
-            throw new IllegalArgumentException("TenantId must not be null");
-        }
+        Objects.requireNonNull(value, "TenantId must not be null");
         CanonicalUuid.requireNotNil(value, "TenantId");
-    }
-
-    public TenantId(final String stringValue) {
-        this(CanonicalUuid.parse(stringValue, "TenantId"));
     }
 
     public static TenantId fromString(final String raw) {

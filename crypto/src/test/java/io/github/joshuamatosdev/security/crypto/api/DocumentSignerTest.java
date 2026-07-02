@@ -195,7 +195,7 @@ class DocumentSignerTest {
     }
 
     @Test
-    void verifyDoesNotHideProviderProgrammingErrors() {
+    void verifyDoesNotHideProviderProgrammingErrorsAndStillAuditsThem() {
         final SignedDocument signed =
                 signer.sign(registry.resolve(SignatureAlgorithm.ED25519).generateKey("k1"), DOCUMENT);
         final SignatureProvider brokenProvider =
@@ -215,12 +215,64 @@ class DocumentSignerTest {
                         throw new IllegalArgumentException("provider invariant failed");
                     }
                 };
-        final DocumentSigner brokenSigner =
-                new DocumentSigner(new SignatureProviderRegistry(List.of(brokenProvider)));
+        final List<SignatureAuditEvent> events = new ArrayList<>();
+        final DocumentSigner brokenSigner = new DocumentSigner(
+                new SignatureProviderRegistry(List.of(brokenProvider)),
+                null,
+                null,
+                null,
+                new io.github.joshuamatosdev.security.crypto.internal.DefaultSignatureEnvelopeCodec(),
+                events::add);
 
         assertThatThrownBy(() -> brokenSigner.verify(signed))
                 .isInstanceOf(IllegalArgumentException.class)
                 .hasMessage("provider invariant failed");
+        // Verification failures must reach the audit pipeline exactly as signing failures do.
+        assertThat(events.getLast().operation()).isEqualTo(SignatureAuditEvent.Operation.VERIFY);
+        assertThat(events.getLast().success()).isFalse();
+        assertThat(events.getLast().reason()).isEqualTo("IllegalArgumentException");
+    }
+
+    @Test
+    void signRejectsMalformedKeyIdsUpFrontWithoutMaskingOrPhantomAuditFailures() {
+        final KeyHandle real = registry.resolve(SignatureAlgorithm.ED25519).generateKey("k1");
+        final KeyHandle paddedKeyId = new KeyHandle() {
+            @Override
+            public String keyId() {
+                return " k1 ";
+            }
+
+            @Override
+            public SignatureAlgorithm algorithm() {
+                return real.algorithm();
+            }
+
+            @Override
+            public byte[] publicKey() {
+                return real.publicKey();
+            }
+
+            @Override
+            public byte[] sign(final byte[] payload) {
+                return real.sign(payload);
+            }
+        };
+        final List<SignatureAuditEvent> events = new ArrayList<>();
+        final DocumentSigner audited = new DocumentSigner(
+                registry,
+                null,
+                null,
+                null,
+                new io.github.joshuamatosdev.security.crypto.internal.DefaultSignatureEnvelopeCodec(),
+                events::add);
+
+        // Before the up-front validation, the malformed key id detonated inside the failure
+        // recording itself: the audit event's validation replaced the root cause and delivered
+        // nothing to the sink. Now the caller-contract violation fails fast with its own message.
+        assertThatThrownBy(() -> audited.sign(paddedKeyId, DOCUMENT))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessage("keyId must not include leading or trailing whitespace");
+        assertThat(events).isEmpty();
     }
 
     @Test

@@ -4,5 +4,7 @@ plugins {
 }
 
 dependencies {
+    api(project(":shared"))
+
     testImplementation(project(":crypto-testkit"))
 }

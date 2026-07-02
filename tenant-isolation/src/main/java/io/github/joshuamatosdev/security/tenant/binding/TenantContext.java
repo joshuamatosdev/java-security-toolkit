@@ -309,9 +309,12 @@ public final class TenantContext {
         final Binding prior = CURRENT.get();
         CURRENT.set(new Binding(tenant, organization));
         try {
-            return work.get();
-        } finally {
+            final T result = work.get();
             restore(prior);
+            return result;
+        } catch (final RuntimeException | Error ex) {
+            restoreSuppressing(prior, ex);
+            throw ex;
         }
     }
 
@@ -327,9 +330,32 @@ public final class TenantContext {
         final Binding prior = CURRENT.get();
         CURRENT.set(new Binding(TenantIds.SYSTEM_OPS, null));
         try {
-            return work.get();
-        } finally {
+            final T result = work.get();
             restore(prior);
+            return result;
+        } catch (final RuntimeException | Error ex) {
+            restoreSuppressing(prior, ex);
+            throw ex;
+        }
+    }
+
+    /**
+     * Restores the prior binding after failed scoped work without masking the failure.
+     *
+     * <p>The restore guard can itself throw (a tenant transaction is active and the binding
+     * differs) — and the likeliest way to reach that state is the work failing mid-transaction.
+     * The work's exception is the root cause an operator needs, so a restore failure is attached
+     * as suppressed instead of replacing it. The fail-closed outcome is unchanged: the inner
+     * binding is retained, exactly as when restore throws on the success path.
+     *
+     * @param prior binding to restore
+     * @param primary the exception thrown by the scoped work
+     */
+    private static void restoreSuppressing(final @Nullable Binding prior, final Throwable primary) {
+        try {
+            restore(prior);
+        } catch (final RuntimeException restoreFailure) {
+            primary.addSuppressed(restoreFailure);
         }
     }
 

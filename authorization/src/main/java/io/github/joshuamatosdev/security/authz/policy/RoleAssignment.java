@@ -1,6 +1,7 @@
 package io.github.joshuamatosdev.security.authz.policy;
 
 import io.github.joshuamatosdev.security.shared.OrganizationId;
+import io.github.joshuamatosdev.security.shared.RequiredText;
 import io.github.joshuamatosdev.security.shared.TeamId;
 import org.jspecify.annotations.Nullable;
 
@@ -77,16 +78,6 @@ public record RoleAssignment(
     }
 
     private static String requireNonBlank(final String value) {
-        Objects.requireNonNull(value, "roleKey must not be null");
-        if (value.isBlank()) {
-            throw new IllegalArgumentException("roleKey must not be blank");
-        }
-        if (!value.equals(value.strip())) {
-            throw new IllegalArgumentException("roleKey must not include leading or trailing whitespace");
-        }
-        if (value.chars().anyMatch(Character::isISOControl)) {
-            throw new IllegalArgumentException("roleKey must not contain control characters");
-        }
-        return value;
+        return RequiredText.require(value, "roleKey");
     }
 }

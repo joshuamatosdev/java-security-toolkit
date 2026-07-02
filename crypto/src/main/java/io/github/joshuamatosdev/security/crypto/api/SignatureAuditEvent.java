@@ -1,5 +1,6 @@
 package io.github.joshuamatosdev.security.crypto.api;
 
+import io.github.joshuamatosdev.security.shared.RequiredText;
 import java.util.Objects;
 
 /** Audit event emitted by {@link DocumentSigner}. */
@@ -28,16 +29,6 @@ public record SignatureAuditEvent(
     }
 
     private static String requireAuditText(final String value, final String field) {
-        Objects.requireNonNull(value, field + " must not be null");
-        if (value.isBlank()) {
-            throw new IllegalArgumentException(field + " must not be blank");
-        }
-        if (!value.equals(value.strip())) {
-            throw new IllegalArgumentException(field + " must not include leading or trailing whitespace");
-        }
-        if (value.chars().anyMatch(Character::isISOControl)) {
-            throw new IllegalArgumentException(field + " must not contain control characters");
-        }
-        return value;
+        return RequiredText.require(value, field);
     }
 }

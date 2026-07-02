@@ -42,7 +42,7 @@ class SignedDocumentTest {
                 .hasMessage("alg must not be blank");
         assertThatThrownBy(() -> new SignedDocument(" EdDSA", "k1", new byte[] {1}, PAYLOAD, new byte[] {2}))
                 .isInstanceOf(IllegalArgumentException.class)
-                .hasMessage("alg must not contain leading or trailing whitespace");
+                .hasMessage("alg must not include leading or trailing whitespace");
         assertThatThrownBy(() -> new SignedDocument("EdDSA\nforged", "k1", new byte[] {1}, PAYLOAD, new byte[] {2}))
                 .isInstanceOf(IllegalArgumentException.class)
                 .hasMessage("alg must not contain control characters");

@@ -1,8 +1,9 @@
 package io.github.joshuamatosdev.security.tenant.datasource.factory;
 
 import com.zaxxer.hikari.HikariDataSource;
-import io.github.joshuamatosdev.security.tenant.PostgresJdbcUrls;
+import io.github.joshuamatosdev.security.shared.RequiredText;
 import io.github.joshuamatosdev.security.shared.TenantId;
+import io.github.joshuamatosdev.security.tenant.PostgresJdbcUrls;
 import io.github.joshuamatosdev.security.tenant.binding.SystemTenantBoundary;
 import io.github.joshuamatosdev.security.tenant.config.TenantBindingProperties;
 import io.github.joshuamatosdev.security.tenant.config.TenantIsolationMode;
@@ -135,14 +136,9 @@ final class TenantPoolFactory {
             throw new IllegalStateException(
                     "spring.datasource.url must name the PostgreSQL tenant runtime database");
         }
-        if (!jdbcUrl.equals(jdbcUrl.strip())) {
-            throw new IllegalStateException(
-                    "spring.datasource.url must not include leading or trailing whitespace");
-        }
-        if (jdbcUrl.chars().anyMatch(Character::isISOControl)) {
-            throw new IllegalStateException(
-                    "spring.datasource.url must not contain control characters");
-        }
+        RequiredText.violation(jdbcUrl).ifPresent(violation -> {
+            throw new IllegalStateException("spring.datasource.url " + violation);
+        });
         if (!JDBC_URL.matcher(jdbcUrl).matches()) {
             throw new IllegalStateException("spring.datasource.url must be a valid JDBC URL");
         }
@@ -163,14 +159,9 @@ final class TenantPoolFactory {
         if (username == null || username.isBlank()) {
             throw new IllegalStateException("spring.datasource.username must name the tenant runtime role");
         }
-        if (!username.equals(username.strip())) {
-            throw new IllegalStateException(
-                    "spring.datasource.username must not include leading or trailing whitespace");
-        }
-        if (username.chars().anyMatch(Character::isISOControl)) {
-            throw new IllegalStateException(
-                    "spring.datasource.username must not contain control characters");
-        }
+        RequiredText.violation(username).ifPresent(violation -> {
+            throw new IllegalStateException("spring.datasource.username " + violation);
+        });
         if (FORBIDDEN_RUNTIME_POOL_USERNAMES.contains(username.toLowerCase(Locale.ROOT))) {
             throw new IllegalStateException(
                     "spring.datasource.username must not be a privileged or system-ops identity");
@@ -182,13 +173,8 @@ final class TenantPoolFactory {
         if (password == null || password.isBlank()) {
             throw new IllegalStateException("spring.datasource.password must name the tenant runtime role password");
         }
-        if (!password.equals(password.strip())) {
-            throw new IllegalStateException(
-                    "spring.datasource.password must not include leading or trailing whitespace");
-        }
-        if (password.chars().anyMatch(Character::isISOControl)) {
-            throw new IllegalStateException(
-                    "spring.datasource.password must not contain control characters");
-        }
+        RequiredText.violation(password).ifPresent(violation -> {
+            throw new IllegalStateException("spring.datasource.password " + violation);
+        });
     }
 }

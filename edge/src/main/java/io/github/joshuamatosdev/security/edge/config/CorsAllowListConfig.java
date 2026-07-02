@@ -44,7 +44,7 @@ public class CorsAllowListConfig {
       throw new IllegalStateException(
           "Credentialed CORS origins must not include leading or trailing whitespace.");
     }
-    if (origins.stream().anyMatch(CorsAllowListConfig::containsControlCharacter)) {
+    if (origins.stream().anyMatch(UriValidation::containsControlCharacter)) {
       throw new IllegalStateException(
           "Credentialed CORS origins must not contain control characters.");
     }
@@ -108,32 +108,15 @@ public class CorsAllowListConfig {
       throw new IllegalStateException(
           "Credentialed CORS origins must be absolute HTTP(S) origins: " + origin);
     }
-    if (!hasValidExplicitHttpPort(parsed)) {
+    if (!UriValidation.hasValidExplicitHttpPort(parsed)) {
       throw new IllegalStateException(
           "Credentialed CORS origins must include a valid HTTP(S) port when a port is explicit: "
               + origin);
     }
-    if ("http".equalsIgnoreCase(scheme) && !isLoopbackHost(parsed.getHost())) {
+    if ("http".equalsIgnoreCase(scheme) && !UriValidation.isLoopbackHost(parsed.getHost())) {
       throw new IllegalStateException(
           "Credentialed CORS origins must use HTTPS except for loopback local development: "
               + origin);
     }
-  }
-
-  private static boolean isLoopbackHost(String host) {
-    return "localhost".equalsIgnoreCase(host)
-        || "127.0.0.1".equals(host)
-        || "::1".equals(host)
-        || "[::1]".equals(host);
-  }
-
-  private static boolean hasValidExplicitHttpPort(URI parsed) {
-    String rawAuthority = parsed.getRawAuthority();
-    int port = parsed.getPort();
-    return (port == -1 || port > 0) && port <= 65535 && (rawAuthority == null || !rawAuthority.endsWith(":"));
-  }
-
-  private static boolean containsControlCharacter(String value) {
-    return value.chars().anyMatch(Character::isISOControl);
   }
 }

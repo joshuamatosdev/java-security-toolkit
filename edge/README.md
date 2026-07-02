@@ -47,6 +47,11 @@ implementation("io.github.joshuamatosdev.security:edge:0.1.0-SNAPSHOT")
 testImplementation("io.github.joshuamatosdev.security:edge-testkit:0.1.0-SNAPSHOT")
 ```
 
+The testkit ships `EdgePropertiesContract` (hardened defaults, non-loopback HTTP issuer
+rejection) and `CorsAllowListContract` (credentialed CORS refuses wildcard, opaque `null`,
+and non-loopback HTTP origins) — implement them in your test suite to prove your
+deployment policy against the startup guards. The module runs both contracts itself.
+
 Spring Boot auto-configuration:
 
 ```kotlin

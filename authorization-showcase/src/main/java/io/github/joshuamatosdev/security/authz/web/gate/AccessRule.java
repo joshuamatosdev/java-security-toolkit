@@ -1,5 +1,6 @@
 package io.github.joshuamatosdev.security.authz.web.gate;
 
+import io.github.joshuamatosdev.security.shared.RequiredText;
 import io.github.joshuamatosdev.security.authz.policy.Roles;
 import org.jspecify.annotations.Nullable;
 import org.springframework.http.HttpMethod;
@@ -61,16 +62,7 @@ public record AccessRule(SecurityUrlGroup group, @Nullable HttpMethod method, Li
     }
 
     private static String requireBareRole(final String role) {
-        Objects.requireNonNull(role, "role must not be null");
-        if (role.isBlank()) {
-            throw new IllegalArgumentException("role must not be blank");
-        }
-        if (!role.equals(role.strip())) {
-            throw new IllegalArgumentException("role must not include leading or trailing whitespace");
-        }
-        if (role.chars().anyMatch(Character::isISOControl)) {
-            throw new IllegalArgumentException("role must not contain control characters");
-        }
+        RequiredText.require(role, "role");
         if (role.startsWith(ROLE_PREFIX)) {
             throw new IllegalArgumentException("role must be bare; do not include " + ROLE_PREFIX);
         }

@@ -23,14 +23,16 @@ import java.util.stream.Collectors;
 
 /**
  * Resolves the immutable {@link RequestContext} once, at the edge of the request, from the
- * authenticated {@link Authentication} plus the tenant/organization the gateway injects as headers.
+ * authenticated {@link Authentication} alone — no request header participates in resolution. The
+ * caller-supplied {@code X-Tenant-Id} header is a separate, <em>untrusted</em> boundary claim that
+ * {@code DocumentBoundaryAuthorizer} cross-checks against this resolved context; it never creates
+ * identity or scope.
  *
  * <p>Showcase simplification: a real resolver loads the actor's <em>scoped</em> role assignments from
  * the authorization store keyed on the subject. Here, to stay self-contained, each coarse authority
- * is resolved against a tiny trusted in-memory profile. The supplied tenant/organization headers are
- * boundary hints to validate, not authority to manufacture scoped membership. That follows the
- * tenant-isolation canon: caller-carried tenant values are transport/boundary claims, never the
- * authority that creates tenant context.
+ * is resolved against a tiny trusted in-memory profile. That follows the tenant-isolation canon:
+ * caller-carried tenant values are transport/boundary claims, never the authority that creates
+ * tenant context.
  *
  * <p>The in-memory trusted-actor seed is demo data gated behind {@code showcase.demo-identity=true}
  * (default off), so it can never grant a production identity by omission; a real deployment leaves the

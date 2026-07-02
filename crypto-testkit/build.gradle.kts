@@ -5,5 +5,4 @@ plugins {
 
 dependencies {
     api(project(":crypto"))
-    api(libs.junit.jupiter.params)
 }

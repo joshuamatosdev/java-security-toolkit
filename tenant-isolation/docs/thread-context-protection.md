@@ -98,17 +98,18 @@ flowchart TB
     tx --> txState
     repository -->|borrows connection| proxy
     proxy -->|requires current tenant| tenantContext
-    proxy -->|checks transaction guard| txState
+    tenantContext -->|rejects bind or switch during active transaction| txState
     proxy -->|signs tenant claim| pool --> session --> rls --> rows
     repository --> cleanup
     cleanup -->|prevents tenant leak before thread reuse| worker
 ```
 
 Spring owns the request dispatch and transaction state. `TenantContext` owns the
-tenant value for the current worker thread. The datasource proxy joins those
-facts at the database boundary: it refuses to borrow a tenant-scoped connection
-without a tenant, refuses unsafe tenant changes during a tenant transaction, and
-binds the signed claim before SQL reaches PostgreSQL.
+tenant value for the current worker thread — including the tenant-before-transaction
+guard: a first bind or an unsafe tenant/organization switch is rejected at bind
+time once a tenant transaction is active. The datasource proxy joins those facts
+at the database boundary: it refuses a borrow with no bound tenant and binds the
+signed claim before SQL reaches PostgreSQL.
 
 ## Failure Modes
 
@@ -118,8 +119,8 @@ If code borrows a tenant-scoped connection without a tenant, it would be unclear
 which rows the request should be allowed to see.
 
 This module fails closed. `TenantContext.requireCurrent()` throws when no tenant
-is bound, and `TenantSessionDataSourceProxy` closes the raw connection if a
-borrow happens without a tenant.
+is bound, and `TenantSessionDataSourceProxy` rejects the borrow before any pool
+connection is taken — a tenant-less request never touches a raw connection.
 
 ### Leaked Tenant
 

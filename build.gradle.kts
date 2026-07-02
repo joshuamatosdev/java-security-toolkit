@@ -31,11 +31,6 @@ val bootLibraryPublicApiDependencies = mapOf(
         "spring-boot-starter-oauth2-client",
         "spring-boot-starter-oauth2-resource-server"
     ),
-    ":authorization" to setOf(
-        "spring-boot-starter-web",
-        "spring-boot-starter-security",
-        "spring-boot-starter-data-jpa"
-    ),
     ":tenant-isolation" to setOf("spring-boot-starter-data-jpa")
 )
 
@@ -71,7 +66,9 @@ val securityPinnedDependencyVersions = mapOf(
             "io.netty:netty-handler-proxy" to pinnedNettyVersion
         )
     ),
-    ":authorization" to mapOf(
+    // The decision core and its starter carry no web server or database driver anymore; the
+    // showcase application owns that CVE surface.
+    ":authorization-showcase" to mapOf(
         "runtimeClasspath" to mapOf(
             "org.apache.tomcat.embed:tomcat-embed-core" to pinnedTomcatVersion,
             "org.apache.tomcat.embed:tomcat-embed-websocket" to pinnedTomcatVersion,
@@ -80,13 +77,6 @@ val securityPinnedDependencyVersions = mapOf(
         "testRuntimeClasspath" to mapOf(
             "org.apache.commons:commons-compress" to pinnedCommonsCompressVersion,
             "org.apache.commons:commons-lang3" to pinnedCommonsLang3Version
-        )
-    ),
-    ":authorization-spring-boot-starter" to mapOf(
-        "runtimeClasspath" to mapOf(
-            "org.apache.tomcat.embed:tomcat-embed-core" to pinnedTomcatVersion,
-            "org.apache.tomcat.embed:tomcat-embed-websocket" to pinnedTomcatVersion,
-            "org.postgresql:postgresql" to pinnedPostgresqlVersion
         )
     ),
     ":tenant-isolation" to mapOf(
@@ -202,18 +192,17 @@ subprojects {
         ":edge-spring-boot-starter" ->
             extra["netty.version"] = nettyVersion
 
-        ":authorization",
-        ":authorization-spring-boot-starter" ->
+        ":authorization-showcase" ->
             extra["tomcat.version"] = tomcatVersion
     }
 
-    if (project.path in setOf(":tenant-isolation", ":authorization")) {
+    if (project.path in setOf(":tenant-isolation", ":authorization-showcase")) {
         extra["commons-lang3.version"] = commonsLang3Version
     }
 
     if (project.path in setOf(
             ":tenant-isolation-spring-boot-starter",
-            ":authorization-spring-boot-starter"
+            ":authorization-showcase"
         )) {
         extra["postgresql.version"] = postgresqlVersion
     }

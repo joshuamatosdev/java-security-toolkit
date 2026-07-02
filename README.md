@@ -39,6 +39,7 @@ Run focused modules:
 ./gradlew :authorization:test
 ./gradlew :authorization-spring-boot-starter:test
 ./gradlew :authorization-testkit:test
+./gradlew :authorization-showcase:test
 ./gradlew :edge:test
 ./gradlew :edge-spring-boot-starter:test
 ./gradlew :edge-testkit:test
@@ -60,7 +61,7 @@ database behavior.
 flowchart LR
     Browser["Browser / SPA"] --> Edge["edge<br/>OIDC, PKCE, CORS, CSRF, headers"]
     Service["Service client"] --> Edge
-    Edge --> Authz["authorization<br/>route gate + resource policy + audit"]
+    Edge --> Authz["authorization<br/>resource policy + audit"]
     Authz --> Tenant["tenant-isolation<br/>placement + signed session claim + RLS"]
     Tenant --> Postgres[("PostgreSQL")]
     Shared["shared<br/>typed identifiers"] --> Authz
@@ -76,9 +77,10 @@ flowchart LR
 | `tenant-isolation` | Tenant placement, signed PostgreSQL session claims, organization scope, cross-tenant read entitlements, and RLS | Tenant context reaches the database boundary and isolation — including the organization dimension within a tenant and explicit read-only sharing across tenants — holds under real PostgreSQL behavior. |
 | `tenant-isolation-spring-boot-starter` | Spring Boot auto-configuration | A Spring app can import the tenant isolation configuration through one starter dependency. |
 | `tenant-isolation-testkit` | Tenant context contracts | Adopters can prove context binding, clearing, and cross-tenant rejection without copying reference tests. |
-| `authorization` | Coarse route gate plus fine-grained resource policy | Route, resource, deny-overrides, and audit behavior are enforced from the same decision point. |
+| `authorization` | Fine-grained resource policy, deny-overrides, audit | Scope-layered policy, deny-overrides, and audit behavior are enforced from the same framework-free decision point. |
 | `authorization-spring-boot-starter` | Spring Boot auto-configuration | A Spring app can auto-wire the reference authorization service and policies. |
 | `authorization-testkit` | Authorization policy contracts | Policy implementers can reuse allow, deny, mismatch, and audit-oriented contract checks. |
+| `authorization-showcase` | Demonstration document API over the decision core (not published) | The coarse route gate, resource policy, PostgreSQL-backed ownership, and audit trail run together in a real Spring web application. |
 | `edge` | Browser/service credential plane separation | Browser sessions, service JWTs, CORS, CSRF, and headers stay in their intended boundary. |
 | `edge-spring-boot-starter` | Spring Boot auto-configuration | A WebFlux edge app can import the reference perimeter chains and properties through a starter. |
 | `edge-testkit` | Edge policy contracts | Consumers can reuse property and perimeter policy checks around CORS, headers, and credential-plane defaults. |
@@ -119,6 +121,7 @@ bulwark/
 |-- authorization/           # coarse request gate + fine-grained policy
 |-- authorization-spring-boot-starter/ # optional Boot auto-configuration
 |-- authorization-testkit/   # reusable authorization contracts
+|-- authorization-showcase/  # demonstration web app: route gate + document API (not published)
 |-- edge/                    # BFF edge: dual credential planes, headers, CORS, CSRF
 |-- edge-spring-boot-starter/ # optional Boot auto-configuration
 |-- edge-testkit/            # reusable edge policy contracts
@@ -144,7 +147,7 @@ explicit, and deny-by-default.
 | Layer | Concern | Module |
 |---|---|---|
 | 1. Identity / AuthN | OIDC, PKCE, browser/service credential separation | `edge` |
-| 2. Authorization | Coarse route gate plus fine-grained resource policy | `authorization` |
+| 2. Authorization | Coarse route gate plus fine-grained resource policy | `authorization` (route gate demonstrated in `authorization-showcase`) |
 | 3. Secrets / config | No production secret in source or image | ADR-0001 and release checklist |
 | 4. Transport / runtime | Perimeter routing, browser headers, actuator lockdown | `edge` |
 | 5. Data | Tenant placement, least-privilege roles, RLS | `tenant-isolation` |
@@ -183,7 +186,7 @@ Useful commands:
 ./gradlew test
 ./gradlew build
 ./gradlew :tenant-isolation:test --tests "*SchemaIsolationModeIntegrationTest"
-./gradlew :authorization:test --tests "*DocumentControllerSecurityTest"
+./gradlew :authorization-showcase:test --tests "*DocumentControllerSecurityTest"
 ./gradlew :edge:test --tests "*RouteAuthorizationTest"
 ./gradlew :supply-chain:test --tests "*SbomIntegrityTest"
 ./gradlew :crypto:test

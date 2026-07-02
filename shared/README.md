@@ -10,13 +10,20 @@ of the same concept.
 
 - `TenantId`
 - `OrganizationId`
+- `TeamId`
 - `ResourceId`
+- `RequiredText` — the single required-text rule set (non-blank, no edge
+  whitespace, no control characters) for configuration and construction
+  boundaries.
 
-Each type wraps a UUID and provides a narrow factory API. Modules depend on
-these identifiers through:
+Each identifier wraps a UUID and provides a narrow factory API with one shared
+contract: canonical-form parsing, nil-UUID rejection, and
+`NullPointerException` on null. Modules that expose these types in their own
+public signatures depend on them with `api` scope (as `tenant-isolation` and
+`authorization` do), so the types stay compile-visible to consumers:
 
 ```kotlin
-implementation(project(":shared"))
+api(project(":shared"))
 ```
 
 Consumers that implement compatible identifier types can reuse

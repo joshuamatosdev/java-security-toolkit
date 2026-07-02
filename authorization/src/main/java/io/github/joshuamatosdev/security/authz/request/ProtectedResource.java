@@ -1,5 +1,6 @@
 package io.github.joshuamatosdev.security.authz.request;
 
+import io.github.joshuamatosdev.security.shared.RequiredText;
 import io.github.joshuamatosdev.security.authz.principal.PolicyPrincipal;
 import io.github.joshuamatosdev.security.authz.principal.PrincipalType;
 import io.github.joshuamatosdev.security.shared.OrganizationId;
@@ -42,14 +43,8 @@ public record ProtectedResource(
         if (teamId != null && organizationId == null) {
             throw new IllegalArgumentException("a team-placed resource must also carry its organization");
         }
-        if (ownerPrincipalKey != null && ownerPrincipalKey.isBlank()) {
-            throw new IllegalArgumentException("ownerPrincipalKey must not be blank");
-        }
-        if (ownerPrincipalKey != null && !ownerPrincipalKey.equals(ownerPrincipalKey.strip())) {
-            throw new IllegalArgumentException("ownerPrincipalKey must not include leading or trailing whitespace");
-        }
-        if (ownerPrincipalKey != null && ownerPrincipalKey.chars().anyMatch(Character::isISOControl)) {
-            throw new IllegalArgumentException("ownerPrincipalKey must not contain control characters");
+        if (ownerPrincipalKey != null) {
+            RequiredText.require(ownerPrincipalKey, "ownerPrincipalKey");
         }
         if ((ownerPrincipalType == null) != (ownerPrincipalKey == null)) {
             throw new IllegalArgumentException(

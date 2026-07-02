@@ -1,5 +1,6 @@
 package io.github.joshuamatosdev.security.tenant.datasource.session;
 
+import io.github.joshuamatosdev.security.shared.RequiredText;
 import java.nio.charset.StandardCharsets;
 import java.security.GeneralSecurityException;
 import java.time.Clock;
@@ -53,13 +54,9 @@ public final class TenantClaimSigner {
         if (secret == null || secret.isBlank()) {
             throw new IllegalArgumentException("tenant claim secret must be populated");
         }
-        if (!secret.equals(secret.strip())) {
-            throw new IllegalArgumentException(
-                    "tenant claim secret must not include leading or trailing whitespace");
-        }
-        if (secret.chars().anyMatch(Character::isISOControl)) {
-            throw new IllegalArgumentException("tenant claim secret must not contain control characters");
-        }
+        RequiredText.violation(secret).ifPresent(violation -> {
+            throw new IllegalArgumentException("tenant claim secret " + violation);
+        });
         final byte[] secretBytes = secret.getBytes(StandardCharsets.UTF_8);
         if (secretBytes.length < MIN_SECRET_BYTES) {
             throw new IllegalArgumentException("tenant claim secret must be at least 32 bytes");

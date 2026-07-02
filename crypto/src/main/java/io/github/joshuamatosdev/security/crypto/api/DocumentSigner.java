@@ -1,6 +1,7 @@
 package io.github.joshuamatosdev.security.crypto.api;
 
 import io.github.joshuamatosdev.security.crypto.internal.DefaultSignatureEnvelopeCodec;
+import io.github.joshuamatosdev.security.shared.RequiredText;
 import java.util.Objects;
 
 /**
@@ -62,7 +63,10 @@ public final class DocumentSigner {
         Objects.requireNonNull(payload, "payload must not be null");
 
         final String alg = key.algorithm().joseAlg();
-        final String keyId = key.keyId();
+        // Validated before the try: the failure-path audit event below carries this key id, and
+        // the event's own validation must never throw while recording a failure — that would both
+        // lose the audit event and mask the root cause.
+        final String keyId = RequiredText.require(key.keyId(), "keyId");
         final byte[] publicKey = key.publicKey();
         try {
             final byte[] signature = key.sign(envelopeCodec.signingInput(alg, keyId, publicKey, payload));
@@ -104,10 +108,19 @@ public final class DocumentSigner {
         }
 
         final byte[] publicKey = document.publicKey();
-        final boolean verified = provider.verify(
-                publicKey,
-                envelopeCodec.signingInput(document.alg(), document.keyId(), publicKey, document.payload()),
-                document.signature());
+        final boolean verified;
+        try {
+            verified = provider.verify(
+                    publicKey,
+                    envelopeCodec.signingInput(document.alg(), document.keyId(), publicKey, document.payload()),
+                    document.signature());
+        } catch (RuntimeException ex) {
+            // Same audit posture as sign(): a provider or codec failure is recorded, then
+            // propagated. Verification must not be the one operation that can fail unaudited.
+            record(SignatureAuditEvent.Operation.VERIFY, document.alg(), document.keyId(), false,
+                    ex.getClass().getSimpleName());
+            throw ex;
+        }
         record(
                 SignatureAuditEvent.Operation.VERIFY,
                 document.alg(),
@@ -132,7 +145,17 @@ public final class DocumentSigner {
             record(SignatureAuditEvent.Operation.VERIFY, null, null, false, "document is null");
             return false;
         }
-        if (!trustAnchor.trusts(document.keyId(), document.publicKey())) {
+        final boolean trusted;
+        try {
+            trusted = trustAnchor.trusts(document.keyId(), document.publicKey());
+        } catch (RuntimeException ex) {
+            // Anchors backed by KMS or key-directory lookups can fail at runtime; record before
+            // propagating so the anchored path keeps the same audit completeness as verify().
+            record(SignatureAuditEvent.Operation.VERIFY, document.alg(), document.keyId(), false,
+                    ex.getClass().getSimpleName());
+            throw ex;
+        }
+        if (!trusted) {
             record(SignatureAuditEvent.Operation.VERIFY, document.alg(), document.keyId(), false, "untrusted key");
             return false;
         }
@@ -154,15 +177,9 @@ public final class DocumentSigner {
 
     private static String requireNonBlank(final String value, final String field) {
         Objects.requireNonNull(value, field + " must not be null");
-        if (value.isBlank()) {
-            throw new IllegalStateException(field + " must not be blank");
-        }
-        if (!value.equals(value.strip())) {
-            throw new IllegalStateException(field + " must not include leading or trailing whitespace");
-        }
-        if (value.chars().anyMatch(Character::isISOControl)) {
-            throw new IllegalStateException(field + " must not contain control characters");
-        }
+        RequiredText.violation(value).ifPresent(violation -> {
+            throw new IllegalStateException(field + " " + violation);
+        });
         return value;
     }
 
