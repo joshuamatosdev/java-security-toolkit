@@ -1,132 +1,36 @@
 package io.github.joshuamatosdev.security.crypto.spring;
 
 import io.github.joshuamatosdev.security.crypto.api.SignatureAlgorithm;
+import io.github.joshuamatosdev.security.shared.RequiredText;
 import org.springframework.boot.context.properties.ConfigurationProperties;
 
-/** Configuration properties for the crypto-agility Spring Boot starter. */
+/**
+ * Configuration properties for the crypto-agility Spring Boot starter.
+ *
+ * <p>The starter gate ({@code bulwark.crypto.enabled}), the provider toggles
+ * ({@code bulwark.crypto.providers.jca.*.enabled}), and the local ephemeral key opt-in
+ * ({@code bulwark.crypto.local-ephemeral-keys.enabled}) are read only by
+ * {@code @ConditionalOnProperty} conditions in {@link CryptoAgilityAutoConfiguration}, so this
+ * record deliberately does not bind them — it binds exactly the values the wiring consumes, and
+ * the starter's configuration metadata documents every key for IDE completion.
+ *
+ * @param defaultAlgorithm algorithm used when a caller does not name one; defaults to Ed25519
+ * @param defaultKeyId key identifier handed to the key-handle resolver for default signing;
+ *     defaults to the local demo identifier {@code local-ed25519-1}
+ */
 @ConfigurationProperties(prefix = "bulwark.crypto")
-public class CryptoAgilityProperties {
+public record CryptoAgilityProperties(SignatureAlgorithm defaultAlgorithm, String defaultKeyId) {
 
-    private boolean enabled = true;
-    private SignatureAlgorithm defaultAlgorithm = SignatureAlgorithm.ED25519;
-    private String defaultKeyId = "local-ed25519-1";
-    private LocalEphemeralKeys localEphemeralKeys = new LocalEphemeralKeys();
-    private Providers providers = new Providers();
+    static final SignatureAlgorithm DEFAULT_ALGORITHM = SignatureAlgorithm.ED25519;
+    static final String DEFAULT_KEY_ID = "local-ed25519-1";
 
-    public boolean isEnabled() {
-        return enabled;
-    }
-
-    public void setEnabled(final boolean enabled) {
-        this.enabled = enabled;
-    }
-
-    public SignatureAlgorithm getDefaultAlgorithm() {
-        return defaultAlgorithm;
-    }
-
-    public void setDefaultAlgorithm(final SignatureAlgorithm defaultAlgorithm) {
-        this.defaultAlgorithm = defaultAlgorithm;
-    }
-
-    public String getDefaultKeyId() {
-        return defaultKeyId;
-    }
-
-    public void setDefaultKeyId(final String defaultKeyId) {
-        this.defaultKeyId = defaultKeyId;
-    }
-
-    public LocalEphemeralKeys getLocalEphemeralKeys() {
-        return localEphemeralKeys;
-    }
-
-    public void setLocalEphemeralKeys(final LocalEphemeralKeys localEphemeralKeys) {
-        this.localEphemeralKeys = localEphemeralKeys;
-    }
-
-    public Providers getProviders() {
-        return providers;
-    }
-
-    public void setProviders(final Providers providers) {
-        this.providers = providers;
-    }
-
-    /** Provider configuration group. */
-    public static class Providers {
-        private Jca jca = new Jca();
-
-        public Jca getJca() {
-            return jca;
-        }
-
-        public void setJca(final Jca jca) {
-            this.jca = jca;
-        }
-    }
-
-    /** Local JCA provider configuration. */
-    public static class Jca {
-        private ProviderToggle ed25519 = new ProviderToggle(true);
-        private ProviderToggle ecdsaP256 = new ProviderToggle(false);
-        private ProviderToggle mlDsa44Placeholder = new ProviderToggle(false);
-
-        public ProviderToggle getEd25519() {
-            return ed25519;
-        }
-
-        public void setEd25519(final ProviderToggle ed25519) {
-            this.ed25519 = ed25519;
-        }
-
-        public ProviderToggle getEcdsaP256() {
-            return ecdsaP256;
-        }
-
-        public void setEcdsaP256(final ProviderToggle ecdsaP256) {
-            this.ecdsaP256 = ecdsaP256;
-        }
-
-        public ProviderToggle getMlDsa44Placeholder() {
-            return mlDsa44Placeholder;
-        }
-
-        public void setMlDsa44Placeholder(final ProviderToggle mlDsa44Placeholder) {
-            this.mlDsa44Placeholder = mlDsa44Placeholder;
-        }
-    }
-
-    /** Explicit local-development opt-in for process-local generated signing keys. */
-    public static class LocalEphemeralKeys {
-        private boolean enabled;
-
-        public boolean isEnabled() {
-            return enabled;
-        }
-
-        public void setEnabled(final boolean enabled) {
-            this.enabled = enabled;
-        }
-    }
-
-    /** Boolean provider toggle. */
-    public static class ProviderToggle {
-        private boolean enabled;
-
-        public ProviderToggle() {
-        }
-
-        public ProviderToggle(final boolean enabled) {
-            this.enabled = enabled;
-        }
-
-        public boolean isEnabled() {
-            return enabled;
-        }
-
-        public void setEnabled(final boolean enabled) {
-            this.enabled = enabled;
-        }
+    /** Applies defaults and rejects malformed key identifiers before any bean consumes them. */
+    public CryptoAgilityProperties {
+        defaultAlgorithm = defaultAlgorithm == null ? DEFAULT_ALGORITHM : defaultAlgorithm;
+        defaultKeyId = defaultKeyId == null ? DEFAULT_KEY_ID : defaultKeyId;
+        final String boundKeyId = defaultKeyId;
+        RequiredText.violation(boundKeyId).ifPresent(violation -> {
+            throw new IllegalArgumentException("bulwark.crypto.default-key-id " + violation);
+        });
     }
 }

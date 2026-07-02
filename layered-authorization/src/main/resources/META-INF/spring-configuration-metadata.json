@@ -1,0 +1,11 @@
+{
+  "properties": [
+    {
+      "name": "showcase.demo-identity",
+      "type": "java.lang.Boolean",
+      "sourceType": "io.github.joshuamatosdev.security.authz.web.config.SecurityConfig",
+      "description": "Whether the in-memory demo identities (member, platform admin, service caller) are registered. Off by default so demo credentials can never reach production by omission; a deployment must supply its own UserDetailsService.",
+      "defaultValue": false
+    }
+  ]
+}
