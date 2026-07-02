@@ -9,6 +9,31 @@ once public version tags begin.
 
 ### Added
 
+- `authorization-showcase` — the demonstration web/persistence application
+  (document API, demo identity resolution, PostgreSQL-backed ownership, RLS
+  init script) extracted from `authorization` into its own non-published
+  module, so the `authorization` library is a framework-free decision core
+  (Spring, Tomcat, and PostgreSQL left its dependency tree; only SLF4J
+  remains).
+- `AuthorizationWebAutoConfiguration` in the authorization starter: the 403
+  denial advice (`AuthorizationExceptionHandler`) now ships with the starter
+  and registers only in servlet web applications, backing off to an
+  application-provided handler.
+- `CorsAllowListContract` in `edge-testkit`: adopters can prove the
+  credentialed CORS startup guard still refuses wildcard, opaque `null`, and
+  non-loopback HTTP origins. The edge module runs its own shipped contracts
+  (`EdgePropertiesContract`, `CorsAllowListContract`), as `shared` and
+  `crypto` already do, so a testkit regression cannot ship silently.
+- `DocumentSignerContract` (crypto-testkit) now covers the trust-anchored
+  verify: accepts the pinned key, fails closed on a substituted key and on an
+  unknown key id. Both crypto examples demonstrate
+  `verify(signed, TrustAnchor.pinnedKeys(...))` at runtime.
+- `shared-testkit` typed-identifier contracts expanded: malformed and null
+  text rejection, canonical equality/distinctness parsing, and a
+  non-canonical-form rejection fixture that works for any identifier type.
+- `crypto/README.md` — the module was the only one without a README; documents
+  the API surface, the integrity-versus-authenticity boundary, starter
+  configuration, and the testkit.
 - `examples/tenant-isolation-spring-boot` — the tenant-isolation implementation
   walkthrough as a compiled, tested consumer application: one starter
   dependency, environment-bound configuration, the single `TenantBindingFilter`
@@ -75,8 +100,9 @@ once public version tags begin.
   `tenant.binding.*`, `bulwark.crypto.*`), every starter gate flag
   (`bulwark.*.enabled`), and `showcase.demo-identity`, including default values.
 - `shared`: `RequiredText`, the single required-text rule set (non-blank, no
-  edge whitespace, no control characters) now used by tenant-isolation and the
-  crypto starter instead of per-module copies.
+  edge whitespace, no control characters) now used across the whole toolkit —
+  tenant-isolation, authorization, crypto, and the starters — instead of
+  per-module copies.
 - Public release documentation: security policy, contribution guide, changelog,
   and public release checklist.
 - Production adoption guide and stronger public positioning as a Java 21
@@ -135,6 +161,33 @@ once public version tags begin.
 
 ### Fixed
 
+- `TenantPoolSnapshot` no longer rejects weakly consistent Hikari MXBean
+  connection counts. The pool MXBean reads its gauges without a lock, so
+  `total != active + idle` is a legitimate transient state under load; treating
+  it as an error made observability able to fault the datasource surface.
+  The snapshot now documents weak consistency instead of enforcing an
+  invariant the source never promised.
+- `TenantContext.scoped(...)`/`systemOpsScoped(...)` no longer mask the work's
+  failure when restoring the prior binding also fails: the restore failure is
+  attached as a suppressed exception and the work's own exception stays the
+  root cause.
+- `DocumentSigner` audit parity: a provider or codec failure during `verify`
+  (and a trust-anchor failure during anchored verify) is now recorded as a
+  failed `VERIFY` audit event before the exception propagates, and `sign`
+  validates the key id up front so a malformed handle cannot produce a phantom
+  audit failure.
+- Authorization starter back-off: replacing `AuthorizationService` with an
+  application bean no longer silently removes the policy, rule-repository, and
+  audit-sink wiring the custom service needs — back-off is per bean, as the
+  configuration metadata promised.
+- Edge URI policy predicates (loopback host, explicit-port validity, control
+  characters) were duplicated between the CORS allow-list and the issuer-URI
+  validation; they now live once (`UriValidation`), so the two startup guards
+  cannot drift apart.
+- `tenant-isolation` thread-context-protection doc drift: the diagram and
+  prose now match the code — the guard lives in `TenantContext` and rejects a
+  bind or switch during an active transaction, before any pool connection is
+  taken.
 - The OWASP dependency-check gate is applied at the build root and run in CI
   (weekly schedule and on demand) via `dependencyCheckAggregate`, scanning every
   module's runtime closure (Spring Boot, WebFlux, Netty, Tomcat, PostgreSQL)

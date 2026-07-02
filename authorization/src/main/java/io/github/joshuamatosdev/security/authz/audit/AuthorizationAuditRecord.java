@@ -1,5 +1,6 @@
 package io.github.joshuamatosdev.security.authz.audit;
 
+import io.github.joshuamatosdev.security.shared.RequiredText;
 import io.github.joshuamatosdev.security.authz.decision.*;
 import io.github.joshuamatosdev.security.authz.policy.Action;
 import io.github.joshuamatosdev.security.authz.principal.PolicyPrincipal;
@@ -117,15 +118,6 @@ public record AuthorizationAuditRecord(
     }
 
     private static void requireText(final String value) {
-        Objects.requireNonNull(value, "principalKey" + " must not be null");
-        if (value.isBlank()) {
-            throw new IllegalArgumentException("principalKey" + " must not be blank");
-        }
-        if (!value.equals(value.strip())) {
-            throw new IllegalArgumentException("principalKey" + " must not include leading or trailing whitespace");
-        }
-        if (value.chars().anyMatch(Character::isISOControl)) {
-            throw new IllegalArgumentException("principalKey" + " must not contain control characters");
-        }
+        RequiredText.require(value, "principalKey");
     }
 }

@@ -3,6 +3,8 @@ package io.github.joshuamatosdev.security.edge.config;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
+import io.github.joshuamatosdev.security.edge.testkit.CorsAllowListContract;
+
 import java.util.List;
 import org.junit.jupiter.api.Test;
 import org.springframework.mock.http.server.reactive.MockServerHttpRequest;
@@ -18,7 +20,7 @@ import org.springframework.web.cors.reactive.CorsConfigurationSource;
  * <p>Why this is important to test: credentialed CORS and cookie defaults can accidentally widen
  * browser access to protected routes.
  */
-class CorsAllowListTest {
+class CorsAllowListTest implements CorsAllowListContract {
 
   private final CorsAllowListConfig config = new CorsAllowListConfig();
 

@@ -1,4 +1,4 @@
-package io.github.joshuamatosdev.security.authz.web.config;
+package io.github.joshuamatosdev.security.authz.spring;
 
 import io.github.joshuamatosdev.security.authz.audit.AuthorizationAuditSink;
 import io.github.joshuamatosdev.security.authz.audit.Slf4jAuthorizationAuditSink;
@@ -16,10 +16,10 @@ import java.time.Clock;
 /**
  * Composition root for the framework-free decision core. The pure classes carry no Spring
  * annotations so they stay independently testable and liftable; this configuration is the single
- * place that wires them together as beans.
+ * place that wires them together as beans, and each bean backs off individually when the
+ * application supplies its own.
  *
- * <p>Why this exists: security configuration wires the demo route gate and identities in one
- * Spring boundary that is easy to review.
+ * <p>Why this exists: one reviewable Spring boundary wires the decision core without touching it.
  */
 @Configuration
 public class AuthorizationConfig {

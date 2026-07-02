@@ -127,7 +127,7 @@ Adopt the decision model, audit contract, and deny-overrides behavior. Spring
 applications can start with `authorization-spring-boot-starter`; policy
 implementers can reuse `authorization-testkit`. Before production use:
 
-- replace demo role resolution with an authorization store
+- replace demo role resolution (illustrated in `authorization-showcase`) with an authorization store
 - model revocation and authorization-version behavior
 - send audit records to durable storage
 - decide how policy changes are reviewed, staged, and rolled back

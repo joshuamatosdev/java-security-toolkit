@@ -6,7 +6,9 @@ import io.github.joshuamatosdev.security.crypto.api.DocumentSigner;
 import io.github.joshuamatosdev.security.crypto.api.KeyHandle;
 import io.github.joshuamatosdev.security.crypto.api.SignatureAlgorithm;
 import io.github.joshuamatosdev.security.crypto.api.SignedDocument;
+import io.github.joshuamatosdev.security.crypto.api.TrustAnchor;
 import java.nio.charset.StandardCharsets;
+import java.util.Map;
 import org.junit.jupiter.api.Test;
 
 /**
@@ -62,5 +64,34 @@ public interface DocumentSignerContract {
                 signed.signature());
 
         assertThat(signer().verify(relabeled)).isFalse();
+    }
+
+    @Test
+    default void anchoredVerifyAcceptsTheTrustedKey() {
+        final SignedDocument signed = signer().sign(signingKey(), contractDocument());
+        final TrustAnchor anchor = TrustAnchor.pinnedKeys(Map.of(signed.keyId(), signed.publicKey()));
+
+        assertThat(signer().verify(signed, anchor)).isTrue();
+    }
+
+    @Test
+    default void anchoredVerifyFailsClosedOnASubstitutedKey() {
+        // The key-substitution forgery the anchor exists to stop: same key id, different key
+        // material. The anchor must reject before any signature computation.
+        final SignedDocument signed = signer().sign(signingKey(), contractDocument());
+        final byte[] substituted = signed.publicKey();
+        substituted[0] ^= 0x01;
+        final TrustAnchor anchor = TrustAnchor.pinnedKeys(Map.of(signed.keyId(), substituted));
+
+        assertThat(signer().verify(signed, anchor)).isFalse();
+    }
+
+    @Test
+    default void anchoredVerifyFailsClosedOnAnUnknownKeyId() {
+        final SignedDocument signed = signer().sign(signingKey(), contractDocument());
+        final TrustAnchor anchor =
+                TrustAnchor.pinnedKeys(Map.of(signed.keyId() + "-rotated-away", signed.publicKey()));
+
+        assertThat(signer().verify(signed, anchor)).isFalse();
     }
 }

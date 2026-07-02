@@ -181,6 +181,29 @@ class TenantContextTest {
     }
 
     @Test
+    void workFailureSurvivesRestoreFailureAsTheRootCause() {
+        final AtomicBoolean tenantTransactionActive = new AtomicBoolean(false);
+        TenantContext.useTenantTransactionActiveCheck(tenantTransactionActive::get);
+
+        // Work fails mid-"transaction": the restore guard also fires, but the work's exception is
+        // the root cause an operator needs — the guard failure rides along as suppressed, and the
+        // fail-closed inner binding is retained exactly as on the success path.
+        assertThatThrownBy(() -> TenantContext.runAs(TenantIds.ACME, () -> {
+                    tenantTransactionActive.set(true);
+                    throw new IllegalStateException("work failed");
+                }))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessage("work failed")
+                .satisfies(thrown -> assertThat(thrown.getSuppressed())
+                        .singleElement()
+                        .isInstanceOf(SecurityException.class)
+                        .extracting(Throwable::getMessage)
+                        .asString()
+                        .contains("cannot restore tenant binding"));
+        assertThat(TenantContext.current()).contains(TenantIds.ACME);
+    }
+
+    @Test
     void testFixtureRestoresPriorSystemOpsContext() {
         TenantContext.runAsSystemOps(() -> {
             WithTenant.runAs(TenantIds.ACME, () -> assertThat(TenantContext.current()).contains(TenantIds.ACME));

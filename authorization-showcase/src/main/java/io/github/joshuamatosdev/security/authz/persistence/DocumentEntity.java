@@ -1,5 +1,6 @@
 package io.github.joshuamatosdev.security.authz.persistence;
 
+import io.github.joshuamatosdev.security.shared.RequiredText;
 import io.github.joshuamatosdev.security.authz.principal.PrincipalType;
 import io.github.joshuamatosdev.security.authz.request.ProtectedResource;
 import io.github.joshuamatosdev.security.shared.OrganizationId;
@@ -85,15 +86,6 @@ public class DocumentEntity {
         if (ownerPrincipalKey == null) {
             return null;
         }
-        if (ownerPrincipalKey.isBlank()) {
-            throw new IllegalArgumentException("ownerPrincipalKey must not be blank");
-        }
-        if (!ownerPrincipalKey.equals(ownerPrincipalKey.strip())) {
-            throw new IllegalArgumentException("ownerPrincipalKey must not include leading or trailing whitespace");
-        }
-        if (ownerPrincipalKey.chars().anyMatch(Character::isISOControl)) {
-            throw new IllegalArgumentException("ownerPrincipalKey must not contain control characters");
-        }
-        return ownerPrincipalKey;
+        return RequiredText.require(ownerPrincipalKey, "ownerPrincipalKey");
     }
 }

@@ -1,5 +1,6 @@
 package io.github.joshuamatosdev.security.tenant.datasource.pool;
 
+import static org.assertj.core.api.Assertions.assertThatCode;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import org.junit.jupiter.api.Test;
@@ -49,13 +50,14 @@ class TenantPoolSnapshotTest {
     }
 
     @Test
-    void constructorRejectsConnectionTotalsThatDoNotMatchActivePlusIdle() {
-        assertThatThrownBy(() -> new TenantPoolSnapshot(POOL_NAME, 1, 2, 4, 0, 0, 10))
-                .isInstanceOf(IllegalArgumentException.class)
-                .hasMessageContaining("totalConnections");
+    void constructorAcceptsWeaklyConsistentConnectionCounts() {
+        // The counts are separate live reads of a concurrent pool: a connection mid-transition or
+        // in Hikari's reserved state makes total differ from active + idle. The snapshot must
+        // accept that — a health/metrics read must never throw because the pool was busy.
+        assertThatCode(() -> new TenantPoolSnapshot(POOL_NAME, 1, 2, 4, 0, 0, 10))
+                .doesNotThrowAnyException();
 
-        assertThatThrownBy(() -> new TenantPoolSnapshot(POOL_NAME, 3, 0, 2, 0, 0, 10))
-                .isInstanceOf(IllegalArgumentException.class)
-                .hasMessageContaining("totalConnections");
+        assertThatCode(() -> new TenantPoolSnapshot(POOL_NAME, 3, 0, 2, 0, 0, 10))
+                .doesNotThrowAnyException();
     }
 }

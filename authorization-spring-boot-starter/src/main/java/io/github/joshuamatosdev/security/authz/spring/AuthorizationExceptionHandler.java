@@ -1,4 +1,4 @@
-package io.github.joshuamatosdev.security.authz.web.support;
+package io.github.joshuamatosdev.security.authz.spring;
 
 import io.github.joshuamatosdev.security.authz.service.AuthorizationDeniedException;
 import org.springframework.http.HttpStatus;

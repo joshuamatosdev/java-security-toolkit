@@ -1,8 +1,10 @@
-# Layered Authorization
+# Authorization
 
-A runnable reference for deny-by-default authorization behind a coarse request
-gate. The module keeps route-level protection, resource-level policy, trusted
-request context, and audit records as separate responsibilities.
+A framework-free authorization decision core: scope-layered resource policy,
+typed principals, immutable request context, deny-overrides, and an audit
+record for every decision. The only runtime dependencies are `:shared` and
+SLF4J — Spring, the web boundary, and persistence live in the demonstration
+application, [`authorization-showcase`](../authorization-showcase/).
 
 It covers Layer 2, authorization, in the
 [five-layer posture](../docs/adr/0001-five-layer-security-posture.md). The
@@ -17,7 +19,7 @@ decision record is [ADR-0003](../docs/adr/0003-authorization.md).
 - [Decision Model](#decision-model)
 - [Request Context](#request-context)
 - [Audit](#audit)
-- [Persistence](#persistence)
+- [The Showcase Application](#the-showcase-application)
 - [Testing](#testing)
 
 ## Quick Start
@@ -25,16 +27,12 @@ decision record is [ADR-0003](../docs/adr/0003-authorization.md).
 Requirements:
 
 - JDK 21
-- Docker, for PostgreSQL Testcontainers in the HTTP tests
 
-Run the module tests:
+Run the module tests (pure, in-memory — no Docker):
 
 ```bash
 ../gradlew :authorization:test
 ```
-
-The pure policy tests run in memory. HTTP tests start PostgreSQL 18 so document
-facts use database-owned UUIDv7 identifiers.
 
 ## Library Artifacts
 
@@ -51,8 +49,12 @@ Spring Boot auto-configuration:
 implementation("io.github.joshuamatosdev.security:authorization-spring-boot-starter:0.1.0-SNAPSHOT")
 ```
 
-The starter imports the reference authorization configuration when
-`bulwark.authorization.enabled` is true or absent. Disable it with:
+The starter wires the reference `AuthorizationService`, policy, in-memory rule
+repository, and audit sink when `bulwark.authorization.enabled` is true or
+absent; each bean backs off individually to an application-provided
+replacement. In servlet web applications it also registers the 403 denial
+advice that translates `AuthorizationDeniedException` into a response without
+leaking decision internals. Disable everything with:
 
 ```yaml
 bulwark:
@@ -62,31 +64,29 @@ bulwark:
 
 ## What It Demonstrates
 
-- Deny-by-default route protection.
 - Typed principals instead of bare strings.
-- Immutable request context resolved once at the web boundary.
-- Resource-aware policy for `CREATE`, `READ`, `UPDATE`, and `DELETE`. `CREATE`
-  and `UPDATE` are modeled in the policy layer (creation is decided against the
-  prospective resource's placement); the HTTP surface exposes `READ` and
-  `DELETE`.
+- Immutable request context resolved once and passed as a value.
+- Resource-aware policy for `CREATE`, `READ`, `UPDATE`, and `DELETE` (creation
+  is decided against the prospective resource's placement).
 - Tenant, organization, team, owner, and role-scope checks.
 - Deny-overrides behavior.
 - Audit records for every allow and deny.
-- PostgreSQL-backed document facts with database-owned identifiers.
 
 ## How Requests Are Authorized
 
-The module uses two gates:
+The reference posture uses two gates:
 
-1. **Coarse request gate.** `web/gate/SecurityUrlGroup` and
-   `web/gate/AccessRule` define a static URL-group to role table in
-   `web/config/SecurityConfig`. A route matching no rule is denied.
-2. **Fine-grained policy.** `service/AuthorizationService.enforce` evaluates
-   the actor, resource, action, and effective policy. It writes an audit record
-   before returning or throwing.
+1. **Coarse request gate.** A static URL-group to role table; a route matching
+   no rule is denied. This gate is web-boundary code and is demonstrated in
+   `authorization-showcase` (`web/gate/SecurityUrlGroup`, `web/gate/AccessRule`).
+2. **Fine-grained policy.** This module.
+   `service/AuthorizationService.enforce` evaluates the actor, resource,
+   action, and effective policy. It writes an audit record before returning or
+   throwing.
 
 Boundary failures that occur before a resource policy can run still use
-`AuthorizationService.deny`, so denials follow the same audit path.
+`AuthorizationService.deny` (or `denyWithoutTrustedContext` when no trusted
+tenant context exists yet), so denials follow the same audit path.
 
 ## Decision Model
 
@@ -116,15 +116,14 @@ The actor is a sealed `principal/PolicyPrincipal`: either a `UserPrincipal` or a
 `request/RequestContext` and passed as a value. Policy code does not read a
 thread-local.
 
-The trusted actor profile is resolved from the authenticated subject by
-`web/RequestContextResolver` — not from request headers. Before a resource is
-loaded, `web/DocumentBoundaryAuthorizer` cross-checks the caller-supplied tenant
-header against the resolved profile and denies a mismatch on the same audit
-path. The organization a caller may claim is not an authorization input:
-organization membership comes from the trusted profile and the resource's own
-organization, so a header can neither manufacture nor revoke access. If no
-trusted profile exists, audit keeps tenant context empty instead of copying an
-untrusted tenant header.
+The context must be resolved from the authenticated principal alone — never
+from request headers. The showcase demonstrates the pattern: its
+`RequestContextResolver` builds the trusted profile from the `Authentication`,
+and its `DocumentBoundaryAuthorizer` cross-checks the caller-supplied tenant
+header against that resolved profile, denying a mismatch on the same audit
+path. A header can neither manufacture nor revoke access; when no trusted
+profile exists, audit keeps tenant context empty instead of copying an
+untrusted header.
 
 Typed identifiers come from `:shared`:
 
@@ -146,15 +145,19 @@ The record includes principal, tenant, organization, resource, action, outcome,
 grant basis or denial reason, wide-scope flag, and correlation id. Tenant can be
 empty only when the denial happens before trusted actor tenant context exists.
 
-## Persistence
+## The Showcase Application
 
-Document resource facts are loaded from PostgreSQL, not from an in-memory map.
-PostgreSQL 18 owns document primary-key creation through the `id_v7` domain
-default (`uuidv7()`), matching the `tenant-isolation` module's database-owned
-identifier contract.
+`authorization-showcase` (not published) runs both gates in a real Spring web
+application: the coarse route gate, the document API, demo identity resolution
+gated behind `showcase.demo-identity` (default off), and PostgreSQL-backed
+document facts whose primary keys are database-minted UUIDv7 values — matching
+the `tenant-isolation` module's database-owned identifier contract.
 
-Application code omits `id` on insert and reads back the database-minted UUIDv7
-value.
+Requirements: JDK 21 and Docker (PostgreSQL Testcontainers).
+
+```bash
+../gradlew :authorization-showcase:test
+```
 
 ## Testing
 
@@ -170,6 +173,7 @@ Important tests:
   organization boundary, and deny-overrides behavior.
 - `DefaultAuthorizationServiceTest`: audit coverage for allows, denies,
   wide-scope admin decisions, and explicit boundary denials.
-- `DocumentControllerSecurityTest`: HTTP coverage for both gates, trusted header
-  validation, deny-by-default routes, UUIDv7 document id creation, persistence
-  deletion, and 403 behavior for fine-grained denials.
+- `DocumentControllerSecurityTest` (in `authorization-showcase`): HTTP coverage
+  for both gates, trusted header validation, deny-by-default routes, UUIDv7
+  document id creation, persistence deletion, and 403 behavior for fine-grained
+  denials.

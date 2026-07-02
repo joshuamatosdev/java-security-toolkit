@@ -3,6 +3,7 @@ package io.github.joshuamatosdev.security.crypto.jca;
 import io.github.joshuamatosdev.security.crypto.api.KeyHandle;
 import io.github.joshuamatosdev.security.crypto.api.SignatureAlgorithm;
 import io.github.joshuamatosdev.security.crypto.api.SignatureProvider;
+import io.github.joshuamatosdev.security.shared.RequiredText;
 import java.security.AlgorithmParameters;
 import java.security.GeneralSecurityException;
 import java.security.KeyFactory;
@@ -185,16 +186,6 @@ public final class JcaSignatureProvider implements SignatureProvider {
     }
 
     private static String requireNonBlank(final String value, final String field) {
-        Objects.requireNonNull(value, field + " must not be null");
-        if (value.isBlank()) {
-            throw new IllegalArgumentException(field + " must not be blank");
-        }
-        if (!value.equals(value.strip())) {
-            throw new IllegalArgumentException(field + " must not contain leading or trailing whitespace");
-        }
-        if (value.chars().anyMatch(Character::isISOControl)) {
-            throw new IllegalArgumentException(field + " must not contain control characters");
-        }
-        return value;
+        return RequiredText.require(value, field);
     }
 }

@@ -18,7 +18,6 @@ import io.github.joshuamatosdev.security.authz.service.AuthorizationPolicy;
 import io.github.joshuamatosdev.security.authz.service.AuthorizationService;
 import io.github.joshuamatosdev.security.authz.service.DefaultAuthorizationService;
 import io.github.joshuamatosdev.security.authz.testfixtures.CapturingAuditSink;
-import io.github.joshuamatosdev.security.authz.web.support.DemoAccounts;
 import io.github.joshuamatosdev.security.shared.OrganizationId;
 import io.github.joshuamatosdev.security.shared.ResourceId;
 import io.github.joshuamatosdev.security.shared.TenantId;
@@ -52,6 +51,8 @@ class DefaultAuthorizationServiceTest {
     private static final String OTHER_OWNER = "someone-else";
     private static final String OWNER_SUBJECT = "alice";
     private static final String MEMBER_SUBJECT = "bob";
+    private static final String MALICIOUS_SUBJECT = "mallory";
+    private static final String EMAIL_DOMAIN = "@example.test";
 
     private final CapturingAuditSink auditSink = new CapturingAuditSink();
     private final AuthorizationService service = new DefaultAuthorizationService(
@@ -66,7 +67,7 @@ class DefaultAuthorizationServiceTest {
             ? ENGINEERING
             : null;
         return new RequestContext(
-            new UserPrincipal(subject, subject + DemoAccounts.EMAIL_DOMAIN, 1L), ACME, org, assignments, UUID.randomUUID());
+            new UserPrincipal(subject, subject + EMAIL_DOMAIN, 1L), ACME, org, assignments, UUID.randomUUID());
     }
 
     @Test
@@ -149,8 +150,8 @@ class DefaultAuthorizationServiceTest {
     @Test
     void anUntrustedBoundaryDenyIsAuditedWithoutInventingTenantContext() {
         final UserPrincipal principal = new UserPrincipal(
-            DemoAccounts.MALICIOUS_USERNAME,
-            DemoAccounts.MALICIOUS_USERNAME + DemoAccounts.EMAIL_DOMAIN,
+            MALICIOUS_SUBJECT,
+            MALICIOUS_SUBJECT + EMAIL_DOMAIN,
             1L);
         final UUID correlationId = UUID.randomUUID();
         final ProtectedResource doc = new ProtectedResource(DOC, ACME, ENGINEERING, OTHER_OWNER);
@@ -162,7 +163,7 @@ class DefaultAuthorizationServiceTest {
             .isEqualTo(DenialReason.NO_MATCHING_RULE);
 
         final AuthorizationAuditRecord record = auditSink.only();
-        assertThat(record.principalKey()).isEqualTo(DemoAccounts.MALICIOUS_USERNAME);
+        assertThat(record.principalKey()).isEqualTo(MALICIOUS_SUBJECT);
         assertThat(record.tenantId()).isNull();
         assertThat(record.correlationId()).isEqualTo(correlationId);
         assertThat(record.denialReason()).isEqualTo(DenialReason.NO_MATCHING_RULE);

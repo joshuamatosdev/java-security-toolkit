@@ -1,6 +1,6 @@
 package io.github.joshuamatosdev.security.tenant.datasource.pool;
 
-import java.util.Objects;
+import io.github.joshuamatosdev.security.shared.RequiredText;
 
 /**
  * Immutable read-only view of a tenant datasource pool.
@@ -8,10 +8,16 @@ import java.util.Objects;
  * @param name logical pool name
  * @param activeConnections connections currently borrowed from the pool
  * @param idleConnections idle connections currently retained by the pool
- * @param totalConnections active plus idle connections currently known to the pool
+ * @param totalConnections connections currently known to the pool
  * @param threadsAwaitingConnection threads currently waiting for a pool connection
  * @param minimumIdle configured minimum idle connection count
  * @param maximumPoolSize configured maximum pool size
+ *
+ * <p>The three connection counts are read separately from a live concurrent pool, so they are
+ * weakly consistent with each other: a connection mid-transition (or held in an internal state
+ * such as Hikari's reserved state) can make {@code totalConnections} differ transiently from
+ * {@code activeConnections + idleConnections}. The snapshot deliberately does not enforce a
+ * cross-field equality — observability must never fault the datasource surface it observes.
  *
  * <p>Why this exists: pool inspection makes runtime pool identity observable so tests can prove
  * least-privilege tenant connections are really in use.
@@ -34,11 +40,6 @@ public record TenantPoolSnapshot(
         requireNonNegative(idleConnections, "idleConnections");
         requireNonNegative(totalConnections, "totalConnections");
         requireNonNegative(threadsAwaitingConnection, "threadsAwaitingConnection");
-        final long expectedTotalConnections = (long) activeConnections + idleConnections;
-        if (totalConnections != expectedTotalConnections) {
-            throw new IllegalArgumentException(
-                    "totalConnections must equal activeConnections plus idleConnections");
-        }
     }
 
     private static void requireNonNegative(final int value, final String field) {
@@ -48,17 +49,6 @@ public record TenantPoolSnapshot(
     }
 
     private static String requireNonBlankWithoutEdgeWhitespace(final String value, final String field) {
-        Objects.requireNonNull(value, field + " must not be null");
-        if (value.isBlank()) {
-            throw new IllegalArgumentException(field + " must not be blank");
-        }
-        if (!value.equals(value.strip())) {
-            throw new IllegalArgumentException(
-                    field + " must not include leading or trailing whitespace");
-        }
-        if (value.chars().anyMatch(Character::isISOControl)) {
-            throw new IllegalArgumentException(field + " must not contain control characters");
-        }
-        return value;
+        return RequiredText.require(value, field);
     }
 }

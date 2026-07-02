@@ -3,6 +3,8 @@ package io.github.joshuamatosdev.security.edge.config;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
+import io.github.joshuamatosdev.security.edge.testkit.EdgePropertiesContract;
+
 import org.junit.jupiter.api.Test;
 
 /**
@@ -13,7 +15,7 @@ import org.junit.jupiter.api.Test;
  * <p>Why this is important to test: credentialed CORS and cookie defaults can accidentally widen
  * browser access to protected routes.
  */
-class EdgePropertiesTest {
+class EdgePropertiesTest implements EdgePropertiesContract {
 
   @Test
   void cookieSecureDefaultsToTrueWhenOmitted() {

@@ -88,7 +88,7 @@ public record EdgeProperties(
       } else if (!issuerUri.equals(issuerUri.strip())) {
         throw new IllegalArgumentException(
             "edge.identity.issuer-uri must not include leading or trailing whitespace");
-      } else if (containsControlCharacter(issuerUri)) {
+      } else if (UriValidation.containsControlCharacter(issuerUri)) {
         throw new IllegalArgumentException(
             "edge.identity.issuer-uri must not contain control characters");
       }
@@ -116,17 +116,13 @@ public record EdgeProperties(
           throw new IllegalArgumentException(
               "edge.service-jwt.audiences must not include leading or trailing whitespace");
         }
-        if (audiences.stream().anyMatch(EdgeProperties::containsControlCharacter)) {
+        if (audiences.stream().anyMatch(UriValidation::containsControlCharacter)) {
           throw new IllegalArgumentException(
               "edge.service-jwt.audiences must not contain control characters");
         }
         audiences = List.copyOf(audiences);
       }
     }
-  }
-
-  private static boolean containsControlCharacter(String value) {
-    return value.chars().anyMatch(Character::isISOControl);
   }
 
   private static void validateIssuerUri(String issuerUri) {
@@ -143,12 +139,12 @@ public record EdgeProperties(
       throw new IllegalArgumentException(
           "edge.identity.issuer-uri must be an absolute HTTP(S) URI: " + issuerUri);
     }
-    if (!hasValidExplicitHttpPort(parsed)) {
+    if (!UriValidation.hasValidExplicitHttpPort(parsed)) {
       throw new IllegalArgumentException(
           "edge.identity.issuer-uri must include a valid HTTP(S) port when a port is explicit: "
               + issuerUri);
     }
-    if ("http".equalsIgnoreCase(scheme) && !isLoopbackHost(parsed.getHost())) {
+    if ("http".equalsIgnoreCase(scheme) && !UriValidation.isLoopbackHost(parsed.getHost())) {
       throw new IllegalArgumentException(
           "edge.identity.issuer-uri must use HTTPS except for loopback local development: "
               + issuerUri);
@@ -161,18 +157,5 @@ public record EdgeProperties(
       throw new IllegalArgumentException(
           "edge.identity.issuer-uri must not include query or fragment components: " + issuerUri);
     }
-  }
-
-  private static boolean isLoopbackHost(String host) {
-    return "localhost".equalsIgnoreCase(host)
-        || "127.0.0.1".equals(host)
-        || "::1".equals(host)
-        || "[::1]".equals(host);
-  }
-
-  private static boolean hasValidExplicitHttpPort(URI parsed) {
-    String rawAuthority = parsed.getRawAuthority();
-    int port = parsed.getPort();
-    return (port == -1 || port > 0) && port <= 65535 && (rawAuthority == null || !rawAuthority.endsWith(":"));
   }
 }
