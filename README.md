@@ -154,6 +154,13 @@ explicit, and deny-by-default.
 | 6. Supply chain | SBOM, dependency, wrapper, base-image, and workflow-action verification | `supply-chain` |
 | Cross-cutting | Signature-provider agility and migration strategy | `crypto` |
 
+The posture is executable, not just a diagram:
+[`examples/five-layer-spring-boot`](examples/five-layer-spring-boot/) composes a BFF (edge
+perimeter, layers 1 + 4) in front of a resource service (authorization + tenant-isolation,
+layers 2 + 5) and proves with integration tests that a single request crosses the coarse route
+gate, the fine-grained audited decision, and PostgreSQL row-level security -- each with its own
+observable refusal.
+
 ## Public Release Posture
 
 - This repository is intentionally neutral and uses fictional identifiers such as

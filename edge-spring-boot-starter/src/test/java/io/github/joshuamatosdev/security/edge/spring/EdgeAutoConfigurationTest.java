@@ -23,6 +23,31 @@ class EdgeAutoConfigurationTest {
                     EdgeServiceApiAutoConfiguration.class));
 
     @Test
+    void winsTheWebSessionIdResolverNameAgainstBootsOwnAutoConfiguration() {
+        // Boot's WebSessionIdResolverAutoConfiguration registers an unconditional-name twin:
+        // a bean also called webSessionIdResolver, guarded only by @ConditionalOnMissingBean.
+        // The starter must be ordered before it so the hardened cookie resolver registers first
+        // and Boot's backs off — the reverse order fails a real consumer boot with a
+        // BeanDefinitionOverrideException (found by the five-layer example's bff).
+        new ReactiveWebApplicationContextRunner()
+                .withConfiguration(AutoConfigurations.of(
+                        org.springframework.boot.autoconfigure.web.reactive
+                                .WebSessionIdResolverAutoConfiguration.class,
+                        EdgeAutoConfiguration.class))
+                .run(context -> {
+                    assertThat(context).hasNotFailed();
+                    assertThat(context)
+                            .hasSingleBean(org.springframework.web.server.session.WebSessionIdResolver.class);
+                    // The edge policy bean, not Boot's: it pins Secure/HttpOnly/SameSite=Lax.
+                    assertThat(context.getBeanDefinitionNames())
+                            .contains("webSessionIdResolver");
+                    assertThat(context.getBean(
+                                    org.springframework.web.server.session.WebSessionIdResolver.class))
+                            .isInstanceOf(org.springframework.web.server.session.CookieWebSessionIdResolver.class);
+                });
+    }
+
+    @Test
     void doesNotAutoConfigureOutsideReactiveWebApplications() {
         nonReactiveRunner.run(context -> assertThat(context).doesNotHaveBean(EdgeProperties.class));
     }

@@ -46,6 +46,7 @@ jobs:
           ./gradlew -p examples/crypto-plain-java build --console=plain --no-daemon
           ./gradlew -p examples/crypto-spring-boot build --console=plain --no-daemon
           ./gradlew -p examples/tenant-isolation-spring-boot build --console=plain --no-daemon
+          ./gradlew -p examples/five-layer-spring-boot build --console=plain --no-daemon
 
   dependency-review:
     name: dependency review

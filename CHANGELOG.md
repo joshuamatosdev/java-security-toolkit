@@ -9,6 +9,19 @@ once public version tags begin.
 
 ### Added
 
+- `examples/five-layer-spring-boot` — the composed five-layer example: a BFF
+  (edge starter — session, PKCE login shape, CORS/CSRF/cookie hardening, token
+  relay) in front of a resource service (authorization starter + tenant-isolation
+  starter over RLS-enforced PostgreSQL). Integration tests prove the layers
+  compose on a single request — coarse route gate, fine-grained audited
+  decision, and row-level security, each with its own observable refusal — and
+  that the relay forwards the user's access token while the session cookie
+  never crosses the plane boundary. Building it surfaced a real starter bug,
+  fixed in the edge starter: `EdgeAutoConfiguration` must be ordered before
+  Boot's `WebSessionIdResolverAutoConfiguration`, whose same-named
+  `webSessionIdResolver` bean otherwise fails a consumer boot with a
+  bean-override error (module and starter tests never boot a full application,
+  so only a consumer build could catch it).
 - `authorization-showcase` — the demonstration web/persistence application
   (document API, demo identity resolution, PostgreSQL-backed ownership, RLS
   init script) extracted from `authorization` into its own non-published

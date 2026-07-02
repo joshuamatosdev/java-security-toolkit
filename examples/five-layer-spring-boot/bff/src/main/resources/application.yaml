@@ -1,0 +1,53 @@
+spring:
+  application:
+    name: five-layer-bff
+
+  security:
+    oauth2:
+      # Browser plane: the BFF is a PUBLIC OAuth2 client (no client secret), so
+      # Authorization-Code + PKCE is the grant. Provider endpoints are declared explicitly
+      # (no issuer-uri discovery) so the context boots with no identity provider reachable;
+      # the endpoints are fictional and tests authenticate with spring-security-test
+      # mutators. The trusted issuer is pinned under edge.identity.issuer-uri.
+      client:
+        registration:
+          idp:
+            client-id: five-layer-bff
+            client-authentication-method: none
+            authorization-grant-type: authorization_code
+            redirect-uri: "{baseUrl}/login/oauth2/code/idp"
+            scope: openid,profile
+        provider:
+          idp:
+            authorization-uri: https://idp.acme.example/oauth2/authorize
+            token-uri: https://idp.acme.example/oauth2/token
+            jwk-set-uri: https://idp.acme.example/oauth2/jwks
+            user-info-uri: https://idp.acme.example/oauth2/userinfo
+            user-name-attribute: sub
+      # Service plane: bearer-JWT resource server (lazy decoder — the fictional URI never
+      # blocks startup).
+      resourceserver:
+        jwt:
+          jwk-set-uri: https://idp.acme.example/oauth2/jwks
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info
+
+edge:
+  identity:
+    issuer-uri: https://idp.acme.example
+  service-jwt:
+    audiences:
+      - edge-service-api
+  cors:
+    allowed-origins:
+      - https://app.acme.example
+
+downstream:
+  # The resource service (the service subproject, layers 2 + 5). The relay forwards the
+  # authenticated user's access token here — same issuer, so the service verifies the same
+  # identity contract the perimeter admitted.
+  service-base-url: ${DOWNSTREAM_SERVICE_BASE_URL:http://localhost:8081}
