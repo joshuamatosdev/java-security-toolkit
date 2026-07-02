@@ -1,0 +1,11 @@
+{
+  "properties": [
+    {
+      "name": "bulwark.edge.enabled",
+      "type": "java.lang.Boolean",
+      "sourceType": "io.github.joshuamatosdev.security.edge.spring.EdgeAutoConfiguration",
+      "description": "Whether the edge auto-configurations activate: the always-on hardening (CORS allow-list, CSRF double-submit, cookie policy, credential-plane isolation) plus the browser and service security chains when their OAuth2 infrastructure is configured.",
+      "defaultValue": true
+    }
+  ]
+}

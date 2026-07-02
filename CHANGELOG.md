@@ -21,7 +21,7 @@ once public version tags begin.
   (`spring.jpa.properties.hibernate.boot.allow_jdbc_metadata_access: false`)
   because that borrow happens before any tenant is bound and fails closed. The
   walkthrough's inline filter listing moved into the example as compiled code.
-- `TrustAnchor` in crypto-agility and a trust-anchored
+- `TrustAnchor` in crypto and a trust-anchored
   `DocumentSigner.verify(document, trustAnchor)` overload: the embedded-key
   verify proves payload integrity only, so a key-substitution forgery (tampered
   payload re-signed under an attacker-chosen key) verified. The anchor holds
@@ -45,7 +45,7 @@ once public version tags begin.
   grant basis reports team as the most specific allowing scope;
   `ProtectedResource` gains an optional team placement (existing constructors
   unchanged).
-- `Action.CREATE` in the layered-authorization policy vocabulary: creation is
+- `Action.CREATE` in the authorization policy vocabulary: creation is
   decided against the prospective resource's placement, holds the same
   per-action granularity (a `CREATE` grant inherits nothing from `UPDATE` and
   vice versa), and is appended after `DELETE` so persisted ordinals stay
@@ -60,7 +60,7 @@ once public version tags begin.
 - Tenant-isolation README implementation walkthrough: an end-to-end adoption
   guide for tenancy plus organizations — dependencies, configuration, the one
   request-binding filter an adopter owns, the database-side DDL contract, and
-  the layered-authorization tie-in.
+  the authorization tie-in.
 - Organization scope within tenant isolation (ADR-0007): the organization is a
   co-equal dimension of the tenant binding (`TenantContext.runAs(tenant,
   organization, work)`), emitted as a second kind-separated signed claim
@@ -76,41 +76,49 @@ once public version tags begin.
   (`bulwark.*.enabled`), and `showcase.demo-identity`, including default values.
 - `shared`: `RequiredText`, the single required-text rule set (non-blank, no
   edge whitespace, no control characters) now used by tenant-isolation and the
-  crypto-agility starter instead of per-module copies.
+  crypto starter instead of per-module copies.
 - Public release documentation: security policy, contribution guide, changelog,
   and public release checklist.
 - Production adoption guide and stronger public positioning as a Java 21
   security toolkit for multi-tenant SaaS applications.
 - Maven publication metadata for local/internal artifact consumption.
 - CI hardening for build/test verification and pull-request dependency review.
-- Crypto-agility now publishes optional `crypto-agility-spring-boot-starter`
-  and `crypto-agility-testkit` artifacts alongside the core `crypto-agility`
+- Crypto now publishes optional `crypto-spring-boot-starter`
+  and `crypto-testkit` artifacts alongside the core `crypto`
   library.
-- Shared, tenant isolation, layered authorization, edge perimeter, and supply
+- Shared, tenant isolation, authorization, edge, and supply
   chain now publish reusable testkit artifacts for adopters and implementers.
-- Tenant isolation, layered authorization, and edge perimeter now publish
+- Tenant isolation, authorization, and edge now publish
   optional Spring Boot starter artifacts.
 - Initial public-ready reference modules: `shared`, `tenant-isolation`,
-  `layered-authorization`, `edge-perimeter`, `supply-chain`, and `crypto-agility`.
+  `authorization`, `edge`, `supply-chain`, and `crypto`.
 - ADR-backed documentation for the layered security posture.
 - Test coverage for tenant isolation, authorization, perimeter controls,
-  supply-chain checks, and crypto-agility seams.
+  supply-chain checks, and crypto seams.
 
 ### Changed
 
-- The edge-perimeter CORS registrations are derived from the same
+- Modules renamed to plain names: `crypto-agility` → `crypto`,
+  `layered-authorization` → `authorization`, `edge-perimeter` → `edge` —
+  directories, Gradle projects, Maven artifactIds, class-name prefixes
+  (for example `EdgePerimeterProperties` → `EdgeProperties`,
+  `CryptoAgilityAutoConfiguration` → `CryptoAutoConfiguration`), starter gate
+  properties (`bulwark.authorization.enabled`, `bulwark.edge.enabled`), ADR
+  filenames, and docs. `tenant-isolation`, `supply-chain`, and `shared` keep
+  their names. Nothing has been published, so no consumer coordinates break.
+- The edge CORS registrations are derived from the same
   `RouteAuthorities` constants the authorization rules use, so the browser-plane
   route truth lives once and the CORS surface cannot drift from the routes.
   (`SignatureAlgorithm.fromJoseAlg` also moved from a per-call scan to a
   precomputed map — it sits on the verification hot path.)
-- `CryptoAgilityProperties` is now an immutable `@ConfigurationProperties`
+- `CryptoProperties` is now an immutable `@ConfigurationProperties`
   record binding only the values the wiring consumes (`default-algorithm`,
   `default-key-id`). The provider and ephemeral-key toggles remain
   `@ConditionalOnProperty`-driven and are documented in configuration metadata.
   A malformed `bulwark.crypto.default-key-id` is rejected at bind time with
   `IllegalArgumentException` (previously `IllegalStateException` at bean
   creation).
-- The edge-perimeter Spring Boot starter now activates each credential plane only
+- The edge Spring Boot starter now activates each credential plane only
   when its OAuth2 infrastructure is configured — the browser OIDC login chain when
   a client registration is present, the service resource-server chain when a JWT
   decoder is present. A reactive application can adopt the starter without OAuth2

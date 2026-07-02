@@ -17,10 +17,10 @@ body:
       options:
         - shared
         - tenant-isolation
-        - layered-authorization
-        - edge-perimeter
+        - authorization
+        - edge
         - supply-chain
-        - crypto-agility
+        - crypto
         - docs
         - build
     validations:

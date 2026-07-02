@@ -1,0 +1,70 @@
+spring:
+  application:
+    name: edge
+
+  security:
+    oauth2:
+      # Browser plane: the BFF is a PUBLIC OAuth2 client (no client secret —
+      # `client-authentication-method: none`), so Authorization-Code + PKCE is the only
+      # defensible grant: the code_challenge binds the authorization code to this client
+      # instance and a stolen code cannot be redeemed without the matching code_verifier.
+      #
+      # Provider endpoints are declared explicitly (no `issuer-uri` discovery) so the
+      # application context boots with no identity provider reachable. The endpoints are
+      # fictional; tests authenticate with spring-security-test mutators, never a live IdP. The
+      # trusted issuer is pinned under `edge.identity.issuer-uri` and enforced by the ID-token
+      # decoder factory without triggering discovery.
+      client:
+        registration:
+          idp:
+            client-id: edge-bff
+            client-authentication-method: none
+            authorization-grant-type: authorization_code
+            redirect-uri: "{baseUrl}/login/oauth2/code/idp"
+            scope: openid,profile
+        provider:
+          idp:
+            authorization-uri: https://idp.acme.example/oauth2/authorize
+            token-uri: https://idp.acme.example/oauth2/token
+            jwk-set-uri: https://idp.acme.example/oauth2/jwks
+            user-info-uri: https://idp.acme.example/oauth2/userinfo
+            user-name-attribute: sub
+      # Service plane: bearer-JWT resource server. The decoder is lazy — the JWK set is
+      # fetched on first token validation, not at boot, so the fictional URI never blocks
+      # startup and tests substitute mock JWTs. Issuer and audience are enforced by the
+      # serviceJwtBoundaryValidator bean from `edge.identity` + `edge.service-jwt`.
+      resourceserver:
+        jwt:
+          jwk-set-uri: https://idp.acme.example/oauth2/jwks
+
+# Actuator lockdown, half one: only health and info are exposed over the web at all.
+# Half two is the security route map (`/actuator/health/**` + `/actuator/info` permitted,
+# `/actuator/**` denied) — see BrowserSecurityChainConfig. Defense in depth: an endpoint
+# accidentally added to this list is still unreachable through the deny rule.
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info
+
+edge:
+  identity:
+    issuer-uri: https://idp.acme.example
+  service-jwt:
+    audiences:
+      - edge-service-api
+  cors:
+    # Credentialed CORS allow-list. CorsAllowListConfig refuses '*' at startup —
+    # a wildcard with allowCredentials=true is a session-riding hole.
+    allowed-origins:
+      - https://app.acme.example
+  cookie:
+    # Secure by default: session and XSRF-TOKEN cookies carry the Secure attribute, consistent with
+    # the unconditional HSTS below. Plain-HTTP local runs opt out via the `local` profile
+    # (application-local.yaml), which relaxes this together with HSTS.
+    secure: true
+  hsts:
+    # When true, Strict-Transport-Security is emitted on every response regardless of
+    # X-Forwarded-Proto — for deployments where a stripped proxy header must not silently
+    # suppress HSTS. Set false only for plain-HTTP local demos.
+    unconditional: true

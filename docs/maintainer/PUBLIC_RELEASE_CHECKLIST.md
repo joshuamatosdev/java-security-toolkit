@@ -42,7 +42,7 @@ and security documentation, so keyword hits are not automatically leaks.
 ```bash
 ./gradlew test
 ./gradlew build publishToMavenLocal
-./gradlew :supply-chain:cyclonedxDirectBom :crypto-agility:cyclonedxDirectBom :crypto-agility-spring-boot-starter:cyclonedxDirectBom :crypto-agility-testkit:cyclonedxDirectBom
+./gradlew :supply-chain:cyclonedxDirectBom :crypto:cyclonedxDirectBom :crypto-spring-boot-starter:cyclonedxDirectBom :crypto-testkit:cyclonedxDirectBom
 NVD_API_KEY=... ./gradlew dependencyCheckPurge dependencyCheckAggregate
 git diff --check
 ```
@@ -52,8 +52,8 @@ artifacts before the full build:
 
 ```bash
 ./gradlew :tenant-isolation-spring-boot-starter:test :tenant-isolation-testkit:test
-./gradlew :layered-authorization-spring-boot-starter:test :layered-authorization-testkit:test
-./gradlew :edge-perimeter-spring-boot-starter:test :edge-perimeter-testkit:test
+./gradlew :authorization-spring-boot-starter:test :authorization-testkit:test
+./gradlew :edge-spring-boot-starter:test :edge-testkit:test
 ./gradlew :shared-testkit:test :supply-chain-testkit:test
 ```
 
@@ -66,7 +66,7 @@ For a clean-clone check, clone the repository into a temporary directory and run
   applications, with explicit environment-specific responsibilities.
 - README explains the module map, adoption paths, and what each test suite
   proves.
-- Crypto-agility docs show install, plain Java setup, Spring Boot setup,
+- Crypto docs show install, plain Java setup, Spring Boot setup,
   provider extension, key custody, rotation, and compliance boundaries.
 - Cryptography wording distinguishes algorithm identity from validated runtime
   compliance.

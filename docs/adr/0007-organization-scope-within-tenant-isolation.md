@@ -8,7 +8,7 @@
 
 Multi-tenant SaaS systems routinely subdivide a tenant into organizations —
 teams, departments, workspaces — and the authorization layer already treats the
-organization as an identity dimension: `layered-authorization` resolves
+organization as an identity dimension: `authorization` resolves
 organization-scoped role assignments and its policy contract asserts
 organization-scope isolation. The data plane had no such dimension. Within a
 tenant, every query saw the whole tenant, so any organization boundary existed
