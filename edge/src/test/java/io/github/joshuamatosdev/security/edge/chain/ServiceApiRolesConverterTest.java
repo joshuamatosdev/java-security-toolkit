@@ -35,7 +35,10 @@ class ServiceApiRolesConverterTest {
     AbstractAuthenticationToken token =
         Objects.requireNonNull(
             ServiceApiSecurityChainConfig.reactiveRolesConverter().convert(jwt).block());
-    return token.getAuthorities().stream().map(GrantedAuthority::getAuthority).toList();
+    return token.getAuthorities().stream()
+        .map(GrantedAuthority::getAuthority)
+        .filter(authority -> authority.startsWith("ROLE_"))
+        .toList();
   }
 
   @Test

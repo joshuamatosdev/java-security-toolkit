@@ -33,7 +33,7 @@ import org.springframework.context.annotation.Import;
 // first lets Boot's back off; the reverse order fails the context with a bean-override error.
 @AutoConfiguration(
         beforeName =
-            "org.springframework.boot.autoconfigure.web.reactive.WebSessionIdResolverAutoConfiguration")
+            "org.springframework.boot.webflux.autoconfigure.WebSessionIdResolverAutoConfiguration")
 @ConditionalOnClass(BrowserCredentialIsolationFilter.class)
 @ConditionalOnWebApplication(type = ConditionalOnWebApplication.Type.REACTIVE)
 @ConditionalOnProperty(

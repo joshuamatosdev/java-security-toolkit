@@ -3,10 +3,12 @@ package io.github.joshuamatosdev.security.edge;
 import static org.springframework.security.test.web.reactive.server.SecurityMockServerConfigurers.mockOAuth2Login;
 
 import io.github.joshuamatosdev.security.edge.headers.SecurityHeadersFilter;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.test.autoconfigure.web.reactive.AutoConfigureWebTestClient;
+import org.springframework.boot.webtestclient.autoconfigure.AutoConfigureWebTestClient;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.context.ApplicationContext;
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.test.web.reactive.server.WebTestClient;
 
@@ -24,7 +26,14 @@ import org.springframework.test.web.reactive.server.WebTestClient;
 @AutoConfigureWebTestClient
 class SecurityHeadersTest {
 
-  @Autowired private WebTestClient webClient;
+  @Autowired private ApplicationContext context;
+
+  private WebTestClient webClient;
+
+  @BeforeEach
+  void bindClientToSpringSecurity() {
+    webClient = SecuredWebTestClients.bindTo(context);
+  }
 
   @Test
   void coreSecurityHeadersPresentOnPublicResponse() {

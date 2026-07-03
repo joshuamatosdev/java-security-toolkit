@@ -78,7 +78,7 @@ val pinnedTomcatVersion = libs.versions.tomcat.get()
 val securityPinnedDependencyVersions = mapOf(
     ":edge" to mapOf(
         "runtimeClasspath" to mapOf(
-            "io.netty:netty-codec" to pinnedNettyVersion,
+            "io.netty:netty-codec-base" to pinnedNettyVersion,
             "io.netty:netty-codec-dns" to pinnedNettyVersion,
             "io.netty:netty-codec-http" to pinnedNettyVersion,
             "io.netty:netty-codec-http2" to pinnedNettyVersion,
@@ -87,7 +87,7 @@ val securityPinnedDependencyVersions = mapOf(
     ),
     ":edge-spring-boot-starter" to mapOf(
         "runtimeClasspath" to mapOf(
-            "io.netty:netty-codec" to pinnedNettyVersion,
+            "io.netty:netty-codec-base" to pinnedNettyVersion,
             "io.netty:netty-codec-dns" to pinnedNettyVersion,
             "io.netty:netty-codec-http" to pinnedNettyVersion,
             "io.netty:netty-codec-http2" to pinnedNettyVersion,
@@ -443,7 +443,7 @@ subprojects {
             imports {
                 mavenBom("org.springframework.boot:spring-boot-dependencies:$springBootVersion")
 
-                if (project.path in setOf(":tenant-isolation", ":authorization")) {
+                if (project.path in setOf(":tenant-isolation", ":authorization", ":authorization-showcase")) {
                     mavenBom("org.testcontainers:testcontainers-bom:$testcontainersVersion")
                 }
             }

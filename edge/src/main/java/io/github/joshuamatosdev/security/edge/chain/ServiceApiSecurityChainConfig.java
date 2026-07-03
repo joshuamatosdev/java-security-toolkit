@@ -8,6 +8,7 @@ import org.springframework.context.annotation.Configuration;
 import org.springframework.core.annotation.Order;
 import org.springframework.core.convert.converter.Converter;
 import org.springframework.security.authorization.AuthorizationDecision;
+import org.springframework.security.authorization.AuthorizationResult;
 import org.springframework.security.authorization.ReactiveAuthorizationManager;
 import org.springframework.security.authentication.AbstractAuthenticationToken;
 import org.springframework.security.core.Authentication;
@@ -100,7 +101,7 @@ public class ServiceApiSecurityChainConfig {
   static ReactiveAuthorizationManager<AuthorizationContext> jwtWithAuthority(String authority) {
     return (authentication, context) ->
         authentication
-            .map(auth -> new AuthorizationDecision(hasJwtAuthority(auth, authority)))
+            .map(auth -> (AuthorizationResult) new AuthorizationDecision(hasJwtAuthority(auth, authority)))
             .defaultIfEmpty(new AuthorizationDecision(false));
   }
 

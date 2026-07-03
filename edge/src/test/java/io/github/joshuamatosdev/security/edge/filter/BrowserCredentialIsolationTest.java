@@ -51,7 +51,7 @@ class BrowserCredentialIsolationTest {
 
     ServerHttpRequest downstream = runAndCaptureDownstreamRequest(exchange);
 
-    assertThat(downstream.getHeaders().containsKey(HttpHeaders.AUTHORIZATION))
+    assertThat(downstream.getHeaders().containsHeader(HttpHeaders.AUTHORIZATION))
         .as("a browser-plane request must not carry a bearer token to downstream filters")
         .isFalse();
   }

@@ -18,15 +18,18 @@ import okhttp3.mockwebserver.MockWebServer;
 import okhttp3.mockwebserver.RecordedRequest;
 import org.jetbrains.annotations.NotNull;
 import org.junit.jupiter.api.AfterAll;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.test.autoconfigure.web.reactive.AutoConfigureWebTestClient;
+import org.springframework.boot.webtestclient.autoconfigure.AutoConfigureWebTestClient;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.context.ApplicationContext;
 import org.springframework.http.HttpHeaders;
 import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
 import org.springframework.test.web.reactive.server.WebTestClient;
+import io.github.joshuamatosdev.security.edge.SecuredWebTestClients;
 
 /**
  * Proves the service plane enforces the issuer and audience boundary on a REAL signed bearer token,
@@ -61,7 +64,14 @@ class ServiceJwtValidationTest {
   private static MockWebServer jwksServer;
   private static RSAKey signingKey;
 
-  @Autowired private WebTestClient webClient;
+  @Autowired private ApplicationContext context;
+
+  private WebTestClient webClient;
+
+  @BeforeEach
+  void bindClientToSpringSecurity() {
+    webClient = SecuredWebTestClients.bindTo(context);
+  }
 
   @BeforeAll
   static void startJwksServer() throws Exception {
