@@ -3,6 +3,7 @@ package example.bff;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.springframework.security.test.web.reactive.server.SecurityMockServerConfigurers.csrf;
 import static org.springframework.security.test.web.reactive.server.SecurityMockServerConfigurers.mockOidcLogin;
+import static org.springframework.security.test.web.reactive.server.SecurityMockServerConfigurers.springSecurity;
 
 import java.io.IOException;
 import java.util.concurrent.TimeUnit;
@@ -13,8 +14,9 @@ import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.test.autoconfigure.web.reactive.AutoConfigureWebTestClient;
+import org.springframework.boot.webtestclient.autoconfigure.AutoConfigureWebTestClient;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.context.ApplicationContext;
 import org.springframework.http.HttpHeaders;
 import org.springframework.security.oauth2.client.registration.ClientRegistration;
 import org.springframework.security.oauth2.core.AuthorizationGrantType;
@@ -78,10 +80,16 @@ class DocumentRelayFlowTest {
     }
 
     @Autowired
+    private ApplicationContext context;
+
     private WebTestClient client;
 
     @BeforeEach
     void drainDownstream() throws InterruptedException {
+        client = WebTestClient.bindToApplicationContext(context)
+                .apply(springSecurity())
+                .configureClient()
+                .build();
         // The server is shared; drop anything a previous test left so takeRequest is per-test.
         while (DOWNSTREAM.takeRequest(10, TimeUnit.MILLISECONDS) != null) {
             // drain
@@ -119,8 +127,8 @@ class DocumentRelayFlowTest {
     }
 
     @Test
-    void refusesAnonymousBrowsersAtThePerimeterWithoutTouchingDownstream() throws Exception {
-        client.get().uri("/api/documents").exchange().expectStatus().is3xxRedirection();
+    void refusesAnonymousRequestsAtThePerimeterWithoutTouchingDownstream() throws Exception {
+        client.get().uri("/api/documents").exchange().expectStatus().isUnauthorized();
 
         assertNothingWasRelayed();
     }

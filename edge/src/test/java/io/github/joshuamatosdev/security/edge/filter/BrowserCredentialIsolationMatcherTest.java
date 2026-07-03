@@ -53,7 +53,7 @@ class BrowserCredentialIsolationMatcherTest {
 
     ServerHttpRequest downstream = runAndCaptureDownstreamRequest(exchange);
     boolean authorizationPreserved =
-        downstream.getHeaders().containsKey(HttpHeaders.AUTHORIZATION);
+        downstream.getHeaders().containsHeader(HttpHeaders.AUTHORIZATION);
 
     assertThat(authorizationPreserved)
         .as("filter and service security matcher must agree for path %s", path)

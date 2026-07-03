@@ -65,7 +65,7 @@ public class BrowserCredentialIsolationFilter implements WebFilter {
 
   private Mono<Void> filterBrowserPlane(
       ServerWebExchange exchange, WebFilterChain chain, ServerHttpRequest request, String logPath) {
-    if (request.getHeaders().containsKey(HttpHeaders.AUTHORIZATION)) {
+    if (request.getHeaders().containsHeader(HttpHeaders.AUTHORIZATION)) {
       log.warn(
           "inbound_credential_header_stripped header={} method={} path={} remote={}",
           HttpHeaders.AUTHORIZATION,

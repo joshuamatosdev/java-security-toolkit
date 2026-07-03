@@ -31,7 +31,7 @@ class EdgeAutoConfigurationTest {
         // BeanDefinitionOverrideException (found by the five-layer example's bff).
         new ReactiveWebApplicationContextRunner()
                 .withConfiguration(AutoConfigurations.of(
-                        org.springframework.boot.autoconfigure.web.reactive
+                        org.springframework.boot.webflux.autoconfigure
                                 .WebSessionIdResolverAutoConfiguration.class,
                         EdgeAutoConfiguration.class))
                 .run(context -> {
