@@ -2,7 +2,7 @@
 springBoot = "4.1.0"
 springDepMgmt = "1.1.7"
 testcontainers = "2.0.5"
-junit = "6.0.3"
+junit = "6.1.1"
 jspecify = "1.0.0"
 cyclonedx = "3.2.4"
 dependencyCheck = "12.2.2"
