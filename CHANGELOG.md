@@ -1,250 +1,70 @@
 # Changelog
 
-All notable changes to this project will be documented in this file.
-
-This project follows the spirit of Keep a Changelog and uses semantic versioning
-once public version tags begin.
+All notable changes live here. Versions follow semantic versioning.
 
 ## [Unreleased]
 
 ### Added
 
-- Env-gated artifact signing: the `signing` plugin engages only when
-  `SIGNING_KEY` / `SIGNING_PASSWORD` are present (CI release secrets), so
-  Maven Central's signed-artifact requirement is wired without affecting
-  local, offline, or `publishToMavenLocal` builds.
-- Release and docs workflows: a `v*` tag runs the full verification build and
-  creates a GitHub Release with generated notes (Maven Central publication
-  stays a commented placeholder until the namespace, signing key, and portal
-  credentials exist); pushes to `main` publish every published module's
-  Javadoc to GitHub Pages as one browsable site, assembled in shell from each
-  module's own `javadoc` output — no new build logic. All new actions are
-  SHA-pinned and pass `ActionPinPolicy`.
-- Dependabot configuration: weekly grouped updates for the Gradle version
-  catalog / Boot BOM (root and every example build) and for the SHA-pinned
-  GitHub Actions — the freshness half of the supply-chain story whose
-  immutability half `ActionPinPolicy` and `WrapperPinPolicy` already enforce.
-- Repo-wide coverage aggregation: the Gradle-built-in `jacoco-report-aggregation`
-  plugin merges every module's execution data into one report
-  (`./gradlew testCodeCoverageReport`), CI publishes the totals to the job
-  summary and uploads the HTML/XML report as an artifact. Mutation testing
-  (PIT) was considered and deliberately not added — it would be the build's
-  first third-party quality plugin, against the lean supply-chain posture.
-- `assertFrameworkFreeRuntimeClasspath` — the authorization split's promise as
-  an executable check: `:shared` and `:authorization` fail the build if their
-  runtime closure gains any dependency group outside an explicit allowlist
-  (jspecify; plus SLF4J for authorization). An allowlist rather than a
-  framework denylist, so a new transitive dependency fails loudly until it is
-  judged. Zero new build dependencies.
-- `examples/five-layer-spring-boot` — the composed five-layer example: a BFF
-  (edge starter — session, PKCE login shape, CORS/CSRF/cookie hardening, token
-  relay) in front of a resource service (authorization starter + tenant-isolation
-  starter over RLS-enforced PostgreSQL). Integration tests prove the layers
-  compose on a single request — coarse route gate, fine-grained audited
-  decision, and row-level security, each with its own observable refusal — and
-  that the relay forwards the user's access token while the session cookie
-  never crosses the plane boundary. Building it surfaced a real starter bug,
-  fixed in the edge starter: `EdgeAutoConfiguration` must be ordered before
-  Boot's `WebSessionIdResolverAutoConfiguration`, whose same-named
-  `webSessionIdResolver` bean otherwise fails a consumer boot with a
-  bean-override error (module and starter tests never boot a full application,
-  so only a consumer build could catch it).
-- `authorization-showcase` — the demonstration web/persistence application
-  (document API, demo identity resolution, PostgreSQL-backed ownership, RLS
-  init script) extracted from `authorization` into its own non-published
-  module, so the `authorization` library is a framework-free decision core
-  (Spring, Tomcat, and PostgreSQL left its dependency tree; only SLF4J
-  remains).
-- `AuthorizationWebAutoConfiguration` in the authorization starter: the 403
-  denial advice (`AuthorizationExceptionHandler`) now ships with the starter
-  and registers only in servlet web applications, backing off to an
-  application-provided handler.
-- `CorsAllowListContract` in `edge-testkit`: adopters can prove the
-  credentialed CORS startup guard still refuses wildcard, opaque `null`, and
-  non-loopback HTTP origins. The edge module runs its own shipped contracts
-  (`EdgePropertiesContract`, `CorsAllowListContract`), as `shared` and
-  `crypto` already do, so a testkit regression cannot ship silently.
-- `DocumentSignerContract` (crypto-testkit) now covers the trust-anchored
-  verify: accepts the pinned key, fails closed on a substituted key and on an
-  unknown key id. Both crypto examples demonstrate
-  `verify(signed, TrustAnchor.pinnedKeys(...))` at runtime.
-- `shared-testkit` typed-identifier contracts expanded: malformed and null
-  text rejection, canonical equality/distinctness parsing, and a
-  non-canonical-form rejection fixture that works for any identifier type.
-- `crypto/README.md` — the module was the only one without a README; documents
-  the API surface, the integrity-versus-authenticity boundary, starter
-  configuration, and the testkit.
-- `examples/tenant-isolation-spring-boot` — the tenant-isolation implementation
-  walkthrough as a compiled, tested consumer application: one starter
-  dependency, environment-bound configuration, the single `TenantBindingFilter`
-  an adopter owns, and an adopter-adapted copy of the reference DDL around a
-  zero-predicate `/notes` API. Its integration test drives two tenants and two
-  organizations through real HTTP into RLS-enforced PostgreSQL 18, and the
-  testkit contract runs as a consumer would run it. Building the example
-  surfaced a walkthrough gap, now fixed in the module README: adopter
-  configuration must disable Hibernate's boot-time metadata connection
-  (`spring.jpa.properties.hibernate.boot.allow_jdbc_metadata_access: false`)
-  because that borrow happens before any tenant is bound and fails closed. The
-  walkthrough's inline filter listing moved into the example as compiled code.
-- `TrustAnchor` in crypto and a trust-anchored
-  `DocumentSigner.verify(document, trustAnchor)` overload: the embedded-key
-  verify proves payload integrity only, so a key-substitution forgery (tampered
-  payload re-signed under an attacker-chosen key) verified. The anchor holds
-  the deployment's own opinion of which public key may speak for a key id —
-  `TrustAnchor.pinnedKeys(...)` is the constant-time pinned-set implementation —
-  and the anchored verify fails closed on an untrusted key (audited as
-  `untrusted key`) before any signature computation.
-- `ActionPinPolicy` in supply-chain — the third pin policy, completing the
-  triad with `BaseImagePolicy` and `WrapperPinPolicy`: every external GitHub
-  Actions `uses:` reference must name an immutable revision (40-hex commit SHA;
-  `docker://` refs digest-pinned; repository-local composite actions exempt).
-  Asserted continuously against this repository's own workflows — the CI SHA
-  pins were previously a hand-maintained convention — and exported as
-  `ActionPinPolicyContract` for adopters.
-- `PolicyScopeType.TEAM` and `shared`'s `TeamId`: a team is the narrowest
-  role-assignment scope — a discretionary grant boundary inside one
-  organization, never a data-plane isolation dimension. A team-scoped
-  assignment carries both its organization and its team and matches only a
-  resource placed in the same organization *and* team, so a grant cannot escape
-  its organization even if a team identifier were reused. New `TEAM_MEMBER`
-  grant basis reports team as the most specific allowing scope;
-  `ProtectedResource` gains an optional team placement (existing constructors
-  unchanged).
-- `Action.CREATE` in the authorization policy vocabulary: creation is
-  decided against the prospective resource's placement, holds the same
-  per-action granularity (a `CREATE` grant inherits nothing from `UPDATE` and
-  vice versa), and is appended after `DELETE` so persisted ordinals stay
-  stable.
-- Entitlement-based cross-tenant read grants (ADR-0008): an explicit,
-  platform-administered grant ledger (`tenant_security.read_grant`) and a
-  `PERMISSIVE FOR SELECT` policy let one tenant read another tenant's rows of
-  one resource class — directional, expiring, revocable on the next statement,
-  structurally read-only, and unforgeable/unenumerable from inside a tenant
-  session. The RESTRICTIVE organization cap now scopes only the session's own
-  tenant, so organization-bound sessions keep their entitled foreign reads.
-- Tenant-isolation README implementation walkthrough: an end-to-end adoption
-  guide for tenancy plus organizations — dependencies, configuration, the one
-  request-binding filter an adopter owns, the database-side DDL contract, and
-  the authorization tie-in.
-- Organization scope within tenant isolation (ADR-0007): the organization is a
-  co-equal dimension of the tenant binding (`TenantContext.runAs(tenant,
-  organization, work)`), emitted as a second kind-separated signed claim
-  (`app.org_claim`, `v2o`) on every borrow, verified by
-  `tenant_security.current_org_id()`, and capped by a RESTRICTIVE row policy
-  AND-combined with the tenant policy. Posture is selected with
-  `tenant.binding.organization-scope` (`off` default, `optional`, `required`
-  with fail-closed borrows), so multi-tenancy with organizations is
-  database-enforced, not a query-predicate convention.
-- Spring Boot configuration metadata across the toolkit: IDE completion and
-  documentation for every module property (`edge.*`, `tenant.isolation.*`,
-  `tenant.binding.*`, `bulwark.crypto.*`), every starter gate flag
-  (`bulwark.*.enabled`), and `showcase.demo-identity`, including default values.
-- `shared`: `RequiredText`, the single required-text rule set (non-blank, no
-  edge whitespace, no control characters) now used across the whole toolkit —
-  tenant-isolation, authorization, crypto, and the starters — instead of
-  per-module copies.
-- Public release documentation: security policy, contribution guide, changelog,
-  and public release checklist.
-- Production adoption guide and stronger public positioning as a Java 21
-  security toolkit for multi-tenant SaaS applications.
-- Maven publication metadata for local/internal artifact consumption.
-- CI hardening for build/test verification and pull-request dependency review.
-- Crypto now publishes optional `crypto-spring-boot-starter`
-  and `crypto-testkit` artifacts alongside the core `crypto`
-  library.
-- Shared, tenant isolation, authorization, edge, and supply
-  chain now publish reusable testkit artifacts for adopters and implementers.
-- Tenant isolation, authorization, and edge now publish
-  optional Spring Boot starter artifacts.
-- Initial public-ready reference modules: `shared`, `tenant-isolation`,
-  `authorization`, `edge`, `supply-chain`, and `crypto`.
-- ADR-backed documentation for the layered security posture.
-- Test coverage for tenant isolation, authorization, perimeter controls,
-  supply-chain checks, and crypto seams.
+- Artifact signing is env-gated. Local builds never need keys.
+- Tags build and create releases. Pushes publish Javadoc to Pages.
+- Dependabot updates all build roots. Updates arrive weekly, grouped.
+- One report merges all coverage. CI posts totals and artifact.
+- `assertFrameworkFreeRuntimeClasspath` guards runtime dependencies. Unlisted groups fail the build.
+- Two apps compose five layers. Tests prove each layer's refusal.
+- Demo web app split out. `authorization` stays framework-free.
+- Starter ships the 403 advice. It registers in servlet apps.
+- `edge-testkit` adds `CorsAllowListContract`. Adopters prove CORS guards hold.
+- Contract covers trust-anchored verify. Wrong keys fail closed.
+- Identifier contracts cover more cases. Bad and null text rejected.
+- `crypto` now has a README.
+- Walkthrough became a tested app. Tests drive real RLS PostgreSQL.
+- `TrustAnchor` adds authenticity checks. Substituted keys fail closed.
+- `ActionPinPolicy` requires SHA-pinned actions. It checks our own workflows.
+- Teams are the narrowest scope. Grants never escape their organization.
+- `Action.CREATE` joins the policy. Creation checks prospective placement.
+- Explicit grants allow cross-tenant reads. Grants expire and stay read-only.
+- README gains an adoption walkthrough.
+- Organizations scope the tenant binding. The database enforces both claims.
+- All properties have IDE metadata.
+- `RequiredText` replaces per-module text rules. Every module uses it.
+- Security policy and guides added.
+- Production adoption guide added.
+- Maven publication metadata added.
+- CI verifies builds and dependencies.
+- `crypto` publishes starter and testkit.
+- All modules publish testkits.
+- Three modules publish starters.
+- Six reference modules shipped.
+- ADRs document the posture.
+- Tests cover every module.
 
 ### Changed
 
-- Modules renamed to plain names: `crypto-agility` → `crypto`,
-  `layered-authorization` → `authorization`, `edge-perimeter` → `edge` —
-  directories, Gradle projects, Maven artifactIds, class-name prefixes
-  (for example `EdgePerimeterProperties` → `EdgeProperties`,
-  `CryptoAgilityAutoConfiguration` → `CryptoAutoConfiguration`), starter gate
-  properties (`bulwark.authorization.enabled`, `bulwark.edge.enabled`), ADR
-  filenames, and docs. `tenant-isolation`, `supply-chain`, and `shared` keep
-  their names. Nothing has been published, so no consumer coordinates break.
-- The edge CORS registrations are derived from the same
-  `RouteAuthorities` constants the authorization rules use, so the browser-plane
-  route truth lives once and the CORS surface cannot drift from the routes.
-  (`SignatureAlgorithm.fromJoseAlg` also moved from a per-call scan to a
-  precomputed map — it sits on the verification hot path.)
-- `CryptoProperties` is now an immutable `@ConfigurationProperties`
-  record binding only the values the wiring consumes (`default-algorithm`,
-  `default-key-id`). The provider and ephemeral-key toggles remain
-  `@ConditionalOnProperty`-driven and are documented in configuration metadata.
-  A malformed `bulwark.crypto.default-key-id` is rejected at bind time with
-  `IllegalArgumentException` (previously `IllegalStateException` at bean
-  creation).
-- The edge Spring Boot starter now activates each credential plane only
-  when its OAuth2 infrastructure is configured — the browser OIDC login chain when
-  a client registration is present, the service resource-server chain when a JWT
-  decoder is present. A reactive application can adopt the starter without OAuth2
-  configured and receives the credential-plane-agnostic hardening (CORS, CSRF,
-  cookie policy, credential isolation) instead of a context-startup failure.
-- Document ownership persists the owner principal type alongside the key, so the
-  policy's cross-principal-type ownership check holds for database-backed
-  resources (added an `owner_principal_type` column and a both-or-neither check).
+- Modules renamed to plain names. Nothing published, nothing breaks.
+- CORS derives from route constants. Routes and CORS cannot drift.
+- `CryptoProperties` is an immutable record. Bad key ids fail binding.
+- Credential planes activate when configured. Bare adoption still boots hardened.
+- Ownership stores the principal type. Cross-type checks hold in database.
 
 ### Removed
 
-- `DocumentSigner.seal(...)`, the alias of `sign(...)` — one entry point per
-  operation. ADR-0006 carries the amendment note.
+- `DocumentSigner.seal(...)` removed. One entry point per operation.
 
 ### Fixed
 
-- `TenantPoolSnapshot` no longer rejects weakly consistent Hikari MXBean
-  connection counts. The pool MXBean reads its gauges without a lock, so
-  `total != active + idle` is a legitimate transient state under load; treating
-  it as an error made observability able to fault the datasource surface.
-  The snapshot now documents weak consistency instead of enforcing an
-  invariant the source never promised.
-- `TenantContext.scoped(...)`/`systemOpsScoped(...)` no longer mask the work's
-  failure when restoring the prior binding also fails: the restore failure is
-  attached as a suppressed exception and the work's own exception stays the
-  root cause.
-- `DocumentSigner` audit parity: a provider or codec failure during `verify`
-  (and a trust-anchor failure during anchored verify) is now recorded as a
-  failed `VERIFY` audit event before the exception propagates, and `sign`
-  validates the key id up front so a malformed handle cannot produce a phantom
-  audit failure.
-- Authorization starter back-off: replacing `AuthorizationService` with an
-  application bean no longer silently removes the policy, rule-repository, and
-  audit-sink wiring the custom service needs — back-off is per bean, as the
-  configuration metadata promised.
-- Edge URI policy predicates (loopback host, explicit-port validity, control
-  characters) were duplicated between the CORS allow-list and the issuer-URI
-  validation; they now live once (`UriValidation`), so the two startup guards
-  cannot drift apart.
-- `tenant-isolation` thread-context-protection doc drift: the diagram and
-  prose now match the code — the guard lives in `TenantContext` and rejects a
-  bind or switch during an active transaction, before any pool connection is
-  taken.
-- The OWASP dependency-check gate is applied at the build root and run in CI
-  (weekly schedule and on demand) via `dependencyCheckAggregate`, scanning every
-  module's runtime closure (Spring Boot, WebFlux, Netty, Tomcat, PostgreSQL)
-  rather than only `supply-chain`'s direct dependencies.
+- `TenantPoolSnapshot` accepts weak counts. Observability cannot fault the datasource.
+- Restore failures no longer mask. Work errors stay root cause.
+- Every verify failure gets audited. `sign` validates key ids first.
+- Service replacement keeps reference wiring. Back-off is now per bean.
+- URI predicates now live once. Guards cannot drift apart.
+- Thread-context docs match the code.
+- CVE scanning covers every module. CI runs it weekly.
 
 ### Security
 
-- Typed identifiers (`TenantId`, `OrganizationId`, `ResourceId`) reject the
-  reserved nil UUID, so a sentinel/zeroed value cannot flow as an identity.
-- Gradle build-tool integrity: CI validates the committed `gradle-wrapper.jar`
-  against Gradle's published checksums (`validate-wrappers`), and `WrapperPinPolicy`
-  asserts the distribution SHA-256 pin as an executable check.
-- All GitHub Actions in CI are pinned to immutable commit SHAs instead of mutable
-  major tags.
-- The exported `AuthorizationPolicyContract` now also asserts deny-by-default and
-  organization-scope isolation, so an adopter's policy is verified against those
-  boundaries, not only tenant mismatch and explicit deny.
-- The exported `AuthorizationPolicyContract` additionally asserts team-scope
-  isolation: a team-scoped grant reaches neither another team's resources nor
-  team-unplaced resources of the same organization.
+- Typed identifiers reject nil UUIDs.
+- CI validates the Gradle wrapper. `WrapperPinPolicy` checks the pin.
+- All actions pin commit SHAs.
+- `AuthorizationPolicyContract` asserts deny-by-default. It asserts organization isolation.
+- The contract asserts team isolation.

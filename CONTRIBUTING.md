@@ -1,8 +1,6 @@
 # Contributing
 
-Thanks for considering a contribution. Bulwark is intentionally small:
-one module demonstrates one security pattern, and every pattern should remain
-runnable from a clean clone.
+Thanks for considering a contribution. This toolkit is intentionally small. One module demonstrates one security pattern. Every pattern must stay runnable. Even from a clean clone.
 
 ## Setup
 
@@ -26,18 +24,12 @@ Run one module:
 
 ## Contribution Rules
 
-- Keep examples neutral. Use fictional values such as `acme`, `globex`,
-  `example.com`, and random test UUIDs.
-- Do not commit secrets, real tenant or customer data, internal hostnames,
-  production identifiers, private keys, tokens, credentials, or `.env` files.
-- Keep module boundaries clear. Shared cross-module identity types belong in
-  `shared`; module-specific behavior belongs in the module that demonstrates it.
-- Add or update tests when a change affects a security boundary, authorization
-  decision, tenant boundary, crypto seam, supply-chain check, or public contract.
-- ADRs are append-only decision records. Update or add a new ADR when a security
-  decision changes.
-- Keep comments useful. Prefer rationale that explains why a boundary exists or
-  why a test matters.
+- Keep examples neutral. Use fictional values only. Like `acme`, `globex`, `example.com`. And random test UUIDs.
+- Never commit these. Secrets. Real tenant or customer data. Internal hostnames. Production identifiers. Private keys. Tokens. Credentials. `.env` files.
+- Keep module boundaries clear. Cross-module identity types belong in `shared`. Module-specific behavior stays in its module.
+- Did a change touch these? Add or update tests. A security boundary. An authorization decision. A tenant boundary. A crypto seam. A supply-chain check. A public contract.
+- ADRs are append-only decision records. Did a security decision change? Update or add an ADR.
+- Keep comments useful. Prefer comments that explain the why. Why a boundary exists. Why a test matters.
 
 ## Pull Request Checklist
 
@@ -56,11 +48,8 @@ Also review:
 
 ## Dependency Changes
 
-Dependency updates should explain why the update is needed and whether it affects
-runtime behavior, test-only behavior, vulnerability posture, licensing, or build
-reproducibility.
+A dependency update must explain itself. Say why the update is needed. Then say what it affects. Runtime behavior. Test-only behavior. Vulnerability posture. Licensing. Build reproducibility.
 
 ## Security Reports
 
-Do not disclose exploitable details in public issues or pull requests. Follow
-[SECURITY.md](SECURITY.md) for private reporting.
+Never post exploitable details publicly. Not in issues. Not in pull requests. Follow [SECURITY.md](SECURITY.md) for private reporting.

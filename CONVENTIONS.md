@@ -1,23 +1,13 @@
 # Conventions
 
-This repo is modular and portable: each module is independently buildable and
-liftable.
+This repo is modular and portable. Each module builds on its own. Each module lifts out cleanly.
 
-- **One module = one pattern.** Each lives in its own directory with its own
-  `build.gradle.kts`, `README.md`, an ADR in `docs/adr/`, and tests.
-- **Buildable from a clean clone.** `./gradlew :<module>:test` must pass with
-  only JDK 21 + Docker installed. No hidden local state.
+- **One module = one pattern.** Each has its own directory. It holds `build.gradle.kts` and `README.md`. Plus an ADR in `docs/adr/`. Plus tests.
+- **Buildable from a clean clone.** `./gradlew :<module>:test` must pass. Only JDK 21 and Docker installed. No hidden local state.
 - **Package namespace:** `io.github.joshuamatosdev.security.<module>`.
-- **Folder size:** no source folder holds 6 or more files. Split into cohesive
-  sub-packages (≤5 files each), and name the sub-packages consistently across
-  modules where the concept is shared (`config`, `web`, `persistence`, …).
-- **Shared types: no class repeats.** A type used by more than one module lives
-  exactly once in the `shared` module (the identity kernel: `TenantId`,
-  `OrganizationId`, `ResourceId`). Modules depend on it via
-  `implementation(project(":shared"))`; a class is never duplicated across modules.
-- **Versions** are pinned centrally in `gradle/libs.versions.toml`.
-- **ADRs** are append-only decision records; one per featured pattern, plus the
-  cross-cutting posture record (ADR-0001).
-- **Sanitization:** no real production identifiers, tenant IDs, realm names,
-  endpoints, or secrets. Neutral fictional examples only (`acme`, `globex`).
-- **Commits:** plain messages, no co-author trailers.
+- **Folder size:** no source folder reaches six files. Split into cohesive sub-packages. Keep each at five files max. Name shared sub-packages the same everywhere. Examples: `config`, `web`, `persistence`.
+- **Shared types: no class repeats.** Does a type span two modules? It lives once in `shared`. That is the identity kernel. It holds `TenantId`, `OrganizationId`, `ResourceId`. Modules depend via `implementation(project(":shared"))`. No class is ever duplicated.
+- **Versions** pin centrally in `gradle/libs.versions.toml`.
+- **ADRs** are append-only decision records. One per featured pattern. Plus the cross-cutting posture record (ADR-0001).
+- **Sanitization:** no real values allowed. No production identifiers or tenant IDs. No realm names or endpoints. No secrets. Neutral fictional examples only. Like `acme` and `globex`.
+- **Commits:** plain messages.

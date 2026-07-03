@@ -1,56 +1,52 @@
 # Security Policy
 
-Bulwark is production-oriented open-source security software from
-Joshua Matos and DoctrineOne Industries. It is intended to be adopted into real
-applications with the environment-specific controls described in the production
-adoption guide.
+This toolkit is open-source security software. It is production-oriented. Joshua Matos and DoctrineOne Industries build it.
+
+Adopt it into real applications. Add the environment-specific controls. The production adoption guide describes them.
 
 ## Supported Versions
 
-Security fixes are accepted for the current `main` branch. Public releases may
-also receive patch tags when the project begins publishing versioned releases.
+We take security fixes on `main`. Public releases may get patch tags. That starts with versioned releases.
 
 ## Reporting A Vulnerability
 
 Please report suspected vulnerabilities privately first.
 
-If this repository is hosted on GitHub, use GitHub's private vulnerability
-reporting feature when it is enabled. Otherwise, contact the maintainer through
-the public profile associated with the repository and provide:
+Is this repository hosted on GitHub? Use GitHub's private vulnerability reporting feature. Use it when it is enabled.
 
-- the affected module and files
-- a concise impact statement
-- reproduction steps or a minimal proof of concept
-- whether the issue requires any dependency, configuration, or runtime condition
+Otherwise, contact the maintainer another way. Use the repository's public profile. Then provide these details:
 
-Do not open a public issue with exploit details until the issue has been triaged.
+- The affected module and files.
+- A concise impact statement.
+- Reproduction steps. Or a minimal proof of concept.
+- Does it need a special condition? Like a dependency, configuration, or runtime.
+
+Do not post exploit details publicly. Wait until we triage the issue.
 
 ## Scope
 
 In scope:
 
-- bugs in the reference code that weaken the documented security boundary
-- unsafe default configuration in the examples
-- dependency or build-chain risks that affect this repository
-- documentation that could lead readers to deploy an unsafe pattern
+- Reference-code bugs. They weaken the documented security boundary.
+- Unsafe default configuration in the examples.
+- Dependency or build-chain risks here.
+- Docs that invite an unsafe pattern.
 
 Out of scope:
 
-- vulnerabilities in unrelated systems copied from this example
-- claims that require production infrastructure not present in this repository
-- social engineering, spam, denial-of-service, or destructive testing
-- requests for production compliance certification without a separate agreement
+- Vulnerabilities in systems that copied this.
+- Claims that need absent production infrastructure.
+- Social engineering, spam, denial-of-service, destructive testing.
+- Compliance certification without a separate agreement.
 
 ## Cryptography And Compliance Notes
 
-Cryptographic examples demonstrate API shape, provider seams, and migration
-strategy. Algorithm names and FIPS-approved algorithm identities are not claims
-that a given runtime provider or deployment is FIPS-validated. Production users
-must validate their own providers, keys, modules, policies, and operating
-environment.
+Crypto examples show three things. API shape. Provider seams. Migration strategy.
+
+Algorithm names carry no validation claim. FIPS-approved algorithm identities carry none either. They do not prove FIPS validation. Not for any runtime provider. Not for any deployment.
+
+Production users must validate their setup. Providers. Keys. Modules. Policies. Operating environment.
 
 ## Public Data Rule
 
-Do not include real secrets, customer identifiers, tenant names, hostnames,
-tokens, private keys, credentials, or internal endpoint values in reports,
-issues, pull requests, tests, or examples. Use neutral fictional values.
+Never include real sensitive values. That means secrets and customer identifiers. Also tenant names and hostnames. Also tokens and private keys. Also credentials and internal endpoint values. Keep them out of every place. Reports. Issues. Pull requests. Tests. Examples. Use neutral fictional values instead.

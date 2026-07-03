@@ -1,6 +1,6 @@
 # Support
 
-Bulwark is maintained by Joshua Matos and DoctrineOne Industries.
+Joshua Matos and DoctrineOne Industries maintain this toolkit.
 
 ## Community Support
 
@@ -8,12 +8,18 @@ Use public issues for:
 
 - bug reports
 - documentation gaps
-- production adoption questions that do not disclose private infrastructure
+- production adoption questions, no private infrastructure
 - module hardening proposals
-- compatibility issues with Java, Spring, PostgreSQL, Gradle, or Docker versions
+- Version compatibility problems. With Java, Spring, PostgreSQL, Gradle, Docker.
 
-Do not include secrets, customer data, private hostnames, tenant names, internal
-architecture diagrams, or exploit details in public issues.
+Keep these out of public issues:
+
+- No secrets.
+- No customer data.
+- No private hostnames.
+- No tenant names.
+- No internal architecture diagrams.
+- No exploit details.
 
 ## Security Reports
 
@@ -21,10 +27,12 @@ Follow [SECURITY.md](SECURITY.md) for private vulnerability reporting.
 
 ## Commercial And Production Support
 
-DoctrineOne Industries may offer production advisory, integration review,
-module hardening, threat-model review, and implementation support separately
-from the open-source repository.
+DoctrineOne Industries may offer more help. It stays separate from the repository. The help can include these:
 
-The public repository is Apache-2.0 licensed. Commercial support does not change
-the public license; it gives adopters a direct path for deeper production review
-and implementation help.
+- Production advisory.
+- Integration review.
+- Module hardening.
+- Threat-model review.
+- Implementation support.
+
+The public repository is Apache-2.0 licensed. Commercial support keeps that license. It gives adopters a direct path. That path means deeper production review. And implementation help.

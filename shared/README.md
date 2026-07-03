@@ -1,10 +1,9 @@
 # Shared
 
-The cross-module identity kernel for the security architecture modules.
+The identity kernel for the toolkit.
 
-`shared` owns small typed identifiers that are used by more than one module.
-Keeping them here prevents each module from creating its own incompatible copy
-of the same concept.
+`shared` owns small typed identifiers. More than one module uses them.
+Without it, each module copies them. Those copies would be incompatible.
 
 ## Included Types
 
@@ -12,21 +11,21 @@ of the same concept.
 - `OrganizationId`
 - `TeamId`
 - `ResourceId`
-- `RequiredText` — the single required-text rule set (non-blank, no edge
-  whitespace, no control characters) for configuration and construction
-  boundaries.
+- `RequiredText` — the required-text rule set. Text must not be blank. No
+  whitespace at the edges. No control characters allowed. Used at
+  configuration and construction boundaries.
 
-Each identifier wraps a UUID and provides a narrow factory API with one shared
-contract: canonical-form parsing, nil-UUID rejection, and
-`NullPointerException` on null. Modules that expose these types in their own
-public signatures depend on them with `api` scope (as `tenant-isolation` and
-`authorization` do), so the types stay compile-visible to consumers:
+Each identifier wraps a UUID. Each has a narrow factory API. They share one
+contract. It parses canonical-form UUIDs. It rejects the nil UUID. Null input
+throws `NullPointerException`. Some modules expose these types publicly. Those
+modules depend with `api` scope. `tenant-isolation` and `authorization` do
+this. The types stay compile-visible to consumers:
 
 ```kotlin
 api(project(":shared"))
 ```
 
-Consumers that implement compatible identifier types can reuse
+Some consumers build compatible identifier types. They can reuse
 `shared-testkit` contract tests:
 
 ```kotlin
@@ -35,8 +34,7 @@ testImplementation(project(":shared-testkit"))
 
 ## Run It
 
-`shared` has no standalone runtime. It is compiled and tested as part of the
-repository build:
+`shared` has no standalone runtime. The build compiles and tests it:
 
 ```bash
 ../gradlew :shared:build
@@ -46,6 +44,6 @@ repository build:
 
 ## Rules
 
-- A type used by more than one module belongs here once.
-- Module-specific types stay in their owning module.
-- Shared types should remain small, immutable, and dependency-light.
+- Many modules may use a type. Put it here once.
+- Module-specific types stay in their module.
+- Keep shared types small and immutable. Keep their dependencies light.

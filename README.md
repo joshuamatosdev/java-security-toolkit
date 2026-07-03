@@ -1,27 +1,26 @@
-# Bulwark
+# Java Security Toolkit
 
 [![CI](https://github.com/joshuamatosdev/bulwark/actions/workflows/ci.yml/badge.svg)](https://github.com/joshuamatosdev/bulwark/actions/workflows/ci.yml)
 [![Docs](https://github.com/joshuamatosdev/bulwark/actions/workflows/docs.yml/badge.svg)](https://joshuamatosdev.github.io/bulwark/)
 [![License](https://img.shields.io/badge/license-Apache--2.0-blue.svg)](LICENSE)
 [![Java](https://img.shields.io/badge/Java-21-orange.svg)](https://openjdk.org/projects/jdk/21/)
 
-A production-oriented Java 21 security toolkit for multi-tenant SaaS systems.
+A Java 21 security toolkit. Built for multi-tenant SaaS systems.
 
-Bulwark is built by Joshua Matos and DoctrineOne Industries. It turns
-hard platform-security decisions into usable Java modules, executable tests, and
-ADR-backed operating guidance for teams building multi-tenant applications.
+Joshua Matos and DoctrineOne Industries build it. It turns hard security decisions
+into modules. Each module ships with executable tests. Decision records explain
+every choice.
 
-Use it as production-oriented starting material: adopt modules directly, publish
-them as internal Maven artifacts, or copy the patterns into an application with
-the documented replacement points. The repository stays neutral and public-safe:
-examples use fictional tenants, organizations, users, and documents.
+Use it as starting material. Adopt modules directly. Publish them as internal
+artifacts. Or copy the patterns out. The repository stays neutral and public-safe.
+Examples use fictional tenants and users.
 
 ## Quick Start
 
 Requirements:
 
 - JDK 21
-- Docker, for Testcontainers-backed integration tests
+- Docker, for the integration tests
 
 Build and test everything:
 
@@ -29,7 +28,7 @@ Build and test everything:
 ./gradlew build
 ```
 
-Publish the modules to your local Maven repository for application integration:
+Publish the modules to local Maven:
 
 ```bash
 ./gradlew publishToMavenLocal
@@ -57,8 +56,7 @@ Run focused modules:
 ./gradlew :shared-testkit:test
 ```
 
-The test suite starts PostgreSQL containers where a pattern depends on real
-database behavior.
+Some patterns need real database behavior. Those tests start PostgreSQL containers.
 
 ## What You Can Use
 
@@ -77,42 +75,40 @@ flowchart LR
 
 | Module | Security pattern | What the tests prove |
 |---|---|---|
-| `shared` | Typed identity kernel | Tenant, organization, team, and resource IDs cannot be casually mixed as raw UUIDs. |
-| `shared-testkit` | Typed identifier contracts | Adopters can reuse constructor, equality, and formatting contracts for shared identifier implementations. |
-| `tenant-isolation` | Tenant placement, signed PostgreSQL session claims, organization scope, cross-tenant read entitlements, and RLS | Tenant context reaches the database boundary and isolation — including the organization dimension within a tenant and explicit read-only sharing across tenants — holds under real PostgreSQL behavior. |
-| `tenant-isolation-spring-boot-starter` | Spring Boot auto-configuration | A Spring app can import the tenant isolation configuration through one starter dependency. |
-| `tenant-isolation-testkit` | Tenant context contracts | Adopters can prove context binding, clearing, and cross-tenant rejection without copying reference tests. |
-| `authorization` | Fine-grained resource policy, deny-overrides, audit | Scope-layered policy, deny-overrides, and audit behavior are enforced from the same framework-free decision point. |
-| `authorization-spring-boot-starter` | Spring Boot auto-configuration | A Spring app can auto-wire the reference authorization service and policies. |
-| `authorization-testkit` | Authorization policy contracts | Policy implementers can reuse allow, deny, mismatch, and audit-oriented contract checks. |
-| `authorization-showcase` | Demonstration document API over the decision core (not published) | The coarse route gate, resource policy, PostgreSQL-backed ownership, and audit trail run together in a real Spring web application. |
-| `edge` | Browser/service credential plane separation | Browser sessions, service JWTs, CORS, CSRF, and headers stay in their intended boundary. |
-| `edge-spring-boot-starter` | Spring Boot auto-configuration | A WebFlux edge app can import the reference perimeter chains and properties through a starter. |
-| `edge-testkit` | Edge policy contracts | Consumers can reuse property and perimeter policy checks around CORS, headers, and credential-plane defaults. |
-| `supply-chain` | Build trust horizon | SBOM evidence, base-image pinning, wrapper pinning, and workflow-action pinning are executable checks, not review-only guidance. |
-| `supply-chain-testkit` | Supply-chain contracts | Build-policy implementers can reuse SBOM, base-image-pin, and action-pin contract tests. |
-| `crypto` | Provider seam and algorithm registry | Signing call sites stay stable while algorithms and providers change behind the seam, and verification can be anchored to deployment-trusted keys. |
-| `crypto-spring-boot-starter` | Spring Boot auto-configuration | A Spring app can inject `DocumentSigner`; default signing requires app-owned key custody or explicit local-demo opt-in. |
-| `crypto-testkit` | Provider and signer contracts | Provider implementers can reuse contract tests instead of copying internal test code. |
+| `shared` | Typed identity kernel | IDs cannot mix as raw UUIDs. |
+| `shared-testkit` | Identifier contracts | Adopters reuse the identifier contracts. |
+| `tenant-isolation` | Signed session claims plus RLS | Isolation holds under real PostgreSQL. |
+| `tenant-isolation-spring-boot-starter` | Boot auto-configuration | One dependency wires tenant isolation. |
+| `tenant-isolation-testkit` | Tenant context contracts | Adopters prove binding and rejection. |
+| `authorization` | Resource policy, deny-overrides, audit | One decision point enforces policy. |
+| `authorization-spring-boot-starter` | Boot auto-configuration | Apps auto-wire the reference service. |
+| `authorization-testkit` | Policy contracts | Adopters reuse allow/deny/audit checks. |
+| `authorization-showcase` | Demo document API (not published) | Both gates run in one app. |
+| `edge` | Credential plane separation | Each credential stays in its plane. |
+| `edge-spring-boot-starter` | Boot auto-configuration | One starter wires the perimeter. |
+| `edge-testkit` | Edge policy contracts | Adopters prove CORS and cookie policy. |
+| `supply-chain` | Build trust horizon | Pin policies run as tests. |
+| `supply-chain-testkit` | Supply-chain contracts | Adopters reuse the pin contracts. |
+| `crypto` | Provider seam and registry | Call sites survive algorithm change. |
+| `crypto-spring-boot-starter` | Boot auto-configuration | Apps inject `DocumentSigner` safely. |
+| `crypto-testkit` | Provider and signer contracts | Provider authors reuse the contracts. |
 
 ## Production Adoption
 
-Bulwark is designed for real production apps, but adoption must be explicit.
-The modules provide tested boundaries and implementation patterns; your app owns
-its environment-specific issuer, keys, database roles, tenant source of truth,
-policy store, observability, incident process, and compliance validation.
+The modules fit real production apps. Adoption must still be explicit. The
+modules give tested boundaries and patterns. Your app owns its environment. That
+means issuer, keys, and database roles. Also policy store, observability, and
+compliance.
 
 Typical adoption paths:
 
-- **Library adoption:** publish modules with `./gradlew publishToMavenLocal` or
-  your internal Maven repository, then depend on selected modules.
-- **Source adoption:** copy a module into a service and preserve the tests as
-  contract tests while adapting package names and infrastructure.
-- **Pattern adoption:** use the ADRs and tests as acceptance criteria for an
-  existing platform implementation.
+- **Library adoption:** publish with `./gradlew publishToMavenLocal`. Then depend
+  on selected modules.
+- **Source adoption:** copy a module in. Keep its tests as contracts.
+- **Pattern adoption:** use ADRs as acceptance criteria.
 
-See [Production adoption guide](docs/PRODUCTION_ADOPTION.md) for integration
-contracts, replacement points, and module-by-module hardening notes.
+See the [production adoption guide](docs/PRODUCTION_ADOPTION.md). It lists
+replacement points and hardening notes.
 
 ## Repository Layout
 
@@ -123,7 +119,7 @@ bulwark/
 |-- tenant-isolation/        # tenant placement, session binding, PostgreSQL RLS
 |-- tenant-isolation-spring-boot-starter/ # optional Boot auto-configuration
 |-- tenant-isolation-testkit/ # reusable tenant context contracts
-|-- authorization/           # coarse request gate + fine-grained policy
+|-- authorization/           # framework-free authorization decision core
 |-- authorization-spring-boot-starter/ # optional Boot auto-configuration
 |-- authorization-testkit/   # reusable authorization contracts
 |-- authorization-showcase/  # demonstration web app: route gate + document API (not published)
@@ -146,38 +142,31 @@ bulwark/
 
 ## Architecture Posture
 
-The repository demonstrates a layered posture where controls are structural,
-explicit, and deny-by-default.
+The controls are structural and explicit. Everything denies by default.
 
 | Layer | Concern | Module |
 |---|---|---|
-| 1. Identity / AuthN | OIDC, PKCE, browser/service credential separation | `edge` |
-| 2. Authorization | Coarse route gate plus fine-grained resource policy | `authorization` (route gate demonstrated in `authorization-showcase`) |
-| 3. Secrets / config | No production secret in source or image | ADR-0001 and release checklist |
-| 4. Transport / runtime | Perimeter routing, browser headers, actuator lockdown | `edge` |
-| 5. Data | Tenant placement, least-privilege roles, RLS | `tenant-isolation` |
-| 6. Supply chain | SBOM, dependency, wrapper, base-image, and workflow-action verification | `supply-chain` |
-| Cross-cutting | Signature-provider agility and migration strategy | `crypto` |
+| 1. Identity / AuthN | OIDC, PKCE, credential separation | `edge` |
+| 2. Authorization | Route gate plus resource policy | `authorization` (gate shown in `authorization-showcase`) |
+| 3. Secrets / config | No secret in source | ADR-0001 and release checklist |
+| 4. Transport / runtime | Routing, headers, actuator lockdown | `edge` |
+| 5. Data | Tenant placement, least privilege, RLS | `tenant-isolation` |
+| 6. Supply chain | SBOM and pin verification | `supply-chain` |
+| Cross-cutting | Signature-provider agility | `crypto` |
 
-The posture is executable, not just a diagram:
-[`examples/five-layer-spring-boot`](examples/five-layer-spring-boot/) composes a BFF (edge
-perimeter, layers 1 + 4) in front of a resource service (authorization + tenant-isolation,
-layers 2 + 5) and proves with integration tests that a single request crosses the coarse route
-gate, the fine-grained audited decision, and PostgreSQL row-level security -- each with its own
-observable refusal.
+The posture is executable, not decorative. See
+[`examples/five-layer-spring-boot`](examples/five-layer-spring-boot/). A BFF
+fronts a resource service there. Tests drive one request through. Route gate,
+policy decision, then RLS. Each layer refuses on its own.
 
 ## Public Release Posture
 
-- This repository is intentionally neutral and uses fictional identifiers such as
-  `acme` and `globex`.
-- Do not add real customer, tenant, employer, internal-system, endpoint, or secret
-  values to examples, tests, docs, issues, or pull requests.
-- Cryptographic examples demonstrate API shape and migration boundaries. Local
-  ephemeral signing keys are demo-only, and a listed algorithm or FIPS-approved
-  algorithm identity is not a claim that every runtime provider, deployment, or
-  environment is FIPS-validated.
-- Production systems still need their own threat model, operational controls,
-  compliance review, provider validation, and incident process.
+- The repository stays neutral. Identifiers like `acme` are fictional.
+- Never add real customer or secret values. Not in examples, tests, or issues.
+- Crypto examples show API shape only. Local signing keys are demo-only. A listed
+  algorithm is not a FIPS claim. Validation depends on your runtime.
+- Production systems still need more. Threat model, controls, compliance,
+  incident process.
 
 ## Documentation
 
@@ -207,10 +196,10 @@ Useful commands:
 Repository rules:
 
 - One module demonstrates one pattern.
-- A module must build from a clean clone with only JDK 21 and Docker.
-- Shared types live in `shared` once, never duplicated.
+- A clean clone must build. Only JDK 21 and Docker.
+- Shared types live in `shared` once.
 - ADRs are append-only decision records.
-- Examples use neutral fictional values such as `acme` and `globex`.
+- Examples use fictional values like `acme`.
 
 ## License
 
