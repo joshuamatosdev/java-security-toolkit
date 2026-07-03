@@ -52,16 +52,15 @@ implementation("io.github.joshuamatosdev.security:authorization-spring-boot-star
 
 The starter wires four reference beans. It wires the reference `AuthorizationService`.
 It wires the policy. It wires an in-memory rule repository. It wires the audit sink.
-This happens when `bulwark.authorization.enabled` is true. It also applies when
+This happens when `authorization.enabled` is true. It also applies when
 absent. Each bean backs off individually. Your own bean takes over. This applies to
 servlet web apps. It registers the 403 denial advice. The advice translates
 `AuthorizationDeniedException`. It returns a response. It leaks no decision internals.
 Disable everything with:
 
 ```yaml
-bulwark:
-  authorization:
-    enabled: false
+authorization:
+  enabled: false
 ```
 
 ## What It Demonstrates

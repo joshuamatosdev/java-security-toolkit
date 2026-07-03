@@ -65,21 +65,20 @@ public-key lookup. Or use a key directory. `pinnedKeys` compares in constant tim
 ## Spring Boot Starter
 
 ```yaml
-bulwark:
-  crypto:
-    default-algorithm: ED25519
-    default-key-id: local-ed25519-1
-    providers:
-      jca:
-        ed25519:
-          enabled: true
+crypto:
+  default-algorithm: ED25519
+  default-key-id: local-ed25519-1
+  providers:
+    jca:
+      ed25519:
+        enabled: true
 ```
 
 The starter injects `DocumentSigner`. Default-key signing needs app-owned key custody.
 Provide a `KeyHandleResolver`. One opt-in is demo-only. It is
-`bulwark.crypto.local-ephemeral-keys.enabled`. It generates in-memory keys. It must
+`crypto.local-ephemeral-keys.enabled`. It generates in-memory keys. It must
 stay off in production. Disable the whole starter easily. Set
-`bulwark.crypto.enabled: false`.
+`crypto.enabled: false`.
 
 ## Testkit
 

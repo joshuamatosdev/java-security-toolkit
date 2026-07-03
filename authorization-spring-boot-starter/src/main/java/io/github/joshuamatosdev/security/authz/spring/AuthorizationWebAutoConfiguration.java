@@ -20,7 +20,7 @@ import org.springframework.web.bind.annotation.RestControllerAdvice;
 @ConditionalOnClass(RestControllerAdvice.class)
 @ConditionalOnWebApplication(type = ConditionalOnWebApplication.Type.SERVLET)
 @ConditionalOnProperty(
-        prefix = "bulwark.authorization",
+        prefix = "authorization",
         name = "enabled",
         havingValue = "true",
         matchIfMissing = true)

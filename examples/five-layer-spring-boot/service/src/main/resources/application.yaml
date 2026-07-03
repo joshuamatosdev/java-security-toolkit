@@ -35,6 +35,6 @@ tenant:
     system-ops-password: ${TENANT_BINDING_SYSTEM_OPS_PASSWORD}
     organization-scope: optional          # off -> optional -> required
 
-# bulwark.authorization.enabled defaults to true: the starter wires the reference
+# authorization.enabled defaults to true: the starter wires the reference
 # AuthorizationService, policy, rule repository, audit sink, and the servlet 403
 # denial advice. Each bean backs off to an application-provided replacement.

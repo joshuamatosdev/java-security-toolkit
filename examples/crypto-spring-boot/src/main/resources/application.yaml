@@ -1,14 +1,13 @@
-bulwark:
-  crypto:
-    default-algorithm: ED25519
-    default-key-id: local-ed25519-1
-    local-ephemeral-keys:
-      enabled: true
-    providers:
-      jca:
-        ed25519:
-          enabled: true
-        ecdsa-p256:
-          enabled: false
-        ml-dsa-44-placeholder:
-          enabled: false
+crypto:
+  default-algorithm: ED25519
+  default-key-id: local-ed25519-1
+  local-ephemeral-keys:
+    enabled: true
+  providers:
+    jca:
+      ed25519:
+        enabled: true
+      ecdsa-p256:
+        enabled: false
+      ml-dsa-44-placeholder:
+        enabled: false

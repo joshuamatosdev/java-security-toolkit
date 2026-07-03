@@ -57,7 +57,7 @@ class CryptoAutoConfigurationTest {
     @Test
     void localEphemeralKeysAreExplicitOptIn() {
         contextRunner
-                .withPropertyValues("bulwark.crypto.local-ephemeral-keys.enabled=true")
+                .withPropertyValues("crypto.local-ephemeral-keys.enabled=true")
                 .run(context -> {
                     assertThat(context).hasSingleBean(KeyHandleResolver.class);
 
@@ -72,7 +72,7 @@ class CryptoAutoConfigurationTest {
     @Test
     void ecdsaP256ProviderIsOptIn() {
         contextRunner
-                .withPropertyValues("bulwark.crypto.providers.jca.ecdsa-p256.enabled=true")
+                .withPropertyValues("crypto.providers.jca.ecdsa-p256.enabled=true")
                 .run(context -> {
                     final SignatureProviderRegistry registry = context.getBean(SignatureProviderRegistry.class);
                     assertThat(registry.hasProvider(SignatureAlgorithm.ED25519)).isTrue();
@@ -84,7 +84,7 @@ class CryptoAutoConfigurationTest {
     @Test
     void missingDefaultProviderFailsStartup() {
         contextRunner
-                .withPropertyValues("bulwark.crypto.providers.jca.ed25519.enabled=false")
+                .withPropertyValues("crypto.providers.jca.ed25519.enabled=false")
                 .run(context -> assertThat(context.getStartupFailure())
                         .hasMessageContaining("No SignatureProvider registered for default algorithm ED25519"));
     }
@@ -92,23 +92,23 @@ class CryptoAutoConfigurationTest {
     @Test
     void blankDefaultKeyIdFailsStartup() {
         contextRunner
-                .withPropertyValues("bulwark.crypto.default-key-id= ")
+                .withPropertyValues("crypto.default-key-id= ")
                 .run(context -> assertThat(context.getStartupFailure())
                         .rootCause()
-                        .hasMessage("bulwark.crypto.default-key-id must not be blank"));
+                        .hasMessage("crypto.default-key-id must not be blank"));
     }
 
     @Test
     void malformedDefaultKeyIdsAreRejectedAtBind() {
         assertThatThrownBy(() -> new CryptoProperties(null, " local-ed25519-1"))
                 .isInstanceOf(IllegalArgumentException.class)
-                .hasMessage("bulwark.crypto.default-key-id must not include leading or trailing whitespace");
+                .hasMessage("crypto.default-key-id must not include leading or trailing whitespace");
         assertThatThrownBy(() -> new CryptoProperties(null, "local-ed25519-1 "))
                 .isInstanceOf(IllegalArgumentException.class)
-                .hasMessage("bulwark.crypto.default-key-id must not include leading or trailing whitespace");
+                .hasMessage("crypto.default-key-id must not include leading or trailing whitespace");
         assertThatThrownBy(() -> new CryptoProperties(null, "local-ed25519-1" + (char) 0x00))
                 .isInstanceOf(IllegalArgumentException.class)
-                .hasMessage("bulwark.crypto.default-key-id must not contain control characters");
+                .hasMessage("crypto.default-key-id must not contain control characters");
     }
 
     @Test

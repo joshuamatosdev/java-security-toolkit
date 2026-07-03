@@ -61,13 +61,12 @@ implementation("io.github.joshuamatosdev.security:edge-spring-boot-starter:0.1.0
 ```
 
 The starter imports the perimeter configuration. It is the reference WebFlux setup.
-This happens when `bulwark.edge.enabled` is true. It also applies when absent. Disable
+This happens when `edge.enabled` is true. It also applies when absent. Disable
 it with:
 
 ```yaml
-bulwark:
-  edge:
-    enabled: false
+edge:
+  enabled: false
 ```
 
 ## What It Demonstrates
