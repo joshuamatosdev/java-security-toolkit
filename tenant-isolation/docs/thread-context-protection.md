@@ -1,20 +1,20 @@
 # Threads and Tenant Context Protection
 
-This document explains how Java threads interact with tenant isolation in this
-module, and why the code protects `TenantContext` as strictly as it does.
+This document covers Java threads. It explains this module's tenant isolation.
+The code guards `TenantContext` strictly. This document explains why.
 
 ## What a Thread Is
 
-A Java thread is one path of execution inside the JVM. Each thread has its own
-call stack and local variables. Two requests can run at the same time because
-they are handled by different threads.
+A Java thread runs one path. It runs inside the JVM. Each thread has its own
+stack. Each has its own local variables. Two requests can run together.
+Different threads handle them.
 
-Web servers usually do not create a brand-new thread for every request. They use
-a thread pool. A worker thread can handle one request, return to the pool, and
-later handle a different request.
+A server rarely makes new threads. Not one per request. They use a thread pool.
+A worker thread handles one request. Then it returns to the pool. Later it
+handles another request.
 
-That reuse matters for security. Anything stored on the thread can accidentally
-survive longer than the request if it is not removed.
+That reuse matters for security. Data can sit on a thread. You must remove it.
+Otherwise it can outlive the request.
 
 ## What ThreadLocal Does
 
@@ -24,26 +24,24 @@ survive longer than the request if it is not removed.
 private static final ThreadLocal<TenantId> CURRENT = new ThreadLocal<>();
 ```
 
-If thread A stores `ACME`, thread B does not see it. If thread B stores
-`GLOBEX`, thread A does not see it.
+Thread A stores `ACME`. Thread B cannot see it. Thread B stores `GLOBEX`.
+Thread A cannot see it.
 
-That is useful for request facts such as the current tenant. It means code deep
-in the call stack can ask, "which tenant is active for this request?" without
-passing the tenant through every method signature.
+This helps store request facts. The current tenant is one. Deep code can ask one
+question. Which tenant is active now? No method needs a tenant parameter.
 
 It also creates two important risks:
 
-1. A thread can be reused for a later request.
-2. A new thread does not automatically get the parent thread's tenant.
+1. A later request may reuse it.
+2. A new thread starts clean. It skips the parent's tenant.
 
-The first risk can leak a tenant into later work. The second risk can make async
-work run with no tenant at all.
+The first risk leaks a tenant. It leaks into later work. The second risk drops
+the tenant. Async work runs with none.
 
 ## How This Module Uses It
 
-`TenantContext` stores the active `TenantId` for the current thread. The
-datasource proxy reads that value every time application code borrows a database
-connection:
+`TenantContext` stores the active `TenantId`. It holds it per thread. The
+datasource proxy reads that value. It reads on every connection borrow:
 
 ```text
 request thread
@@ -54,13 +52,13 @@ request thread
   -> PostgreSQL RLS verifies the claim
 ```
 
-The tenant is not trusted merely because Java set a variable. Java only creates
-the signed claim. PostgreSQL verifies the claim again before RLS uses it.
+Java setting a variable proves nothing. Java only creates the signed claim.
+PostgreSQL verifies the claim again. It checks before RLS uses it.
 
 ## Request Flow Diagram
 
-The diagram below shows where the tenant value lives as a request moves through
-the server, Spring, application code, and PostgreSQL.
+The diagram below tracks the tenant. It follows one request through. The path
+covers server and Spring. Then application code and PostgreSQL.
 
 ```mermaid
 flowchart TB
@@ -104,30 +102,32 @@ flowchart TB
     cleanup -->|prevents tenant leak before thread reuse| worker
 ```
 
-Spring owns the request dispatch and transaction state. `TenantContext` owns the
-tenant value for the current worker thread — including the tenant-before-transaction
-guard: a first bind or an unsafe tenant/organization switch is rejected at bind
-time once a tenant transaction is active. The datasource proxy joins those facts
-at the database boundary: it refuses a borrow with no bound tenant and binds the
-signed claim before SQL reaches PostgreSQL.
+Spring owns request dispatch. Spring owns transaction state. `TenantContext`
+owns the tenant value. It owns it per worker thread. It runs the
+tenant-before-transaction guard. Suppose a tenant transaction is active. Then a
+first bind is rejected. An unsafe switch is rejected too. This covers tenant and
+organization switches. Rejection happens at bind time. The datasource proxy
+joins these facts. It acts at the database boundary. It refuses an unbound
+borrow. It binds the signed claim first. This happens before SQL reaches
+PostgreSQL.
 
 ## Failure Modes
 
 ### Missing Tenant
 
-If code borrows a tenant-scoped connection without a tenant, it would be unclear
-which rows the request should be allowed to see.
+Code may borrow a tenant-scoped connection. But it binds no tenant. Then the
+allowed rows are unclear.
 
-This module fails closed. `TenantContext.requireCurrent()` throws when no tenant
-is bound, and `TenantSessionDataSourceProxy` rejects the borrow before any pool
-connection is taken — a tenant-less request never touches a raw connection.
+This module fails closed. `TenantContext.requireCurrent()` throws with no
+tenant. `TenantSessionDataSourceProxy` rejects the borrow. It rejects before
+taking a connection. It never touches a raw connection.
 
 ### Leaked Tenant
 
-A thread pool worker can handle request A and then request B. If request A leaves
-`ACME` in the thread local, request B could accidentally run as `ACME`.
+A pool worker handles request A. Then it handles request B. Request A may leave
+`ACME` behind. It sits in the thread local. Request B could run as `ACME`.
 
-This module avoids that by using scoped entry points:
+This module uses scoped entry points. They prevent that leak:
 
 ```text
 TenantContext.runAs(TenantIds.ACME, () -> {
@@ -135,17 +135,18 @@ TenantContext.runAs(TenantIds.ACME, () -> {
 });
 ```
 
-`runAs` and `supplyAs` save the prior tenant, set the new tenant, run the work,
-and restore the prior value in a `finally` block. If no tenant was previously
-bound, the restore path removes the thread-local value completely.
+`runAs` and `supplyAs` work in steps. They save the prior tenant. They set the
+new tenant. They run the work. They restore the prior value. A `finally` block
+does the restore. Maybe no tenant was bound before. Then it clears the
+thread-local value.
 
-That `finally` block is the reason normal code should use scoped entry points
-instead of direct setters.
+That `finally` block matters. So prefer scoped entry points. Avoid direct
+setters.
 
 ### System Operations Through the Normal Path
 
-System operations use a separate read-only database role that can read across
-tenants. That is intentionally not a normal request tenant.
+System operations use a separate role. The role is read-only. It can read across
+tenants. This is not a normal tenant. That is deliberate.
 
 Ordinary entry points reject `TenantIds.SYSTEM_OPS`:
 
@@ -153,24 +154,23 @@ Ordinary entry points reject `TenantIds.SYSTEM_OPS`:
 TenantContext.runAs(TenantIds.SYSTEM_OPS, work); // rejected
 ```
 
-System operations must use the explicit system-ops entry points:
+Use the explicit system-ops entry points:
 
 ```text
 TenantContext.runAsSystemOps(work);
 TenantContext.supplyAsSystemOps(work);
 ```
 
-This makes cross-tenant reads visible at the call site.
+This makes cross-tenant reads visible. They show at the call site.
 
 ### Tenant Switch After a Transaction Starts
 
-A transaction usually borrows its database connection at the beginning. The
-datasource binds the tenant claim to that borrowed database session. If code
-tries to change tenants after the transaction has started, the Java thread-local
-value and the database session can disagree.
+A transaction borrows a connection. This usually happens at the start. The
+datasource binds the tenant claim. It binds to that database session. Code might
+change tenants mid-transaction. Then two values can disagree. The thread-local
+and the session.
 
-This module rejects that pattern. The tenant must be bound before a tenant
-transaction starts.
+This module rejects that pattern. The tenant binds before the transaction.
 
 Correct shape:
 
@@ -189,23 +189,23 @@ void doTenantWork() {
 }
 ```
 
-The risky shape binds the tenant inside a transaction that may already have a
-connection. The guard rejects a first bind or a tenant switch during an active
-tenant transaction. Re-entering the same tenant is allowed.
+The risky shape binds late. That transaction may hold a connection. The guard
+rejects a first bind. It rejects a tenant switch too. This applies during active
+tenant transactions. Re-entering the same tenant is allowed.
 
-In a single-datasource application, the default check treats any active Spring
-transaction as the tenant transaction. In a multi-datasource application, startup
-code can install a narrower check with
-`TenantContext.useTenantTransactionActiveCheck(...)` so an unrelated transaction
-does not block tenant binding.
+Consider a single-datasource application. The default check is broad. It counts
+any active Spring transaction. Each becomes the tenant transaction. Now consider
+multiple datasources. Startup code can narrow the check. Use
+`TenantContext.useTenantTransactionActiveCheck(...)`. Then it will not block
+binding.
 
 ### Async Work
 
-A normal `ThreadLocal` is not inherited by a new thread. That is intentional
-here. Implicit inheritance can make tenant context outlive the request that
-created it.
+A normal `ThreadLocal` is not inherited. A new thread skips it. That is
+intentional here. Implicit inheritance would be risky. Tenant context could
+outlive its request.
 
-Async work must bind the tenant explicitly:
+Async work must bind the tenant. Do it explicitly:
 
 ```text
 TenantId tenant = TenantContext.requireCurrent();
@@ -216,40 +216,42 @@ executor.submit(() ->
     }));
 ```
 
-If async work forgets to bind the tenant, the datasource proxy fails closed when
-it tries to borrow a connection.
+Async work might forget to bind. Then the datasource proxy fails closed. This
+happens on the connection borrow.
 
 ## Why the Datasource Also Protects Itself
 
-`TenantContext` is an early guard. It gives clear errors before unsafe work runs.
-The database boundary still protects itself.
+`TenantContext` is an early guard. It errors before unsafe work runs. The
+database boundary still protects itself.
 
-`TenantSessionDataSourceProxy` checks the current tenant on every connection
-borrow. It signs the tenant claim and writes it into the PostgreSQL session. If
-binding fails, it aborts the raw connection instead of returning it to the pool
-in an unknown state.
+`TenantSessionDataSourceProxy` checks the current tenant. It checks on every
+borrow. It signs the tenant claim. It writes it to PostgreSQL. Binding might
+fail. Then it aborts the raw connection. It never pools an unknown state.
 
-When a guarded connection closes, the proxy clears `app.tenant_claim` before the
-raw connection returns to the pool. That prevents the next borrower from
-inheriting the prior borrower's database session tenant.
+A guarded connection may close. Then the proxy clears `app.tenant_claim`. It
+clears before the connection pools. The next borrower inherits nothing. No prior
+session tenant remains.
 
-The connection proxy also blocks unsafe JDBC wrapper escape paths. Calls such as
-`unwrap(VendorConnection.class)` do not expose the raw delegate connection,
-because that would bypass the close/reset handler.
+The proxy also blocks escape paths. These are unsafe JDBC wrapper calls. Take
+`unwrap(VendorConnection.class)`. It hides the raw delegate connection. That
+would bypass the close/reset handler.
 
 ## Summary
 
-The thread-local tenant is convenient, but convenience is not the security
-boundary. This module treats it as request-local input that must be scoped,
-restored, checked before transactions, and verified again at the database.
+The thread-local tenant is convenient. Convenience is not the security boundary.
+This module treats it as input. That input is request-local. The input must be
+scoped. It must be restored. It must be checked before transactions. The
+database verifies it again.
 
 The protections work together:
 
 - `ThreadLocal` keeps tenant context per thread.
-- Scoped `runAs` and `supplyAs` restore or remove the value after work completes.
-- Ordinary tenant entry points reject the system-ops tenant.
-- Tenant binding must happen before a tenant transaction starts.
-- Async work must bind tenant context explicitly.
-- The datasource proxy fails closed when no tenant is bound.
-- PostgreSQL verifies the signed claim before RLS trusts it.
-- The connection proxy clears session state before returning to the pool.
+- `runAs` and `supplyAs` are scoped. They restore or remove the value. This
+  happens after the work.
+- Ordinary entry points reject system-ops.
+- Bind the tenant before its transaction.
+- Async work binds the tenant explicitly.
+- The datasource proxy fails closed. It fails when unbound.
+- PostgreSQL verifies the signed claim. It verifies before RLS trusts it.
+- The connection proxy clears session state. It clears before pooling the
+  connection.

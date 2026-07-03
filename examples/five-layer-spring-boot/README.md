@@ -1,7 +1,8 @@
 # Five-Layer Composed Example
 
-The whole posture, booting: two applications that wire four Bulwark modules together and prove,
-with integration tests, that the layers compose on a single request.
+This is the whole posture, booting. Two applications work together. They wire four
+toolkit modules. Integration tests prove they compose. The layers compose on one
+request.
 
 ```
 Browser / SPA
@@ -20,49 +21,53 @@ Browser / SPA
  PostgreSQL       row-level security under a non-superuser pool
 ```
 
-Layer 3 (secrets/config) is posture, not code: every credential here arrives by environment
-variable, per ADR-0001 and the release checklist.
+Layer 3 is secrets and config. It is posture, not code. Every credential arrives by
+environment variable. This follows ADR-0001. And the release checklist.
 
 ## What Each Test Proves
 
-`service/` — `FiveLayerFlowTest` (Testcontainers PostgreSQL 18):
+`service/` runs `FiveLayerFlowTest`. It uses Testcontainers PostgreSQL 18:
 
-- One request crosses gate one (coarse route gate), gate two (fine-grained audited decision), and
-  RLS — each with its own observable refusal, in that order.
-- A foreign tenant's probe is invisible to the policy: RLS returns no row, the attempt is audited
-  as `RESOURCE_NOT_FOUND`, and the response is indistinguishable from a nonexistent id.
-- Policy grants are action-specific: an organization peer may READ but not DELETE; the denial is
-  audited before the starter's advice translates it to 403.
-- A tenant-admin allow is flagged wide-scope in the audit trail.
-- A role-less (but authenticated, tenant-bound) token is refused at gate one — no decision, no
-  audit record, no SQL.
+- One request crosses three checks. Gate one: the coarse route gate. Gate two: a
+  fine-grained audited decision. The third check is RLS. Each has its own observable
+  refusal. They run in that order.
+- A foreign tenant's probe stays invisible. The policy never sees it. RLS returns no
+  row. The attempt is audited as `RESOURCE_NOT_FOUND`. Indistinguishable from a
+  nonexistent id.
+- Policy grants are action-specific. An organization peer may READ. But not DELETE.
+  The denial is audited first. Then the starter's advice returns 403.
+- A tenant-admin allow is flagged wide-scope. The audit trail records this.
+- Consider a role-less token. It is authenticated and tenant-bound. Gate one still
+  refuses it. No decision runs. No audit record is written. No SQL executes.
 
-`bff/` — `DocumentRelayFlowTest` (in-process downstream double):
+`bff/` runs `DocumentRelayFlowTest`. It uses an in-process downstream double:
 
-- A session-authenticated request is relayed with the user's access token and nothing else — the
-  session cookie never crosses the plane boundary.
-- Anonymous requests are redirected to login and CSRF-less writes are refused, both before any
-  downstream call.
+- A session-authenticated request comes in. It relays the user's access token. Nothing
+  else goes with it. The session cookie stays behind. It never crosses the plane
+  boundary.
+- Anonymous requests redirect to login. CSRF-less writes are refused. Both happen
+  before any downstream call.
 
-The two applications share one identity contract — the same pinned issuer and the same
-`tenant_id` / `organization_id` / `roles` claims. Each side's test drives its half of the hop with
-that contract; the real OIDC/PKCE and JWT-decoder mechanics are proven in the edge module's own
-tests against an in-process JWKS.
+Both applications share one identity contract. They use the same pinned issuer. They
+use the same claims. These are `tenant_id`, `organization_id`, `roles`. Each test
+drives its own half. It uses that shared contract. The real mechanics live elsewhere.
+The edge module proves OIDC/PKCE. It proves the JWT-decoder too. Its tests use an
+in-process JWKS.
 
 ## Run the Tests
 
-Requirements: JDK 21, Docker (for the service's PostgreSQL Testcontainers).
+Requirements: JDK 21 and Docker. Docker runs the service's PostgreSQL Testcontainers.
 
 ```bash
 ./gradlew -p examples/five-layer-spring-boot build
 ```
 
-The example includes the repository root as a composite build, so it uses the current checkout and
-does not require a local Maven publication.
+The example uses a composite build. It includes the repository root. So it uses the
+current checkout. No local Maven publication is needed.
 
 ## Run It Manually
 
-Start PostgreSQL with the DDL, then each application:
+Start PostgreSQL with the DDL. Then start each application:
 
 ```bash
 docker run -d --name five-layer-pg -p 5432:5432 -e POSTGRES_PASSWORD=postgres \
@@ -78,6 +83,6 @@ TENANT_BINDING_SYSTEM_OPS_PASSWORD=local_dev_only \
 ./gradlew -p examples/five-layer-spring-boot :bff:bootRun   # port 8080, relays to 8081
 ```
 
-A full interactive login needs a real OIDC provider registered in the BFF's
-`application.yaml` (the shipped endpoints are fictional so the context boots offline). Point both
-applications at the same issuer and the relay carries identity end to end.
+A full interactive login needs more. Register a real OIDC provider. Put it in the
+BFF's `application.yaml`. The shipped endpoints are fictional. So the context boots
+offline. Point both apps at one issuer. Then the relay carries identity fully.

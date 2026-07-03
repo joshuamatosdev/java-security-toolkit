@@ -1,12 +1,13 @@
 # Authorization
 
-A framework-free authorization decision core: scope-layered resource policy,
-typed principals, immutable request context, deny-overrides, and an audit
-record for every decision. The only runtime dependencies are `:shared` and
-SLF4J — Spring, the web boundary, and persistence live in the demonstration
-application, [`authorization-showcase`](../authorization-showcase/).
+This is an authorization decision core. It is framework-free. It has scope-layered
+resource policy. Principals are typed. Request context is immutable. It uses
+deny-overrides. Every decision writes an audit record. Runtime needs just `:shared`
+and SLF4J. Spring lives in the demo app. The web boundary lives there too.
+Persistence lives there too. That app is
+[`authorization-showcase`](../authorization-showcase/).
 
-It covers Layer 2, authorization, in the
+It covers Layer 2, authorization. That fits the
 [five-layer posture](../docs/adr/0001-five-layer-security-posture.md). The
 decision record is [ADR-0003](../docs/adr/0003-authorization.md).
 
@@ -28,7 +29,7 @@ Requirements:
 
 - JDK 21
 
-Run the module tests (pure, in-memory — no Docker):
+These tests are pure and in-memory. No Docker is needed. Run the module tests:
 
 ```bash
 ../gradlew :authorization:test
@@ -49,12 +50,13 @@ Spring Boot auto-configuration:
 implementation("io.github.joshuamatosdev.security:authorization-spring-boot-starter:0.1.0-SNAPSHOT")
 ```
 
-The starter wires the reference `AuthorizationService`, policy, in-memory rule
-repository, and audit sink when `bulwark.authorization.enabled` is true or
-absent; each bean backs off individually to an application-provided
-replacement. In servlet web applications it also registers the 403 denial
-advice that translates `AuthorizationDeniedException` into a response without
-leaking decision internals. Disable everything with:
+The starter wires four reference beans. It wires the reference `AuthorizationService`.
+It wires the policy. It wires an in-memory rule repository. It wires the audit sink.
+This happens when `bulwark.authorization.enabled` is true. It also applies when
+absent. Each bean backs off individually. Your own bean takes over. This applies to
+servlet web apps. It registers the 403 denial advice. The advice translates
+`AuthorizationDeniedException`. It returns a response. It leaks no decision internals.
+Disable everything with:
 
 ```yaml
 bulwark:
@@ -65,65 +67,60 @@ bulwark:
 ## What It Demonstrates
 
 - Typed principals instead of bare strings.
-- Immutable request context resolved once and passed as a value.
-- Resource-aware policy for `CREATE`, `READ`, `UPDATE`, and `DELETE` (creation
-  is decided against the prospective resource's placement).
-- Tenant, organization, team, owner, and role-scope checks.
+- Immutable request context, resolved once. It is passed as a value.
+- Resource-aware policy for four actions. These are `CREATE`, `READ`, `UPDATE`,
+  `DELETE`. Creation checks the new resource's placement.
+- Tenant, organization, team, owner, role-scope checks.
 - Deny-overrides behavior.
-- Audit records for every allow and deny.
+- Audit records for allow and deny.
 
 ## How Requests Are Authorized
 
 The reference posture uses two gates:
 
-1. **Coarse request gate.** A static URL-group to role table; a route matching
-   no rule is denied. This gate is web-boundary code and is demonstrated in
-   `authorization-showcase` (`web/gate/SecurityUrlGroup`, `web/gate/AccessRule`).
-2. **Fine-grained policy.** This module.
-   `service/AuthorizationService.enforce` evaluates the actor, resource,
-   action, and effective policy. It writes an audit record before returning or
-   throwing.
+1. **Coarse request gate.** A static URL-group to role table. No matching rule means
+   denied. This gate is web-boundary code. See `authorization-showcase`
+   (`web/gate/SecurityUrlGroup`, `web/gate/AccessRule`).
+2. **Fine-grained policy.** This module. `service/AuthorizationService.enforce`
+   evaluates four things. These are actor, resource, and action. Also the effective
+   policy. It writes an audit record first. Then it returns or throws.
 
-Boundary failures that occur before a resource policy can run still use
-`AuthorizationService.deny` (or `denyWithoutTrustedContext` when no trusted
-tenant context exists yet), so denials follow the same audit path.
+Some boundary failures happen early. They run before any resource policy. These still
+call `AuthorizationService.deny`. Without trusted tenant context, use
+`denyWithoutTrustedContext`. All denials share one audit path.
 
 ## Decision Model
 
 `AuthorizationPolicy.decide(actor, resource, action, effectivePolicy)` is a pure
-function. It checks variants in order and ends in deny. There is no implicit
-permit.
+function. It checks variants in order. It ends in deny. There is no implicit permit.
 
 1. Tenant mismatch denies immediately.
-2. Explicit `DENY` for the action wins over every allow.
+2. Explicit `DENY` targets the action. It wins over every allow.
 3. Tenant-wide admin allows after deny checks.
 4. Resource owner allows.
-5. Team-scoped `ALLOW` allows within the resource's organization and team.
-6. Organization-scoped `ALLOW` allows within the resource organization.
+5. Team-scoped `ALLOW` allows narrowly. It needs matching organization and team.
+6. Organization-scoped `ALLOW` needs the resource's organization.
 7. Tenant-scoped `ALLOW` allows through effective permissions.
 8. No matching rule denies.
 
-A role grant is action-specific and scope-specific. A grant to `READ` is not a
-grant to `DELETE`, an organization-scoped grant is not tenant-wide access, and a
-team-scoped grant is narrower still: it reaches only resources placed in its own
-organization *and* team. Teams group people for grants — they are a
-discretionary boundary in this layer, never a data-plane isolation dimension.
+A role grant is action-specific. It is also scope-specific. A `READ` grant is not
+`DELETE`. An organization grant is not tenant-wide. A team-scoped grant is narrower
+still. It reaches one organization and team. Only its own. Teams group people for
+grants. Here teams are a discretionary boundary. They never isolate the data plane.
 
 ## Request Context
 
-The actor is a sealed `principal/PolicyPrincipal`: either a `UserPrincipal` or a
-`ServicePrincipal`. Per-request facts are resolved once into
-`request/RequestContext` and passed as a value. Policy code does not read a
-thread-local.
+The actor is a sealed `principal/PolicyPrincipal`. It is a `UserPrincipal` or
+`ServicePrincipal`. Per-request facts resolve once. They become
+`request/RequestContext`. It is passed as a value. Policy code reads no thread-local.
 
-The context must be resolved from the authenticated principal alone — never
-from request headers. The showcase demonstrates the pattern: its
-`RequestContextResolver` builds the trusted profile from the `Authentication`,
-and its `DocumentBoundaryAuthorizer` cross-checks the caller-supplied tenant
-header against that resolved profile, denying a mismatch on the same audit
-path. A header can neither manufacture nor revoke access; when no trusted
-profile exists, audit keeps tenant context empty instead of copying an
-untrusted header.
+Resolve context from the authenticated principal. Never from request headers. The
+showcase demonstrates this pattern. Its `RequestContextResolver` builds the trusted
+profile. It reads from the `Authentication`. Its `DocumentBoundaryAuthorizer` runs
+next. It checks the caller's tenant header. It compares against the resolved profile.
+A mismatch is denied. The same audit path applies. A header cannot manufacture access.
+It cannot revoke access either. Sometimes no trusted profile exists. Then audit keeps
+tenant context empty. It never copies an untrusted header.
 
 Typed identifiers come from `:shared`:
 
@@ -134,26 +131,28 @@ Typed identifiers come from `:shared`:
 
 ## Audit
 
-`DefaultAuthorizationService` writes an `AuthorizationAuditRecord` for every
+`DefaultAuthorizationService` writes an `AuthorizationAuditRecord`. It covers every
 decision:
 
 - allow
 - deny
 - explicit boundary denial
 
-The record includes principal, tenant, organization, resource, action, outcome,
-grant basis or denial reason, wide-scope flag, and correlation id. Tenant can be
-empty only when the denial happens before trusted actor tenant context exists.
+The record holds many fields. It has principal, tenant, and organization. It has
+resource, action, and outcome. Grant basis or denial reason too. It has a wide-scope
+flag. It has a correlation id. Tenant is empty in one case. Only before trusted actor
+tenant context.
 
 ## The Showcase Application
 
-`authorization-showcase` (not published) runs both gates in a real Spring web
-application: the coarse route gate, the document API, demo identity resolution
-gated behind `showcase.demo-identity` (default off), and PostgreSQL-backed
-document facts whose primary keys are database-minted UUIDv7 values — matching
-the `tenant-isolation` module's database-owned identifier contract.
+`authorization-showcase` runs both gates. It is not published. It runs in Spring. A
+real web application. It includes the coarse route gate. It includes the document API.
+It includes demo identity resolution. This sits behind `showcase.demo-identity`. It
+defaults off. It includes PostgreSQL-backed document facts. Their primary keys are
+UUIDv7 values. The database mints them. This follows `tenant-isolation`'s
+database-owned identifier contract.
 
-Requirements: JDK 21 and Docker (PostgreSQL Testcontainers).
+Requirements: JDK 21 and Docker. It uses PostgreSQL Testcontainers.
 
 ```bash
 ../gradlew :authorization-showcase:test
@@ -169,11 +168,11 @@ Run all authorization tests:
 
 Important tests:
 
-- `AuthorizationPolicyTest`: each grant basis, deny reason, action boundary,
-  organization boundary, and deny-overrides behavior.
-- `DefaultAuthorizationServiceTest`: audit coverage for allows, denies,
-  wide-scope admin decisions, and explicit boundary denials.
-- `DocumentControllerSecurityTest` (in `authorization-showcase`): HTTP coverage
-  for both gates, trusted header validation, deny-by-default routes, UUIDv7
-  document id creation, persistence deletion, and 403 behavior for fine-grained
-  denials.
+- `AuthorizationPolicyTest` covers each grant basis. It covers each deny reason. It
+  covers action and organization boundaries. It covers deny-overrides behavior.
+- `DefaultAuthorizationServiceTest` checks audit coverage. It covers allows and
+  denies. It covers wide-scope admin decisions. It covers explicit boundary denials.
+- `DocumentControllerSecurityTest` lives in `authorization-showcase`. It covers both
+  gates over HTTP. It checks trusted header validation. It checks deny-by-default
+  routes. It checks UUIDv7 document id creation. It checks persistence deletion. It
+  checks 403 for fine-grained denials.

@@ -1,12 +1,13 @@
 # Crypto
 
-A stable signing API with replaceable algorithms and providers — the
-cryptographic-agility seam of the toolkit.
+This is a stable signing API. Algorithms and providers are replaceable. It is the
+toolkit's cryptographic-agility seam.
 
-Call sites depend on `DocumentSigner`; algorithms (`Ed25519`, `ECDSA P-256`, a
-reserved post-quantum slot) and providers live behind `SignatureProvider` and a
-registry, so an algorithm migration changes configuration and provider wiring,
-never the call sites. The decision record is
+Call sites depend on `DocumentSigner`. Algorithms live behind a seam. These include
+`Ed25519` and `ECDSA P-256`. A reserved post-quantum slot too. Providers live there
+too. They sit behind `SignatureProvider`. And behind a registry. An algorithm
+migration changes configuration. It changes provider wiring. It never changes call
+sites. The decision record is
 [ADR-0006](../docs/adr/0006-crypto-provider-seam.md).
 
 ## Quick Start
@@ -30,36 +31,36 @@ Spring Boot auto-configuration:
 implementation("io.github.joshuamatosdev.security:crypto-spring-boot-starter:0.1.0-SNAPSHOT")
 ```
 
-Runnable consumer examples: [`examples/crypto-plain-java`](../examples/crypto-plain-java/)
-and [`examples/crypto-spring-boot`](../examples/crypto-spring-boot/).
+Runnable consumer examples exist. See
+[`examples/crypto-plain-java`](../examples/crypto-plain-java/). Also
+[`examples/crypto-spring-boot`](../examples/crypto-spring-boot/).
 
 ## API Surface
 
 | Type | Role |
 |---|---|
-| `DocumentSigner` | Sign and verify; the only type application code should call. |
+| `DocumentSigner` | Sign and verify. The only app-facing type. |
 | `SignedDocument` | Payload + signature + embedded public key + `alg`/`keyId` metadata. |
-| `TrustAnchor` | The deployment's opinion of which public key may speak for a key id. |
-| `SignatureProvider` / `SignatureProviderRegistry` | The provider seam; `JcaSignatureProviders` ships the JCA implementations. |
-| `KeyHandle` / `KeyHandleResolver` / `KeyIdStrategy` | Key custody seam for default-key signing (back with KMS/HSM in production). |
-| `SignatureAuditSink` / `SignatureAuditEvent` | Every sign and verify outcome — success or failure — is recorded. |
+| `TrustAnchor` | The deployment's trusted key per id. |
+| `SignatureProvider` / `SignatureProviderRegistry` | Provider seam. `JcaSignatureProviders` ships JCA implementations. |
+| `KeyHandle` / `KeyHandleResolver` / `KeyIdStrategy` | Key custody seam for default-key signing. Back with KMS/HSM in production. |
+| `SignatureAuditSink` / `SignatureAuditEvent` | Records every sign and verify outcome. Success or failure. |
 
 ## Integrity vs. Authenticity
 
-`verify(SignedDocument)` proves payload integrity under the public key
-**embedded in the document** — a key-substitution forgery (tampered payload
-re-signed under an attacker-chosen key, embedded under the same key id) still
-verifies. Documents that cross a trust boundary must use the anchored overload:
+`verify(SignedDocument)` proves payload integrity. It uses the **embedded** public key.
+Beware a key-substitution forgery. An attacker tampers the payload. They re-sign under
+an attacker-chosen key. The key id stays the same. This forgery still verifies.
+Documents crossing a trust boundary differ. They must use the anchored overload:
 
 ```java
 TrustAnchor anchor = TrustAnchor.pinnedKeys(Map.of("k1", trustedPublicKey));
 boolean authentic = signer.verify(signed, anchor);   // fails closed on an untrusted key
 ```
 
-The anchor is consulted before any signature computation and the rejection is
-audited as `untrusted key`. Production deployments can back `TrustAnchor` with
-KMS public-key lookup or a key directory; `pinnedKeys` compares in constant
-time.
+The anchor is checked first. This happens before any signature computation. A rejection
+is audited as `untrusted key`. Production can back `TrustAnchor` differently. Use KMS
+public-key lookup. Or use a key directory. `pinnedKeys` compares in constant time.
 
 ## Spring Boot Starter
 
@@ -74,23 +75,25 @@ bulwark:
           enabled: true
 ```
 
-The starter injects `DocumentSigner`. Default-key signing requires app-owned
-key custody (`KeyHandleResolver`); `bulwark.crypto.local-ephemeral-keys.enabled`
-is a demo-only opt-in that generates in-memory keys and must stay off in
-production. Disable the whole starter with `bulwark.crypto.enabled: false`.
+The starter injects `DocumentSigner`. Default-key signing needs app-owned key custody.
+Provide a `KeyHandleResolver`. One opt-in is demo-only. It is
+`bulwark.crypto.local-ephemeral-keys.enabled`. It generates in-memory keys. It must
+stay off in production. Disable the whole starter easily. Set
+`bulwark.crypto.enabled: false`.
 
 ## Testkit
 
-`crypto-testkit` carries reusable contracts so provider and signer
-implementations do not copy internal tests: `DocumentSignerContract`
-(round-trip, tamper rejection, algorithm-relabel rejection, and the anchored
-verify — trusted key accepted, substituted key and unknown key id fail closed),
-`SignatureProviderContract`, and `SignatureProviderRegistryContract`, plus
-fakes for wiring tests.
+`crypto-testkit` carries reusable contracts. Provider and signer authors reuse them.
+They skip copying internal tests. `DocumentSignerContract` covers several checks. It
+covers round-trip. It covers tamper rejection. It covers algorithm-relabel rejection.
+It covers the anchored verify. A trusted key is accepted. A substituted key fails
+closed. An unknown key id fails closed. `SignatureProviderContract` is included too. So
+is `SignatureProviderRegistryContract`. Fakes support wiring tests.
 
 ## Compliance Boundary
 
-A listed algorithm identity — including a FIPS-approved algorithm name — is not
-a claim that any runtime provider, deployment, or environment is FIPS-validated.
-Production systems own provider validation, key custody, rotation policy, and
-compliance review.
+Algorithms appear by name here. Even FIPS-approved names appear. A name is only a
+name. It claims no FIPS validation. Not for any runtime provider. Not for any
+deployment or environment.
+Production systems own the real work. They own provider validation. They own key
+custody. They own rotation policy. They own compliance review.

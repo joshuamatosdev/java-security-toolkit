@@ -1,15 +1,16 @@
 # Crypto Spring Boot Example
 
-Run from the repository root. The example includes the repository root as a
-composite build, so it uses the current checkout and does not require a local
-Maven publication:
+The example uses a composite build. It includes the repository root. So it uses the
+current checkout. No local Maven publication is needed. Run it from the repository
+root:
 
 ```bash
 ./gradlew -p examples/crypto-spring-boot bootRun
 ```
 
-The runner verifies integrity with the embedded key, then verifies authenticity against
-`TrustAnchor.pinnedKeys(...)` built from the wiring's own key material — never from the
-document under test. The example opts into local ephemeral signing keys so `DocumentSigner.sign(byte[])` can run without
-external custody. Production applications should leave that opt-in disabled and supply a
-`KeyHandleResolver` backed by KMS or HSM custody.
+The runner verifies integrity first. It uses the embedded key. Then it verifies
+authenticity. It checks `TrustAnchor.pinnedKeys(...)`. The wiring supplies its own
+keys. Never from the document under test. The example opts into ephemeral keys. These
+are local ephemeral signing keys. So `DocumentSigner.sign(byte[])` runs without
+external custody. Production apps should disable that opt-in. Supply a
+`KeyHandleResolver` instead. Use KMS or HSM custody.

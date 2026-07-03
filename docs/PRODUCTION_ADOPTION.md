@@ -1,18 +1,14 @@
 # Production Adoption Guide
 
-Bulwark is designed to be useful in production applications. It is not
-only sample code: each module has a narrow security boundary, executable tests,
-and documentation that explains the reasoning behind the boundary.
+This toolkit works in production applications. It is not only sample code. Each module has a narrow boundary. Each module ships executable tests. Docs explain the reasoning behind it.
 
-Production adoption still requires integration work. The modules cannot know
-your identity provider, tenant source of truth, deployment topology, key custody,
-monitoring stack, incident process, or compliance obligations.
+Production adoption still requires integration work. The modules cannot know these. Your identity provider. Your tenant source of truth. Your deployment topology. Your key custody. Your monitoring stack. Your incident process. Your compliance obligations.
 
 ## Adoption Modes
 
 ### Internal Maven Artifacts
 
-Publish the modules to a local or internal Maven repository:
+Publish the modules to Maven. Use a local or internal repository:
 
 ```bash
 ./gradlew publishToMavenLocal
@@ -48,27 +44,22 @@ dependencies {
 }
 ```
 
-The Spring Boot starters are optional. Use them when the reference Spring
-configuration matches your service shape; otherwise depend on the core module
-directly or copy the source module while preserving the testkit contracts.
+The Spring Boot starters are optional. Use them when reference config fits. It should match your service shape. Otherwise, use the core module directly. Or copy the source module. Keep the testkit contracts intact.
 
 ### Source Modules
 
-Copy a module into your service and keep its tests running. This works best for:
+Copy a module into your service. Keep its tests running. This works best for:
 
 - tenant placement and PostgreSQL RLS wiring
 - authorization policy and audit decisions
 - BFF security-chain structure
 - supply-chain checks and build policy
 
-When adapting source, keep the module's package boundaries clear and update the
-ADR that records the decision.
+Are you adapting source? Keep the package boundaries clear. Update the ADR that records it.
 
 ### Acceptance-Criteria Adoption
 
-Use the tests and ADRs as acceptance criteria for an existing platform. This is
-often the right path when your app already has a gateway, authorization service,
-or database topology.
+Use the tests and ADRs. Treat them as acceptance criteria. Apply them to an existing platform. This path often fits. Your app may have a gateway. Or an authorization service. Or a database topology.
 
 ## Production Replacement Points
 
@@ -88,95 +79,75 @@ or database topology.
 
 ### `shared`
 
-Production-ready as a small typed-identifier kernel. Keep this module stable
-because downstream modules use it to prevent tenant, organization, and resource
-identity confusion. `shared-testkit` carries reusable contracts for identifier
-factories, value equality, and string round-trips.
+Production-ready as a small typed-identifier kernel. Keep this module stable. Why? Downstream modules depend on it. It prevents identity confusion. That covers tenant, organization, and resource. `shared-testkit` carries reusable contracts. They cover identifier factories. Also value equality. Also string round-trips.
 
 ### `crypto`, `crypto-spring-boot-starter`, and `crypto-testkit`
 
-Good candidates for library adoption. Stable contracts live in
-`io.github.joshuamatosdev.security.crypto.api`; local JCA code lives outside
-that API package and is replaceable. Spring apps can use the starter for
-`DocumentSigner` auto-wiring; provider implementers can use the testkit
-contracts. Before production use:
+Good candidates for library adoption. Stable contracts live in `io.github.joshuamatosdev.security.crypto.api`. Local JCA code lives outside it. That code is replaceable. Spring apps can use the starter. It auto-wires `DocumentSigner`. Provider authors reuse the testkit contracts. Before production use:
 
-- bind key handles to your key custody system
-- configure the default provider and key id explicitly
-- keep `bulwark.crypto.local-ephemeral-keys.enabled=false` outside local demos
-- validate provider behavior in your runtime environment
-- separate algorithm identity from FIPS or compliance validation
-- add artifact signing and key-rotation runbooks
+- Bind key handles to key custody.
+- Configure the default provider explicitly. Set the key id too.
+- Keep `bulwark.crypto.local-ephemeral-keys.enabled=false` outside local demos.
+- Validate provider behavior in your runtime.
+- Separate algorithm identity from validation. That means FIPS or compliance.
+- Add artifact signing and key-rotation runbooks.
 
 ### `tenant-isolation`
 
-Adopt as a library, source module, or integration pattern. Spring applications
-can start with `tenant-isolation-spring-boot-starter`; provider-specific tenant
-context implementations can reuse `tenant-isolation-testkit`. Before production
-use:
+Adopt it three ways. As a library. As a source module. As an integration pattern. Spring apps can start with `tenant-isolation-spring-boot-starter`. Provider-specific tenant-context code reuses `tenant-isolation-testkit`. Before production use:
 
-- provision non-superuser runtime roles and system-ops roles outside application code
-- inject tenant claim secrets from a secret manager
-- verify RLS policies under the exact production PostgreSQL version
-- prove transaction ordering and tenant context binding under your framework stack
-- add operational alerts for pool identity and RLS verification failures
+- Provision non-superuser runtime roles. Provision system-ops roles too. Do this outside application code.
+- Inject tenant claim secrets. Use a secret manager.
+- Verify RLS policies carefully. Use the exact production PostgreSQL version.
+- Prove transaction ordering under your stack. Prove tenant context binding too.
+- Add operational alerts. Watch pool identity. Watch RLS verification failures.
 
 ### `authorization`
 
-Adopt the decision model, audit contract, and deny-overrides behavior. Spring
-applications can start with `authorization-spring-boot-starter`; policy
-implementers can reuse `authorization-testkit`. Before production use:
+Adopt three things. The decision model. The audit contract. The deny-overrides behavior. Spring apps can start with `authorization-spring-boot-starter`. Policy implementers can reuse `authorization-testkit`. Before production use:
 
-- replace demo role resolution (illustrated in `authorization-showcase`) with an authorization store
-- model revocation and authorization-version behavior
-- send audit records to durable storage
-- decide how policy changes are reviewed, staged, and rolled back
+- Replace demo role resolution. `authorization-showcase` illustrates it. Use a real authorization store.
+- Model revocation and authorization-version behavior.
+- Send audit records to durable storage.
+- Decide how policy changes flow. Review them. Stage them. Roll them back.
 
 ### `edge`
 
-Adopt the security-chain shape and tests. Spring WebFlux edge applications can
-start with `edge-spring-boot-starter`; perimeter policy adopters can
-reuse `edge-testkit`. Before production use:
+Adopt the security-chain shape and tests. Spring WebFlux edge apps use `edge-spring-boot-starter`. Perimeter policy adopters can reuse `edge-testkit`. Before production use:
 
-- register real OAuth2/OIDC clients
-- pin issuer and audience values
-- configure real CORS origins
-- verify cookie, CSRF, and header behavior behind your TLS terminator
-- add outbound routing or token relay only after preserving browser/service plane separation
+- Register real OAuth2/OIDC clients.
+- Pin issuer and audience values.
+- Configure real CORS origins.
+- Verify cookie, CSRF, and header behavior. Test it behind your TLS terminator.
+- Add outbound routing carefully. Add token relay carefully. First preserve browser/service plane separation.
 
 ### `supply-chain` and `supply-chain-testkit`
 
-Adopt `supply-chain` directly into CI. Use `supply-chain-testkit`
-when implementing equivalent SBOM or base-image-pin policy checks in another
-build. Before production use:
+Adopt `supply-chain` directly into CI. Building similar checks in another build? Use `supply-chain-testkit` instead. It covers SBOM policy checks. Also base-image-pin policy checks. Before production use:
 
-- enable dependency review and secret scanning in the host repository
-- publish SBOMs with release artifacts
-- pin base images by digest
-- decide whether dependency-check runs on every PR, nightly, or release only
-- add artifact signing and provenance if your release process requires it
+- Enable dependency review. Enable secret scanning. Do this in the host repository.
+- Publish SBOMs with release artifacts.
+- Pin base images by digest.
+- Decide when dependency-check runs. On every PR? Nightly? Release only?
+- Add artifact signing and provenance. Do it if the release requires.
 
 ## Release Expectations
 
-For production consumers, treat public tags as compatibility points:
+Production consumers, note this. Treat public tags as compatibility points:
 
-- patch releases should fix bugs without breaking module contracts
-- minor releases may add APIs or modules
-- major releases may change package contracts or policy semantics
+- Patch releases fix bugs. They keep module contracts intact.
+- Minor releases may add APIs. Or new modules.
+- Major releases may change package contracts. Or policy semantics.
 
-Until `1.0.0`, the APIs should be considered production-oriented but still
-pre-stable. Pin exact versions and read the changelog before upgrading.
+The APIs are still pre-stable. That holds until `1.0.0`. Still treat them as production-oriented. Pin exact versions. Read the changelog before upgrading.
 
 ## Non-Negotiable Production Checks
 
-Before using Bulwark-derived code in production:
+Before using derived code in production:
 
 ```bash
 ./gradlew build publishToMavenLocal
 gitleaks detect --source . --redact --verbose
 ```
 
-Also run the module tests against your chosen database, identity provider,
-runtime provider, and deployment topology. The point of the project is not to
-skip that work; it is to give you strong, executable security contracts to start
-from.
+Also run the module tests. Use your chosen database. Your identity provider. Your runtime provider. Your deployment topology. The project does not skip work. It gives you strong security contracts. Those contracts are executable. You start from them.
