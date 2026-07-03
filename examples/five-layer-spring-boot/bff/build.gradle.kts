@@ -18,7 +18,7 @@ dependencies {
     testImplementation("io.projectreactor:reactor-test")
     // In-process downstream double for the relay test. 4.12.0 matches the okhttp3 version the
     // Boot 3.5.x BOM manages for okhttp itself (same pin the edge module uses).
-    testImplementation("com.squareup.okhttp3:mockwebserver:4.12.0")
+    testImplementation("com.squareup.okhttp3:mockwebserver:5.4.0")
 }
 
 tasks.withType<Test> {
