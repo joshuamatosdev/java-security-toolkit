@@ -37,7 +37,7 @@ import org.springframework.context.annotation.Import;
 @ConditionalOnClass(BrowserCredentialIsolationFilter.class)
 @ConditionalOnWebApplication(type = ConditionalOnWebApplication.Type.REACTIVE)
 @ConditionalOnProperty(
-        prefix = "bulwark.edge",
+        prefix = "edge",
         name = "enabled",
         havingValue = "true",
         matchIfMissing = true)

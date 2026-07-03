@@ -60,7 +60,7 @@ class TenantIsolationAutoConfigurationTest {
     @Test
     void canBeDisabled() {
         contextRunner
-                .withPropertyValues("bulwark.tenant-isolation.enabled=false")
+                .withPropertyValues("tenant.isolation.enabled=false")
                 .run(context -> assertThat(context).doesNotHaveBean(DataSourceConfig.class));
     }
 }

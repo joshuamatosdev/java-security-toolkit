@@ -17,7 +17,7 @@ import org.springframework.context.annotation.Import;
 @AutoConfiguration
 @ConditionalOnClass(AuthorizationService.class)
 @ConditionalOnProperty(
-        prefix = "bulwark.authorization",
+        prefix = "authorization",
         name = "enabled",
         havingValue = "true",
         matchIfMissing = true)

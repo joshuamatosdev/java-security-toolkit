@@ -1,7 +1,7 @@
 {
   "properties": [
     {
-      "name": "bulwark.tenant-isolation.enabled",
+      "name": "tenant.isolation.enabled",
       "type": "java.lang.Boolean",
       "sourceType": "io.github.joshuamatosdev.security.tenant.spring.TenantIsolationAutoConfiguration",
       "description": "Whether the tenant-isolation auto-configuration activates and provides the tenant-aware primary DataSource (placement routing plus the signed session claim bound on every borrow).",

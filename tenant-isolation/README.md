@@ -55,12 +55,12 @@ implementation("io.github.joshuamatosdev.security:tenant-isolation-spring-boot-s
 ```
 
 The starter imports reference datasource configuration. It runs when
-`bulwark.tenant-isolation.enabled` is true. Absent counts as true. Disable it
+`tenant.isolation.enabled` is true. Absent counts as true. Disable it
 with:
 
 ```yaml
-bulwark:
-  tenant-isolation:
+tenant:
+  isolation:
     enabled: false
 ```
 

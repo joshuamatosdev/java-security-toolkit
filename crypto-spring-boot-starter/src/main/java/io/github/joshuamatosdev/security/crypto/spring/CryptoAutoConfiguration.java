@@ -25,14 +25,14 @@ import org.springframework.context.annotation.Bean;
 /** Spring Boot auto-configuration for crypto consumers. */
 @AutoConfiguration
 @ConditionalOnClass(DocumentSigner.class)
-@ConditionalOnProperty(prefix = "bulwark.crypto", name = "enabled", havingValue = "true", matchIfMissing = true)
+@ConditionalOnProperty(prefix = "crypto", name = "enabled", havingValue = "true", matchIfMissing = true)
 @EnableConfigurationProperties(CryptoProperties.class)
 public class CryptoAutoConfiguration {
 
     @Bean
     @ConditionalOnMissingBean(name = "ed25519SignatureProvider")
     @ConditionalOnProperty(
-            prefix = "bulwark.crypto.providers.jca.ed25519",
+            prefix = "crypto.providers.jca.ed25519",
             name = "enabled",
             havingValue = "true",
             matchIfMissing = true)
@@ -43,7 +43,7 @@ public class CryptoAutoConfiguration {
     @Bean
     @ConditionalOnMissingBean(name = "ecdsaP256SignatureProvider")
     @ConditionalOnProperty(
-            prefix = "bulwark.crypto.providers.jca.ecdsa-p256",
+            prefix = "crypto.providers.jca.ecdsa-p256",
             name = "enabled",
             havingValue = "true")
     SignatureProvider ecdsaP256SignatureProvider() {
@@ -53,7 +53,7 @@ public class CryptoAutoConfiguration {
     @Bean
     @ConditionalOnMissingBean(name = "mlDsa44PlaceholderSignatureProvider")
     @ConditionalOnProperty(
-            prefix = "bulwark.crypto.providers.jca.ml-dsa-44-placeholder",
+            prefix = "crypto.providers.jca.ml-dsa-44-placeholder",
             name = "enabled",
             havingValue = "true")
     SignatureProvider mlDsa44PlaceholderSignatureProvider() {
@@ -87,7 +87,7 @@ public class CryptoAutoConfiguration {
     @Bean
     @ConditionalOnMissingBean
     @ConditionalOnProperty(
-            prefix = "bulwark.crypto.local-ephemeral-keys",
+            prefix = "crypto.local-ephemeral-keys",
             name = "enabled",
             havingValue = "true")
     KeyHandleResolver localEphemeralKeyHandleResolver(final SignatureProviderRegistry registry) {

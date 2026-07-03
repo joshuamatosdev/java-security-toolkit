@@ -52,8 +52,8 @@ jobs:
             crypto crypto-spring-boot-starter crypto-testkit"
           mkdir -p site
           {
-            echo "<!doctype html><meta charset=\"utf-8\"><title>Bulwark API documentation</title>"
-            echo "<h1>Bulwark API documentation</h1><ul>"
+            echo "<!doctype html><meta charset=\"utf-8\"><title>Java Security Toolkit API documentation</title>"
+            echo "<h1>Java Security Toolkit API documentation</h1><ul>"
           } > site/index.html
           for m in $modules; do
             if [ -d "$m/build/docs/javadoc" ]; then

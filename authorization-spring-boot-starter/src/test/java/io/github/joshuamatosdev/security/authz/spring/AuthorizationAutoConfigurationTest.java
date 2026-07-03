@@ -37,7 +37,7 @@ class AuthorizationAutoConfigurationTest {
     @Test
     void canBeDisabled() {
         contextRunner
-                .withPropertyValues("bulwark.authorization.enabled=false")
+                .withPropertyValues("authorization.enabled=false")
                 .run(context -> assertThat(context).doesNotHaveBean(AuthorizationService.class));
     }
 

@@ -7,9 +7,9 @@ import org.springframework.boot.context.properties.ConfigurationProperties;
 /**
  * Configuration properties for the crypto Spring Boot starter.
  *
- * <p>The starter gate ({@code bulwark.crypto.enabled}), the provider toggles
- * ({@code bulwark.crypto.providers.jca.*.enabled}), and the local ephemeral key opt-in
- * ({@code bulwark.crypto.local-ephemeral-keys.enabled}) are read only by
+ * <p>The starter gate ({@code crypto.enabled}), the provider toggles
+ * ({@code crypto.providers.jca.*.enabled}), and the local ephemeral key opt-in
+ * ({@code crypto.local-ephemeral-keys.enabled}) are read only by
  * {@code @ConditionalOnProperty} conditions in {@link CryptoAutoConfiguration}, so this
  * record deliberately does not bind them — it binds exactly the values the wiring consumes, and
  * the starter's configuration metadata documents every key for IDE completion.
@@ -18,7 +18,7 @@ import org.springframework.boot.context.properties.ConfigurationProperties;
  * @param defaultKeyId key identifier handed to the key-handle resolver for default signing;
  *     defaults to the local demo identifier {@code local-ed25519-1}
  */
-@ConfigurationProperties(prefix = "bulwark.crypto")
+@ConfigurationProperties(prefix = "crypto")
 public record CryptoProperties(SignatureAlgorithm defaultAlgorithm, String defaultKeyId) {
 
     static final SignatureAlgorithm DEFAULT_ALGORITHM = SignatureAlgorithm.ED25519;
@@ -30,7 +30,7 @@ public record CryptoProperties(SignatureAlgorithm defaultAlgorithm, String defau
         defaultKeyId = defaultKeyId == null ? DEFAULT_KEY_ID : defaultKeyId;
         final String boundKeyId = defaultKeyId;
         RequiredText.violation(boundKeyId).ifPresent(violation -> {
-            throw new IllegalArgumentException("bulwark.crypto.default-key-id " + violation);
+            throw new IllegalArgumentException("crypto.default-key-id " + violation);
         });
     }
 }

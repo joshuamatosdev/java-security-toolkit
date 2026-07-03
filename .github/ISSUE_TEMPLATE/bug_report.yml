@@ -1,5 +1,5 @@
 name: Bug report
-description: Report a defect in Bulwark
+description: Report a defect in the toolkit
 title: "[bug]: "
 labels: ["bug"]
 body:

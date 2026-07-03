@@ -106,3 +106,9 @@ Entries mirror the commit history. One section per history segment. Oldest first
 ### 21. Gate coverage invariant
 
 - Every endpoint must match rules. Unmatched endpoints fail the build.
+
+### 22. Plain repository identity
+
+- The repository is `java-security-toolkit`. The brand name is gone.
+- Config prefixes match module roots. `authorization.enabled`, `edge.enabled`, `crypto.*`, `tenant.isolation.enabled`.
+- Nothing was published. Nothing breaks.

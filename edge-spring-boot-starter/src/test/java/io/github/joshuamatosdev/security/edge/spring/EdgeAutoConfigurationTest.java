@@ -55,7 +55,7 @@ class EdgeAutoConfigurationTest {
     @Test
     void canBeDisabled() {
         reactiveRunner
-                .withPropertyValues("bulwark.edge.enabled=false")
+                .withPropertyValues("edge.enabled=false")
                 .run(context -> assertThat(context).doesNotHaveBean(EdgeProperties.class));
     }
 

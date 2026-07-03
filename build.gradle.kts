@@ -299,11 +299,11 @@ subprojects {
                     }
 
                     pom {
-                        name.set("Bulwark ${project.name}")
+                        name.set("Java Security Toolkit ${project.name}")
                         description.set(
-                            "Production-oriented Java security architecture module from Bulwark."
+                            "Production-oriented Java security architecture module from the Java Security Toolkit."
                         )
-                        url.set("https://github.com/joshuamatosdev/bulwark")
+                        url.set("https://github.com/joshuamatosdev/java-security-toolkit")
                         licenses {
                             license {
                                 name.set("Apache License, Version 2.0")
@@ -318,13 +318,13 @@ subprojects {
                             }
                         }
                         scm {
-                            connection.set("scm:git:https://github.com/joshuamatosdev/bulwark.git")
-                            developerConnection.set("scm:git:ssh://git@github.com/joshuamatosdev/bulwark.git")
-                            url.set("https://github.com/joshuamatosdev/bulwark")
+                            connection.set("scm:git:https://github.com/joshuamatosdev/java-security-toolkit.git")
+                            developerConnection.set("scm:git:ssh://git@github.com/joshuamatosdev/java-security-toolkit.git")
+                            url.set("https://github.com/joshuamatosdev/java-security-toolkit")
                         }
                         issueManagement {
                             system.set("GitHub Issues")
-                            url.set("https://github.com/joshuamatosdev/bulwark/issues")
+                            url.set("https://github.com/joshuamatosdev/java-security-toolkit/issues")
                         }
                     }
                 }

@@ -31,7 +31,7 @@ import org.springframework.security.oauth2.jwt.ReactiveJwtDecoder;
 @ConditionalOnClass(ReactiveJwtDecoder.class)
 @ConditionalOnWebApplication(type = ConditionalOnWebApplication.Type.REACTIVE)
 @ConditionalOnProperty(
-        prefix = "bulwark.edge",
+        prefix = "edge",
         name = "enabled",
         havingValue = "true",
         matchIfMissing = true)

@@ -87,7 +87,7 @@ Good candidates for library adoption. Stable contracts live in `io.github.joshua
 
 - Bind key handles to key custody.
 - Configure the default provider explicitly. Set the key id too.
-- Keep `bulwark.crypto.local-ephemeral-keys.enabled=false` outside local demos.
+- Keep `crypto.local-ephemeral-keys.enabled=false` outside local demos.
 - Validate provider behavior in your runtime.
 - Separate algorithm identity from validation. That means FIPS or compliance.
 - Add artifact signing and key-rotation runbooks.

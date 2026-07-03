@@ -1,7 +1,7 @@
 # Java Security Toolkit
 
-[![CI](https://github.com/joshuamatosdev/bulwark/actions/workflows/ci.yml/badge.svg)](https://github.com/joshuamatosdev/bulwark/actions/workflows/ci.yml)
-[![Docs](https://github.com/joshuamatosdev/bulwark/actions/workflows/docs.yml/badge.svg)](https://joshuamatosdev.github.io/bulwark/)
+[![CI](https://github.com/joshuamatosdev/java-security-toolkit/actions/workflows/ci.yml/badge.svg)](https://github.com/joshuamatosdev/java-security-toolkit/actions/workflows/ci.yml)
+[![Docs](https://github.com/joshuamatosdev/java-security-toolkit/actions/workflows/docs.yml/badge.svg)](https://joshuamatosdev.github.io/java-security-toolkit/)
 [![License](https://img.shields.io/badge/license-Apache--2.0-blue.svg)](LICENSE)
 [![Java](https://img.shields.io/badge/Java-21-orange.svg)](https://openjdk.org/projects/jdk/21/)
 
@@ -113,7 +113,7 @@ replacement points and hardening notes.
 ## Repository Layout
 
 ```text
-bulwark/
+java-security-toolkit/
 |-- shared/                  # typed cross-module identifiers
 |-- shared-testkit/          # reusable typed identifier contracts
 |-- tenant-isolation/        # tenant placement, session binding, PostgreSQL RLS
