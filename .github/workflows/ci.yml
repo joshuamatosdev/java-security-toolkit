@@ -57,8 +57,20 @@ jobs:
         run: |
           xml=build/reports/jacoco/testCodeCoverageReport/testCodeCoverageReport.xml
           echo "### Repository coverage" >> "$GITHUB_STEP_SUMMARY"
-          awk -F'"' '/<counter type="LINE"/{m=$4;c=$6} END{printf "- Line: **%.1f%%** (%d/%d)\n",100*c/(m+c),c,m+c}' "$xml" >> "$GITHUB_STEP_SUMMARY"
-          awk -F'"' '/<counter type="BRANCH"/{m=$4;c=$6} END{printf "- Branch: **%.1f%%** (%d/%d)\n",100*c/(m+c),c,m+c}' "$xml" >> "$GITHUB_STEP_SUMMARY"
+          python - "$xml" <<'PY' >> "$GITHUB_STEP_SUMMARY"
+          import sys
+          import xml.etree.ElementTree as ET
+
+          root = ET.parse(sys.argv[1]).getroot()
+          counters = {counter.get("type"): counter for counter in root.findall("counter")}
+          for label, counter_type in (("Line", "LINE"), ("Branch", "BRANCH")):
+              counter = counters[counter_type]
+              missed = int(counter.get("missed"))
+              covered = int(counter.get("covered"))
+              total = missed + covered
+              percent = 100 * covered / total if total else 0
+              print(f"- {label}: **{percent:.1f}%** ({covered}/{total})")
+          PY
 
       - name: Upload coverage report
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
