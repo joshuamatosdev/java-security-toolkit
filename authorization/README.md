@@ -172,6 +172,9 @@ Important tests:
   covers action and organization boundaries. It covers deny-overrides behavior.
 - `DefaultAuthorizationServiceTest` checks audit coverage. It covers allows and
   denies. It covers wide-scope admin decisions. It covers explicit boundary denials.
+- `AccessRuleCoverageTest` lives in `authorization-showcase`. It scans every controller
+  endpoint. Each must match a gate rule. An unmatched endpoint fails the build. So
+  deny-by-default never hides a dead route.
 - `DocumentControllerSecurityTest` lives in `authorization-showcase`. It covers both
   gates over HTTP. It checks trusted header validation. It checks deny-by-default
   routes. It checks UUIDv7 document id creation. It checks persistence deletion. It

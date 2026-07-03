@@ -6,6 +6,7 @@ All notable changes live here. Versions follow semantic versioning.
 
 ### Added
 
+- Gate coverage test added. Unmatched endpoints fail the build.
 - Artifact signing is env-gated. Local builds never need keys.
 - Tags build and create releases. Pushes publish Javadoc to Pages.
 - Dependabot updates all build roots. Updates arrive weekly, grouped.
