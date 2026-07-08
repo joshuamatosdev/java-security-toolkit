@@ -5,16 +5,9 @@
 [![License](https://img.shields.io/badge/license-Apache--2.0-blue.svg)](LICENSE)
 [![Java](https://img.shields.io/badge/Java-21-orange.svg)](https://openjdk.org/projects/jdk/21/)
 
-A Java 21 security toolkit. Built for multi-tenant SaaS systems.
+Java 21 security toolkit, for multi-tenant SaaS systems.
 
-Joshua Matos and DoctrineOne Industries build it. It turns hard security decisions
-into modules. Each module ships with executable tests. Decision records explain
-every choice.
-
-Use it as starting material. Adopt modules directly. Publish them as internal
-artifacts. Or copy the patterns out. The repository stays neutral and public-safe.
-Examples use fictional tenants and users.
-
+You can use this toolkit as a foundation: adopt the modules directly, publish them as internal artifacts, or extract the underlying design patterns.
 ## Quick Start
 
 Requirements:
