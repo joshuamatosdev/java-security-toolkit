@@ -27,6 +27,23 @@ Thumbs.db
 .env
 *.local
 
+# Local-only metadata
+[Aa][Gg][Ee][Nn][Tt].[Mm][Dd]
+[Aa][Gg][Ee][Nn][Tt][Ss].[Mm][Dd]
+[Cc][Ll][Aa][Uu][Dd][Ee].[Mm][Dd]
+[Cc][Oo][Dd][Ee][Xx].[Mm][Dd]
+[Gg][Ee][Mm][Ii][Nn][Ii].[Mm][Dd]
+[Cc][Oo][Pp][Ii][Ll][Oo][Tt]-[Ii][Nn][Ss][Tt][Rr][Uu][Cc][Tt][Ii][Oo][Nn][Ss].[Mm][Dd]
+.[Aa][Gg][Ee][Nn][Tt]/
+.[Aa][Gg][Ee][Nn][Tt][Ss]/
+.[Cc][Ll][Aa][Uu][Dd][Ee]/
+.[Cc][Oo][Dd][Ee][Xx]/
+.[Cc][Uu][Rr][Ss][Oo][Rr]/
+.[Ww][Ii][Nn][Dd][Ss][Uu][Rr][Ff]/
+.[Cc][Oo][Nn][Tt][Ii][Nn][Uu][Ee]/
+.aider*
+docs/[Ss][Uu][Pp][Ee][Rr][Pp][Oo][Ww][Ee][Rr][Ss]/
+
 # Superseded Flyway-era files (schema authority moved to container init SQL); local cruft only.
 tenant-isolation/src/main/resources/db/migration/
 tenant-isolation/src/test/resources/db/init-roles.sql
