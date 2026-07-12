@@ -8,6 +8,8 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import io.github.joshuamatosdev.security.tenant.TenantIds;
+import io.github.joshuamatosdev.security.tenant.PostgresConnectionPolicy;
+import io.github.joshuamatosdev.security.tenant.binding.TenantContext;
 import io.github.joshuamatosdev.security.tenant.config.TenantBindingProperties;
 import io.github.joshuamatosdev.security.tenant.config.TenantIsolationMode;
 import io.github.joshuamatosdev.security.tenant.config.TenantIsolationProperties;
@@ -38,7 +40,7 @@ class DataSourceConfigTest {
                 schemaIsolationProperties(),
                 new TenantBindingProperties(null, null));
 
-        assertThatThrownBy(() -> config.dataSource(sharedDataSourceProperties(), TenantPoolInspection.NONE))
+        assertThatThrownBy(() -> createDataSource(config, sharedDataSourceProperties(), TenantPoolInspection.NONE))
                 .isInstanceOf(IllegalStateException.class)
                 .hasMessageContaining("tenant.binding.claim-secret");
     }
@@ -49,7 +51,7 @@ class DataSourceConfigTest {
                 schemaIsolationProperties(),
                 new TenantBindingProperties(TenantTestConstants.CLAIM_SECRET, null));
 
-        final DataSource dataSource = config.dataSource(sharedDataSourceProperties(), TenantPoolInspection.NONE);
+        final DataSource dataSource = createDataSource(config, sharedDataSourceProperties(), TenantPoolInspection.NONE);
 
         assertThat(dataSource).isInstanceOf(TenantSessionDataSourceProxy.class);
         assertThat(((TenantSessionDataSourceProxy) dataSource).poolName()).isEqualTo("tenant-schema");
@@ -61,7 +63,7 @@ class DataSourceConfigTest {
                 databaseIsolationProperties(),
                 new TenantBindingProperties(null, null));
 
-        assertThatThrownBy(() -> config.dataSource(sharedDataSourceProperties(), TenantPoolInspection.NONE))
+        assertThatThrownBy(() -> createDataSource(config, sharedDataSourceProperties(), TenantPoolInspection.NONE))
                 .isInstanceOf(IllegalStateException.class)
                 .hasMessageContaining("tenant.binding.claim-secret");
     }
@@ -72,14 +74,14 @@ class DataSourceConfigTest {
                 databaseIsolationProperties(),
                 new TenantBindingProperties(TenantTestConstants.CLAIM_SECRET, null));
         final TenantPoolInspection inspection = config.tenantPoolInspection(sharedDataSourceProperties());
-        final DataSource dataSource = config.dataSource(sharedDataSourceProperties(), inspection);
+        final DataSource dataSource = createDataSource(config, sharedDataSourceProperties(), inspection);
 
         assertThat(dataSource).isInstanceOf(TenantSessionDataSourceProxy.class);
         assertThat(((TenantSessionDataSourceProxy) dataSource).poolName()).isEqualTo("tenant-database");
         assertThat(inspection.snapshots())
                 .singleElement()
                 .satisfies(snapshot -> {
-                    assertThat(snapshot.name()).isEqualTo(TenantPoolFactory.TENANT_DATABASE_POOL_PREFIX + TenantIds.ACME);
+                    assertThat(snapshot.name()).isEqualTo(PostgresConnectionPolicy.defaultTenantPoolName(TenantIds.ACME));
                     assertThat(snapshot.maximumPoolSize()).isEqualTo(4);
                 });
 
@@ -92,7 +94,7 @@ class DataSourceConfigTest {
                 new TenantIsolationProperties(TenantIsolationMode.ID, null, null),
                 new TenantBindingProperties(TenantTestConstants.CLAIM_SECRET, null));
 
-        assertThatThrownBy(() -> config.dataSource(sharedDataSourceProperties(), TenantPoolInspection.NONE))
+        assertThatThrownBy(() -> createDataSource(config, sharedDataSourceProperties(), TenantPoolInspection.NONE))
                 .isInstanceOf(IllegalStateException.class)
                 .hasMessageContaining("tenant.binding.system-ops-password");
     }
@@ -104,14 +106,14 @@ class DataSourceConfigTest {
                 new TenantBindingProperties(
                         TenantTestConstants.CLAIM_SECRET, TenantTestConstants.DEV_PASSWORD));
 
-        assertThatThrownBy(() -> config.dataSource(
+        assertThatThrownBy(() -> createDataSource(config,
                         sharedDataSourceProperties(TenantTestConstants.POSTGRES_USERNAME),
                         TenantPoolInspection.NONE))
                 .isInstanceOf(IllegalStateException.class)
                 .hasMessageContaining("spring.datasource.username")
                 .hasMessageContaining("privileged or system-ops identity");
 
-        assertThatThrownBy(() -> config.dataSource(
+        assertThatThrownBy(() -> createDataSource(config,
                         sharedDataSourceProperties("app_superuser"),
                         TenantPoolInspection.NONE))
                 .isInstanceOf(IllegalStateException.class)
@@ -126,7 +128,7 @@ class DataSourceConfigTest {
                 new TenantBindingProperties(
                         TenantTestConstants.CLAIM_SECRET, TenantTestConstants.DEV_PASSWORD));
 
-        assertThatThrownBy(() -> config.dataSource(
+        assertThatThrownBy(() -> createDataSource(config,
                         sharedDataSourceProperties(TENANT_USER, "jdbc:h2:mem:shared"),
                         TenantPoolInspection.NONE))
                 .isInstanceOf(IllegalStateException.class)
@@ -146,7 +148,7 @@ class DataSourceConfigTest {
                 "sslmode=prefer",
                 "unknownDriverKnob=true",
                 "connectTimeout=%zz")) {
-            assertThatThrownBy(() -> config.dataSource(
+            assertThatThrownBy(() -> createDataSource(config,
                             sharedDataSourceProperties(TENANT_USER, SHARED_JDBC_URL + "?" + query),
                             TenantPoolInspection.NONE))
                     .isInstanceOf(IllegalStateException.class)
@@ -161,7 +163,7 @@ class DataSourceConfigTest {
                 schemaIsolationProperties(),
                 new TenantBindingProperties(TenantTestConstants.CLAIM_SECRET, null));
 
-        assertThatThrownBy(() -> config.dataSource(
+        assertThatThrownBy(() -> createDataSource(config,
                         sharedDataSourceProperties(TenantTestConstants.SYSTEM_OPS_USERNAME),
                         TenantPoolInspection.NONE))
                 .isInstanceOf(IllegalStateException.class)
@@ -175,7 +177,7 @@ class DataSourceConfigTest {
                 schemaIsolationProperties(),
                 new TenantBindingProperties(TenantTestConstants.CLAIM_SECRET, null));
 
-        assertThatThrownBy(() -> config.dataSource(
+        assertThatThrownBy(() -> createDataSource(config,
                         sharedDataSourceProperties(TENANT_USER, SHARED_JDBC_URL, TENANT_PASSWORD + " "),
                         TenantPoolInspection.NONE))
                 .isInstanceOf(IllegalStateException.class)
@@ -189,7 +191,7 @@ class DataSourceConfigTest {
                 schemaIsolationProperties(),
                 new TenantBindingProperties(TenantTestConstants.CLAIM_SECRET, null));
 
-        assertThatThrownBy(() -> config.dataSource(
+        assertThatThrownBy(() -> createDataSource(config,
                         sharedDataSourceProperties(TENANT_USER, SHARED_JDBC_URL, TENANT_PASSWORD + "\nforged"),
                         TenantPoolInspection.NONE))
                 .isInstanceOf(IllegalStateException.class)
@@ -203,7 +205,7 @@ class DataSourceConfigTest {
                 schemaIsolationProperties(),
                 new TenantBindingProperties(TenantTestConstants.CLAIM_SECRET, null));
 
-        assertThatThrownBy(() -> config.dataSource(
+        assertThatThrownBy(() -> createDataSource(config,
                         sharedDataSourceProperties(TENANT_USER, "jdbc:mysql://db.example/shared"),
                         TenantPoolInspection.NONE))
                 .isInstanceOf(IllegalStateException.class)
@@ -217,7 +219,7 @@ class DataSourceConfigTest {
                 schemaIsolationProperties(),
                 new TenantBindingProperties(TenantTestConstants.CLAIM_SECRET, null));
 
-        assertThatThrownBy(() -> config.dataSource(
+        assertThatThrownBy(() -> createDataSource(config,
                         sharedDataSourceProperties(TENANT_USER, "jdbc:POSTGRESQL://db.example/shared"),
                         TenantPoolInspection.NONE))
                 .isInstanceOf(IllegalStateException.class)
@@ -254,6 +256,13 @@ class DataSourceConfigTest {
 
     private static DataSourceProperties sharedDataSourceProperties() {
         return sharedDataSourceProperties(TENANT_USER);
+    }
+
+    private static DataSource createDataSource(
+            final DataSourceConfig config,
+            final DataSourceProperties properties,
+            final TenantPoolInspection inspection) {
+        return config.dataSource(properties, inspection, new TenantContext(() -> false));
     }
 
     private static DataSourceProperties sharedDataSourceProperties(final String username) {

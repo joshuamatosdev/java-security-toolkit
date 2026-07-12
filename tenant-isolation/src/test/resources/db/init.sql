@@ -400,7 +400,7 @@ GRANT INSERT (event, detail), UPDATE (event, detail) ON system_audit TO tenant_s
 GRANT SELECT (id) ON system_audit TO tenant_system_writer;
 GRANT SELECT ON system_audit TO tenant_bypass;
 
--- 6) Cross-tenant read entitlements (ADR-0008).
+-- 6) Cross-tenant read entitlements.
 --    An entitlement is an explicit, revocable, platform-administered grant row: "the grantee tenant
 --    may READ the grantor tenant's rows of one resource class." Grants are DATA, not session state —
 --    no new claim, no context change, revocation takes effect on the next statement. The grant graph

@@ -11,6 +11,6 @@ root:
 The runner verifies integrity first. It uses the embedded key. Then it verifies
 authenticity. It checks `TrustAnchor.pinnedKeys(...)`. The wiring supplies its own
 keys. Never from the document under test. The example opts into ephemeral keys. These
-are local ephemeral signing keys. So `DocumentSigner.sign(byte[])` runs without
+are local ephemeral signing keys. So `DefaultDocumentSigner.sign(byte[])` runs without
 external custody. Production apps should disable that opt-in. Supply a
 `KeyHandleResolver` instead. Use KMS or HSM custody.

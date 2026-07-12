@@ -16,7 +16,6 @@ import java.sql.Connection;
 import java.sql.SQLFeatureNotSupportedException;
 import java.util.Map;
 import javax.sql.DataSource;
-import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
 
 /**
@@ -29,11 +28,7 @@ class TenantSchemaDataSourceTest {
 
     private static final String ACME_SCHEMA = "tenant_acme";
     private static final String DEFAULT_SCHEMA = "public";
-
-    @AfterEach
-    void clearTenantContext() {
-        TenantContext.clear();
-    }
+    private final TenantContext tenantContext = new TenantContext(() -> false);
 
     @Test
     void setsTheConfiguredSchemaAndResetsItOnClose() throws Exception {
@@ -42,12 +37,13 @@ class TenantSchemaDataSourceTest {
         final TenantSchemaDataSource dataSource = new TenantSchemaDataSource(
                 delegate,
                 Map.of(TenantIds.ACME, ACME_SCHEMA),
-                TenantPoolInspection.NONE);
+                TenantPoolInspection.NONE,
+                tenantContext);
         when(delegate.getConnection()).thenReturn(raw);
         when(raw.getSchema()).thenReturn(DEFAULT_SCHEMA);
         when(raw.getAutoCommit()).thenReturn(true);
 
-        TenantContext.runAs(TenantIds.ACME, () -> {
+        tenantContext.runAs(TenantIds.ACME, () -> {
             try (Connection guarded = dataSource.getConnection()) {
                 assertThat(guarded.isWrapperFor(Connection.class)).isTrue();
                 assertThat(guarded.unwrap(Connection.class)).isSameAs(guarded);
@@ -68,12 +64,13 @@ class TenantSchemaDataSourceTest {
         final TenantSchemaDataSource dataSource = new TenantSchemaDataSource(
                 delegate,
                 Map.of(TenantIds.ACME, ACME_SCHEMA),
-                TenantPoolInspection.NONE);
+                TenantPoolInspection.NONE,
+                tenantContext);
         when(delegate.getConnection()).thenReturn(raw);
         when(raw.getSchema()).thenReturn(DEFAULT_SCHEMA);
         when(raw.getAutoCommit()).thenReturn(true);
 
-        TenantContext.runAs(TenantIds.ACME, () -> {
+        tenantContext.runAs(TenantIds.ACME, () -> {
             try {
                 final Connection guarded = dataSource.getConnection();
                 guarded.close();
@@ -96,7 +93,8 @@ class TenantSchemaDataSourceTest {
         final TenantSchemaDataSource dataSource = new TenantSchemaDataSource(
                 delegate,
                 Map.of(TenantIds.ACME, ACME_SCHEMA),
-                TenantPoolInspection.NONE);
+                TenantPoolInspection.NONE,
+                tenantContext);
 
         assertThatThrownBy(dataSource::getConnection)
                 .isInstanceOf(SecurityException.class)
@@ -112,7 +110,8 @@ class TenantSchemaDataSourceTest {
         assertThatThrownBy(() -> new TenantSchemaDataSource(
                         delegate,
                         Map.of(TenantIds.ACME, "tenant-acme"),
-                        TenantPoolInspection.NONE))
+                        TenantPoolInspection.NONE,
+                        tenantContext))
                 .isInstanceOf(IllegalArgumentException.class)
                 .hasMessageContaining("invalid schema name");
     }
@@ -124,7 +123,8 @@ class TenantSchemaDataSourceTest {
         assertThatThrownBy(() -> new TenantSchemaDataSource(
                         delegate,
                         Map.of(TenantIds.ACME, ACME_SCHEMA, TenantIds.GLOBEX, ACME_SCHEMA),
-                        TenantPoolInspection.NONE))
+                        TenantPoolInspection.NONE,
+                        tenantContext))
                 .isInstanceOf(IllegalArgumentException.class)
                 .hasMessageContaining("duplicate schema name");
     }
@@ -135,9 +135,10 @@ class TenantSchemaDataSourceTest {
         final TenantSchemaDataSource dataSource = new TenantSchemaDataSource(
                 delegate,
                 Map.of(TenantIds.ACME, ACME_SCHEMA),
-                TenantPoolInspection.NONE);
+                TenantPoolInspection.NONE,
+                tenantContext);
 
-        TenantContext.runAsSystemOps(() -> assertThatThrownBy(dataSource::getConnection)
+        tenantContext.runAsSystemOps(() -> assertThatThrownBy(dataSource::getConnection)
                 .isInstanceOf(SecurityException.class)
                 .hasMessageContaining("schema isolation cannot use one ambient system-ops connection"));
     }
@@ -148,7 +149,8 @@ class TenantSchemaDataSourceTest {
         final TenantSchemaDataSource dataSource = new TenantSchemaDataSource(
                 delegate,
                 Map.of(TenantIds.ACME, ACME_SCHEMA),
-                TenantPoolInspection.NONE);
+                TenantPoolInspection.NONE,
+                tenantContext);
 
         assertThatThrownBy(() -> dataSource.getConnection(
                         TenantTestConstants.POSTGRES_USERNAME,
@@ -163,7 +165,8 @@ class TenantSchemaDataSourceTest {
         final TenantSchemaDataSource dataSource = new TenantSchemaDataSource(
                 delegate,
                 Map.of(TenantIds.ACME, ACME_SCHEMA),
-                TenantPoolInspection.NONE);
+                TenantPoolInspection.NONE,
+                tenantContext);
         final Class<? extends DataSource> delegateClass = delegate.getClass();
 
         assertThat(dataSource.isWrapperFor(DataSource.class)).isTrue();
@@ -188,7 +191,8 @@ class TenantSchemaDataSourceTest {
         final TenantSchemaDataSource dataSource = new TenantSchemaDataSource(
                 delegate,
                 Map.of(TenantIds.ACME, ACME_SCHEMA),
-                TenantPoolInspection.NONE);
+                TenantPoolInspection.NONE,
+                tenantContext);
 
         assertThat(dataSource).isInstanceOf(AutoCloseable.class);
         dataSource.close();

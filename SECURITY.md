@@ -49,4 +49,4 @@ Production users must validate their setup. Providers. Keys. Modules. Policies. 
 
 ## Public Data Rule
 
-Never include real sensitive values. That means secrets and customer identifiers. Also tenant names and hostnames. Also tokens and private keys. Also credentials and internal endpoint values. Keep them out of every place. Reports. Issues. Pull requests. Tests. Examples. Use neutral fictional values instead.
+Never include real sensitive values. That means secrets and customer identifiers. Also tenant names and hostnames. Also tokens and private keys. Also credentials and internal endpoint values. Keep them out of every place. Reports. Issues. Repository discussions. Tests. Examples. Use neutral fictional values instead.

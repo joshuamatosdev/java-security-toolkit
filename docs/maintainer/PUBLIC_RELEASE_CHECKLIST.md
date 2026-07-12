@@ -64,7 +64,7 @@ For a clean-clone check, do this. Clone into a temporary directory. Run `./gradl
 - Enable GitHub secret scanning.
 - Enable branch protection for `main`.
 - Require the `ci` workflow before merge.
-- Enable Dependabot alerts and security updates.
+- Enable Dependabot alerts. Apply reviewed dependency updates directly to `main`.
 - Enable private vulnerability reporting if supported.
 
 ## Release

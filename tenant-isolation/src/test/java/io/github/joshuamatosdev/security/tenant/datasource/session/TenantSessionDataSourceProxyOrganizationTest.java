@@ -25,7 +25,6 @@ import java.sql.Types;
 import java.time.Clock;
 import java.time.Duration;
 import javax.sql.DataSource;
-import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
@@ -58,6 +57,7 @@ class TenantSessionDataSourceProxyOrganizationTest {
     private DataSource delegate;
     private Connection connection;
     private PreparedStatement statement;
+    private final TenantContext tenantContext = new TenantContext(() -> false);
 
     @BeforeEach
     void wireFakeConnection() throws SQLException {
@@ -67,11 +67,6 @@ class TenantSessionDataSourceProxyOrganizationTest {
         when(delegate.getConnection()).thenReturn(connection);
         when(connection.prepareStatement("SELECT set_config(?, ?, ?)")).thenReturn(statement);
         when(connection.getAutoCommit()).thenReturn(true);
-    }
-
-    @AfterEach
-    void clearTenantContext() {
-        TenantContext.clear();
     }
 
     @Test
@@ -110,10 +105,10 @@ class TenantSessionDataSourceProxyOrganizationTest {
     void requiredScopeFailsClosedBeforeBorrowWhenOrganizationIsAbsent() throws SQLException {
         final TenantBindingObserver observer = mock(TenantBindingObserver.class);
         final TenantSessionDataSourceProxy proxy = new TenantSessionDataSourceProxy(
-                delegate, POOL_NAME, CLAIM_SIGNER, OrganizationScope.REQUIRED,
+                delegate, POOL_NAME, CLAIM_SIGNER, tenantContext, OrganizationScope.REQUIRED,
                 observer, TenantPoolInspection.NONE);
 
-        TenantContext.runAs(TenantIds.ACME, () ->
+        tenantContext.runAs(TenantIds.ACME, () ->
                 assertThatThrownBy(proxy::getConnection)
                         .isInstanceOf(IllegalStateException.class)
                         .hasMessageContaining("requires organization binding")
@@ -137,7 +132,7 @@ class TenantSessionDataSourceProxyOrganizationTest {
     void systemOpsIsExemptFromRequiredScope() throws SQLException {
         final TenantSessionDataSourceProxy proxy = proxy(OrganizationScope.REQUIRED);
 
-        final Connection borrowed = TenantContext.supplyAsSystemOps(() -> borrowQuietly(proxy));
+        final Connection borrowed = tenantContext.supplyAsSystemOps(() -> borrowQuietly(proxy));
 
         assertThat(borrowed).isNotNull();
         verify(statement).setString(1, TENANT_CLAIM_SETTING);
@@ -170,7 +165,7 @@ class TenantSessionDataSourceProxyOrganizationTest {
 
     private TenantSessionDataSourceProxy proxy(final OrganizationScope scope) {
         return new TenantSessionDataSourceProxy(
-                delegate, POOL_NAME, CLAIM_SIGNER, scope, TenantPoolInspection.NONE);
+                delegate, POOL_NAME, CLAIM_SIGNER, tenantContext, scope, TenantPoolInspection.NONE);
     }
 
     private Connection borrowAs(
@@ -178,9 +173,9 @@ class TenantSessionDataSourceProxyOrganizationTest {
             final OrganizationId organization,
             final TenantSessionDataSourceProxy proxy) {
         if (organization == null) {
-            return TenantContext.supplyAs(tenant, () -> borrowQuietly(proxy));
+            return tenantContext.supplyAs(tenant, () -> borrowQuietly(proxy));
         }
-        return TenantContext.supplyAs(tenant, organization, () -> borrowQuietly(proxy));
+        return tenantContext.supplyAs(tenant, organization, () -> borrowQuietly(proxy));
     }
 
     private static Connection borrowQuietly(final TenantSessionDataSourceProxy proxy) {

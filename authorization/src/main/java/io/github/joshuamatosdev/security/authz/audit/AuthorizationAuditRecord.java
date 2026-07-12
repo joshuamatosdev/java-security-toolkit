@@ -1,7 +1,10 @@
 package io.github.joshuamatosdev.security.authz.audit;
 
 import io.github.joshuamatosdev.security.shared.RequiredText;
-import io.github.joshuamatosdev.security.authz.decision.*;
+import io.github.joshuamatosdev.security.authz.decision.Allow;
+import io.github.joshuamatosdev.security.authz.decision.Decision;
+import io.github.joshuamatosdev.security.authz.decision.DenialReason;
+import io.github.joshuamatosdev.security.authz.decision.Deny;
 import io.github.joshuamatosdev.security.authz.policy.Action;
 import io.github.joshuamatosdev.security.authz.principal.PolicyPrincipal;
 import io.github.joshuamatosdev.security.authz.principal.PrincipalType;
@@ -22,10 +25,7 @@ import java.util.UUID;
  *
  * @param tenantId     set from trusted actor context; {@code null} when no trusted tenant context
  *                     exists yet
- * @param grantBasis   set when {@code allowed} is true (otherwise {@code null})
- * @param denialReason set when {@code allowed} is false (otherwise {@code null})
- * @param wideScope    true when the grant basis was the wide-scope admin short-circuit — the
- *                     highest-risk decision, flagged so it is never silent
+ * @param outcome      sealed allow-or-deny outcome carrying exactly one rationale
  *
  * <p>Why this exists: audit types capture who did what, to which resource, where, when, and why so
  * authorization can be investigated after the request.
@@ -39,10 +39,7 @@ public record AuthorizationAuditRecord(
     ResourceId resourceId,
     @Nullable OrganizationId resourceOrganizationId,
     Action action,
-    boolean allowed,
-    @Nullable GrantBasis grantBasis,
-    @Nullable DenialReason denialReason,
-    boolean wideScope) {
+    Decision outcome) {
 
     public AuthorizationAuditRecord {
         Objects.requireNonNull(at, "at must not be null");
@@ -51,21 +48,9 @@ public record AuthorizationAuditRecord(
         requireText(principalKey);
         Objects.requireNonNull(resourceId, "resourceId must not be null");
         Objects.requireNonNull(action, "action must not be null");
-
-        if (allowed) {
+        Objects.requireNonNull(outcome, "outcome must not be null");
+        if (outcome instanceof Allow) {
             Objects.requireNonNull(tenantId, "allowed audit records must include tenantId");
-            Objects.requireNonNull(grantBasis, "allowed audit records must include grantBasis");
-            if (denialReason != null) {
-                throw new IllegalArgumentException("allowed audit records must not include denialReason");
-            }
-        } else {
-            Objects.requireNonNull(denialReason, "denied audit records must include denialReason");
-            if (grantBasis != null) {
-                throw new IllegalArgumentException("denied audit records must not include grantBasis");
-            }
-        }
-        if (wideScope != (grantBasis == GrantBasis.WIDE_SCOPE_ADMIN)) {
-            throw new IllegalArgumentException("wideScope must match WIDE_SCOPE_ADMIN grant basis");
         }
     }
 
@@ -76,9 +61,6 @@ public record AuthorizationAuditRecord(
         final Decision decision,
         final Instant at) {
 
-        final boolean allowed = decision.allowed();
-        final GrantBasis basis = decision instanceof Allow(GrantBasis basis1) ? basis1 : null;
-        final DenialReason reason = decision instanceof Deny(DenialReason reason1) ? reason1 : null;
         return new AuthorizationAuditRecord(
             at,
             actor.correlationId(),
@@ -88,10 +70,7 @@ public record AuthorizationAuditRecord(
             resource.resourceId(),
             resource.organizationId(),
             action,
-            allowed,
-            basis,
-            reason,
-            basis == GrantBasis.WIDE_SCOPE_ADMIN);
+            decision);
     }
 
     public static AuthorizationAuditRecord boundaryDenyWithoutTrustedContext(
@@ -111,10 +90,7 @@ public record AuthorizationAuditRecord(
             resource.resourceId(),
             resource.organizationId(),
             action,
-            false,
-            null,
-            reason,
-            false);
+            new Deny(reason));
     }
 
     private static void requireText(final String value) {

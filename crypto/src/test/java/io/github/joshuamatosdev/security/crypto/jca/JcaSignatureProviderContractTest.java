@@ -16,10 +16,3 @@ class EcdsaP256ProviderContractTest implements SignatureProviderContract {
         return JcaSignatureProviders.ecdsaP256();
     }
 }
-
-class PostQuantumPlaceholderProviderContractTest implements SignatureProviderContract {
-    @Override
-    public SignatureProvider provider() {
-        return JcaSignatureProviders.postQuantumPlaceholder();
-    }
-}

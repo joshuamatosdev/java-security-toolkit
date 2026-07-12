@@ -74,7 +74,7 @@ public class DocumentEntity {
     }
 
     public ProtectedResource toProtectedResource() {
-        return new ProtectedResource(
+        return ProtectedResource.owned(
             new ResourceId(id),
             new TenantId(tenantId),
             organizationId == null ? null : new OrganizationId(organizationId),

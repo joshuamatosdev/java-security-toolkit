@@ -12,14 +12,12 @@ import io.github.joshuamatosdev.security.tenant.datasource.pool.TenantPoolSnapsh
 import io.github.joshuamatosdev.security.tenant.persistence.DocumentEntity;
 import io.github.joshuamatosdev.security.tenant.persistence.DocumentRepository;
 import io.github.joshuamatosdev.security.tenant.testfixtures.TenantTestConstants;
-import io.github.joshuamatosdev.security.tenant.testfixtures.WithTenant;
 import java.sql.Connection;
 import java.sql.DriverManager;
 import java.sql.Statement;
 import java.util.Map;
 import java.util.UUID;
 import javax.sql.DataSource;
-import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -59,6 +57,9 @@ class DatabaseIsolationModeIntegrationTest {
     @Autowired
     private TenantPoolInspection tenantPoolInspection;
 
+    @Autowired
+    private TenantContext tenantContext;
+
     @DynamicPropertySource
     static void props(final DynamicPropertyRegistry registry) {
         registry.add("tenant.binding.claim-secret", () -> TenantTestConstants.CLAIM_SECRET);
@@ -73,18 +74,13 @@ class DatabaseIsolationModeIntegrationTest {
         truncate(GLOBEX_POSTGRES);
     }
 
-    @AfterEach
-    void clearTenantContext() {
-        TenantContext.clear();
-    }
-
     @Test
     void connectionBorrowRoutesToTenantDatabaseAndBindsSignedTenantClaim() {
         final JdbcTemplate jdbc = new JdbcTemplate(dataSource);
 
-        final Map<String, Object> acmeSession = WithTenant.supplyAs(TenantIds.ACME, () ->
+        final Map<String, Object> acmeSession = tenantContext.supplyAs(TenantIds.ACME, () ->
                 jdbc.queryForMap("SELECT tenant_security.current_tenant_id() AS tenant_id"));
-        final Map<String, Object> globexSession = WithTenant.supplyAs(TenantIds.GLOBEX, () ->
+        final Map<String, Object> globexSession = tenantContext.supplyAs(TenantIds.GLOBEX, () ->
                 jdbc.queryForMap("SELECT tenant_security.current_tenant_id() AS tenant_id"));
 
         assertThat(acmeSession.get("tenant_id")).isEqualTo(TenantIds.ACME.value());
@@ -93,13 +89,13 @@ class DatabaseIsolationModeIntegrationTest {
 
     @Test
     void repositoryOperationsRouteToSeparateTenantDatabases() throws Exception {
-        final UUID acmeId = WithTenant.supplyAs(TenantIds.ACME, () ->
+        final UUID acmeId = tenantContext.supplyAs(TenantIds.ACME, () ->
                 repository.save(new DocumentEntity(TenantTestConstants.ACME_DOCUMENT_TITLE, "database-acme")).getId());
-        final UUID globexId = WithTenant.supplyAs(TenantIds.GLOBEX, () ->
+        final UUID globexId = tenantContext.supplyAs(TenantIds.GLOBEX, () ->
                 repository.save(new DocumentEntity(TenantTestConstants.GLOBEX_DOCUMENT_TITLE, "database-globex")).getId());
 
-        final var acmeView = WithTenant.supplyAs(TenantIds.ACME, repository::findAll);
-        final var globexView = WithTenant.supplyAs(TenantIds.GLOBEX, repository::findAll);
+        final var acmeView = tenantContext.supplyAs(TenantIds.ACME, repository::findAll);
+        final var globexView = tenantContext.supplyAs(TenantIds.GLOBEX, repository::findAll);
 
         assertThat(acmeView).singleElement().satisfies(document -> {
             assertThat(document.getId()).isEqualTo(acmeId);

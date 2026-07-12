@@ -9,10 +9,10 @@ import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
 import java.util.regex.Pattern;
+import java.util.stream.StreamSupport;
 
 /**
  * Parses a CycloneDX {@code bom.json} into the {@link SbomDocument} projection the integrity gate
@@ -42,24 +42,28 @@ public final class SbomReader {
       if (!root.isObject()) {
         throw new IllegalArgumentException("CycloneDX SBOM root must be an object");
       }
-      List<SbomDocument.Component> components = new ArrayList<>();
       JsonNode componentNodes = root.path("components");
       if (!componentNodes.isMissingNode() && !componentNodes.isArray()) {
         throw new IllegalArgumentException("CycloneDX components must be an array");
       }
-      for (JsonNode component : componentNodes) {
-        if (!component.isObject()) {
-          throw new IllegalArgumentException("CycloneDX component entries must be objects");
-        }
-        components.add(
-            new SbomDocument.Component(
-                text(component, "name"), text(component, "version"), purl(component)));
-      }
+      List<SbomDocument.Component> components = componentNodes.isMissingNode()
+          ? List.of()
+          : StreamSupport.stream(componentNodes.spliterator(), false)
+              .map(SbomReader::component)
+              .toList();
       return new SbomDocument(
           text(root, "bomFormat"), text(root, "specVersion"), serialNumber(root), components);
     } catch (IOException e) {
       throw new UncheckedIOException("failed to read SBOM at " + bomJson, e);
     }
+  }
+
+  private static SbomDocument.Component component(JsonNode component) {
+    if (!component.isObject()) {
+      throw new IllegalArgumentException("CycloneDX component entries must be objects");
+    }
+    return new SbomDocument.Component(
+        text(component, "name"), text(component, "version"), purl(component));
   }
 
   private static String text(JsonNode node, String field) {

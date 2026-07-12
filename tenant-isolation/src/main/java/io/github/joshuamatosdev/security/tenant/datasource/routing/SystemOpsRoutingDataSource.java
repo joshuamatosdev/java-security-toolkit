@@ -2,7 +2,7 @@ package io.github.joshuamatosdev.security.tenant.datasource.routing;
 
 import io.github.joshuamatosdev.security.tenant.TenantIds;
 import io.github.joshuamatosdev.security.tenant.binding.SystemTenantBoundary;
-import io.github.joshuamatosdev.security.tenant.binding.TenantContext;
+import io.github.joshuamatosdev.security.tenant.binding.TenantBindingSource;
 import io.github.joshuamatosdev.security.tenant.datasource.session.TenantSessionDataSourceProxy;
 import java.sql.Connection;
 import java.sql.SQLException;
@@ -27,6 +27,7 @@ public final class SystemOpsRoutingDataSource extends AbstractDataSource impleme
 
     private final DataSource runtime;
     private final DataSource systemOps;
+    private final TenantBindingSource bindingSource;
 
     /**
      * Creates a context-sensitive router over the two raw pools.
@@ -34,9 +35,13 @@ public final class SystemOpsRoutingDataSource extends AbstractDataSource impleme
      * @param runtime ordinary tenant pool backed by {@code tenant_user}
      * @param systemOps read-only cross-tenant pool backed by {@code tenant_ops_user}
      */
-    public SystemOpsRoutingDataSource(final DataSource runtime, final DataSource systemOps) {
+    public SystemOpsRoutingDataSource(
+            final DataSource runtime,
+            final DataSource systemOps,
+            final TenantBindingSource bindingSource) {
         this.runtime = Objects.requireNonNull(runtime, "runtime");
         this.systemOps = Objects.requireNonNull(systemOps, "systemOps");
+        this.bindingSource = Objects.requireNonNull(bindingSource, "bindingSource");
     }
 
     /**
@@ -99,13 +104,13 @@ public final class SystemOpsRoutingDataSource extends AbstractDataSource impleme
      *
      * <p>The explicit {@link TenantIds#SYSTEM_OPS} binding routes to the system-ops pool; any bound
      * tenant routes to the ordinary runtime pool. A missing tenant context fails closed via
-     * {@link TenantContext#requireCurrent()} — symmetric with the schema and database routers —
+     * {@link TenantBindingSource#requireCurrent()} — symmetric with the schema and database routers —
      * rather than silently defaulting to runtime. The outer proxy already fails closed first; this
      * guard makes the router safe on its own.
      *
      * @return the datasource that matches the current tenant context
      */
     private DataSource currentDelegate() {
-        return TenantIds.SYSTEM_OPS.equals(TenantContext.requireCurrent()) ? systemOps : runtime;
+        return TenantIds.SYSTEM_OPS.equals(bindingSource.requireCurrent()) ? systemOps : runtime;
     }
 }

@@ -1,10 +1,6 @@
 # Glossary
 
-This glossary defines shared terms. They cover the modules and ADRs. It favors plain language. Not database or cloud shorthand.
-
-## ADR
-
-An Architecture Decision Record. It records a design decision. It records the driving context. It records the rejected alternatives. It records the resulting consequences.
+This glossary defines shared terms across the modules. It favors plain language. Not database or cloud shorthand.
 
 ## BYPASSRLS
 

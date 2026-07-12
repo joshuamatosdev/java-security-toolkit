@@ -3,6 +3,7 @@ package io.github.joshuamatosdev.security.crypto.spring;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
+import io.github.joshuamatosdev.security.crypto.api.DefaultDocumentSigner;
 import io.github.joshuamatosdev.security.crypto.api.DocumentSigner;
 import io.github.joshuamatosdev.security.crypto.api.KeyHandleResolver;
 import io.github.joshuamatosdev.security.crypto.api.SignatureAlgorithm;
@@ -26,16 +27,11 @@ class CryptoAutoConfigurationTest {
     void defaultContextRegistersEd25519DocumentSignerWithoutLocalSigningCustody() {
         contextRunner.run(context -> {
             assertThat(context).hasSingleBean(DocumentSigner.class);
+            assertThat(context).doesNotHaveBean(DefaultDocumentSigner.class);
             assertThat(context).doesNotHaveBean(KeyHandleResolver.class);
             final SignatureProviderRegistry registry = context.getBean(SignatureProviderRegistry.class);
             assertThat(registry.hasProvider(SignatureAlgorithm.ED25519)).isTrue();
             assertThat(registry.hasProvider(SignatureAlgorithm.ECDSA_P256)).isFalse();
-            assertThat(registry.hasProvider(SignatureAlgorithm.ML_DSA_44)).isFalse();
-
-            final DocumentSigner signer = context.getBean(DocumentSigner.class);
-            assertThatThrownBy(() -> signer.sign("payload".getBytes(StandardCharsets.UTF_8)))
-                    .isInstanceOf(IllegalStateException.class)
-                    .hasMessageContaining("Default signing requires");
         });
     }
 
@@ -46,11 +42,12 @@ class CryptoAutoConfigurationTest {
                 .run(context -> {
                     assertThat(context).hasSingleBean(KeyHandleResolver.class);
 
-                    final DocumentSigner signer = context.getBean(DocumentSigner.class);
+                    final DefaultDocumentSigner signer = context.getBean(DefaultDocumentSigner.class);
+                    final DocumentSigner verifier = context.getBean(DocumentSigner.class);
                     final SignedDocument signed = signer.sign("payload".getBytes(StandardCharsets.UTF_8));
 
                     assertThat(signed.alg()).isEqualTo("EdDSA");
-                    assertThat(signer.verify(signed)).isTrue();
+                    assertThat(verifier.verify(signed).isVerified()).isTrue();
                 });
     }
 
@@ -61,11 +58,12 @@ class CryptoAutoConfigurationTest {
                 .run(context -> {
                     assertThat(context).hasSingleBean(KeyHandleResolver.class);
 
-                    final DocumentSigner signer = context.getBean(DocumentSigner.class);
+                    final DefaultDocumentSigner signer = context.getBean(DefaultDocumentSigner.class);
+                    final DocumentSigner verifier = context.getBean(DocumentSigner.class);
                     final SignedDocument signed = signer.sign("payload".getBytes(StandardCharsets.UTF_8));
 
                     assertThat(signed.alg()).isEqualTo("EdDSA");
-                    assertThat(signer.verify(signed)).isTrue();
+                    assertThat(verifier.verify(signed).isVerified()).isTrue();
                 });
     }
 
@@ -77,16 +75,17 @@ class CryptoAutoConfigurationTest {
                     final SignatureProviderRegistry registry = context.getBean(SignatureProviderRegistry.class);
                     assertThat(registry.hasProvider(SignatureAlgorithm.ED25519)).isTrue();
                     assertThat(registry.hasProvider(SignatureAlgorithm.ECDSA_P256)).isTrue();
-                    assertThat(registry.hasProvider(SignatureAlgorithm.ML_DSA_44)).isFalse();
                 });
     }
 
     @Test
     void missingDefaultProviderFailsStartup() {
         contextRunner
-                .withPropertyValues("crypto.providers.jca.ed25519.enabled=false")
+                .withPropertyValues(
+                        "crypto.providers.jca.ed25519.enabled=false",
+                        "crypto.local-ephemeral-keys.enabled=true")
                 .run(context -> assertThat(context.getStartupFailure())
-                        .hasMessageContaining("No SignatureProvider registered for default algorithm ED25519"));
+                        .hasMessageContaining("No SignatureProvider registered for default algorithm EdDSA"));
     }
 
     @Test
@@ -124,7 +123,7 @@ class CryptoAutoConfigurationTest {
         contextRunner
                 .withUserConfiguration(DuplicateProviderConfiguration.class)
                 .run(context -> assertThat(context.getStartupFailure())
-                        .hasMessageContaining("Duplicate provider for algorithm ED25519"));
+                        .hasMessageContaining("Duplicate provider for algorithm EdDSA"));
     }
 
     @Configuration(proxyBeanMethods = false)

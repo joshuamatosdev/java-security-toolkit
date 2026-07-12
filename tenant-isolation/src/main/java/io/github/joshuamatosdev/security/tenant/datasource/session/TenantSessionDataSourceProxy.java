@@ -17,8 +17,8 @@ import io.github.joshuamatosdev.security.shared.TenantId;
 import io.github.joshuamatosdev.security.tenant.TenantIds;
 import io.github.joshuamatosdev.security.tenant.binding.OrganizationScope;
 import io.github.joshuamatosdev.security.tenant.binding.SystemTenantBoundary;
+import io.github.joshuamatosdev.security.tenant.binding.TenantBindingSource;
 import io.github.joshuamatosdev.security.tenant.binding.TenantBindingObserver;
-import io.github.joshuamatosdev.security.tenant.binding.TenantContext;
 import io.github.joshuamatosdev.security.tenant.datasource.ResettingConnectionProxy;
 import io.github.joshuamatosdev.security.tenant.datasource.pool.TenantPoolInspection;
 import io.github.joshuamatosdev.security.tenant.datasource.pool.TenantPoolSnapshot;
@@ -28,7 +28,7 @@ import org.springframework.jdbc.datasource.AbstractDataSource;
 
 /**
  * Binds PostgreSQL session variable {@code app.tenant_claim} on every Spring-managed connection
- * borrow so that per-table RLS policies evaluate against the active {@link TenantContext}.
+ * borrow so that per-table RLS policies evaluate against the active {@link TenantBindingSource}.
  *
  * <p>The setting is a signed claim, not the tenant authority by itself. PostgreSQL verifies the
  * HMAC with a DB-private secret before RLS trusts it. The returned connection is wrapped so {@link
@@ -41,7 +41,7 @@ import org.springframework.jdbc.datasource.AbstractDataSource;
  * closed before a connection is taken; the system-operations tenant is exempt because cross-tenant
  * operational work carries no organization.
  *
- * <p>Fail-closed: if no {@link TenantContext} is populated at borrow time, borrowing throws
+ * <p>Fail-closed: if no tenant binding is populated at borrow time, borrowing throws
  * {@link IllegalStateException} before any SQL can run.
  *
  * <p>Why this exists: database-enforced isolation depends on stamping every borrowed connection
@@ -57,6 +57,7 @@ public final class TenantSessionDataSourceProxy extends AbstractDataSource imple
     private final DataSource delegate;
     private final String poolName;
     private final TenantClaimSigner claimSigner;
+    private final TenantBindingSource bindingSource;
     private final OrganizationScope organizationScope;
     private final TenantBindingObserver observer;
     private final TenantPoolInspection poolInspection;
@@ -69,8 +70,11 @@ public final class TenantSessionDataSourceProxy extends AbstractDataSource imple
      * @param claimSigner signs the tenant claim that PostgreSQL verifies inside RLS policies
      */
     public TenantSessionDataSourceProxy(
-            final DataSource delegate, final String poolName, final TenantClaimSigner claimSigner) {
-        this(delegate, poolName, claimSigner, OrganizationScope.OFF,
+            final DataSource delegate,
+            final String poolName,
+            final TenantClaimSigner claimSigner,
+            final TenantBindingSource bindingSource) {
+        this(delegate, poolName, claimSigner, bindingSource, OrganizationScope.OFF,
                 TenantBindingObserver.NOOP, TenantPoolInspection.NONE);
     }
 
@@ -86,8 +90,9 @@ public final class TenantSessionDataSourceProxy extends AbstractDataSource imple
             final DataSource delegate,
             final String poolName,
             final TenantClaimSigner claimSigner,
+            final TenantBindingSource bindingSource,
             final TenantPoolInspection poolInspection) {
-        this(delegate, poolName, claimSigner, OrganizationScope.OFF,
+        this(delegate, poolName, claimSigner, bindingSource, OrganizationScope.OFF,
                 TenantBindingObserver.NOOP, poolInspection);
     }
 
@@ -104,9 +109,11 @@ public final class TenantSessionDataSourceProxy extends AbstractDataSource imple
             final DataSource delegate,
             final String poolName,
             final TenantClaimSigner claimSigner,
+            final TenantBindingSource bindingSource,
             final OrganizationScope organizationScope,
             final TenantPoolInspection poolInspection) {
-        this(delegate, poolName, claimSigner, organizationScope, TenantBindingObserver.NOOP, poolInspection);
+        this(delegate, poolName, claimSigner, bindingSource,
+                organizationScope, TenantBindingObserver.NOOP, poolInspection);
     }
 
     /**
@@ -124,8 +131,10 @@ public final class TenantSessionDataSourceProxy extends AbstractDataSource imple
             final DataSource delegate,
             final String poolName,
             final TenantClaimSigner claimSigner,
+            final TenantBindingSource bindingSource,
             final TenantBindingObserver observer) {
-        this(delegate, poolName, claimSigner, OrganizationScope.OFF, observer, TenantPoolInspection.NONE);
+        this(delegate, poolName, claimSigner, bindingSource,
+                OrganizationScope.OFF, observer, TenantPoolInspection.NONE);
     }
 
     /**
@@ -142,12 +151,14 @@ public final class TenantSessionDataSourceProxy extends AbstractDataSource imple
             final DataSource delegate,
             final String poolName,
             final TenantClaimSigner claimSigner,
+            final TenantBindingSource bindingSource,
             final OrganizationScope organizationScope,
             final TenantBindingObserver observer,
             final TenantPoolInspection poolInspection) {
         this.delegate = Objects.requireNonNull(delegate, "delegate");
         this.poolName = RequiredText.require(poolName, "poolName");
         this.claimSigner = Objects.requireNonNull(claimSigner, "claimSigner");
+        this.bindingSource = Objects.requireNonNull(bindingSource, "bindingSource");
         this.organizationScope = Objects.requireNonNull(organizationScope, "organizationScope");
         this.observer = Objects.requireNonNull(observer, "observer");
         this.poolInspection = Objects.requireNonNull(poolInspection, "poolInspection");
@@ -173,7 +184,7 @@ public final class TenantSessionDataSourceProxy extends AbstractDataSource imple
      * session.
      *
      * <p>Fail-closed behavior is enforced before the caller receives the connection: if no
-     * {@link TenantContext} exists — or the scope is {@code required} and an ordinary tenant borrow
+     * a tenant binding exists — or the scope is {@code required} and an ordinary tenant borrow
      * has no organization — no connection is borrowed and no SQL can run.
      *
      * @return a guarded connection whose {@link Connection#close()} clears the bound claims
@@ -278,10 +289,10 @@ public final class TenantSessionDataSourceProxy extends AbstractDataSource imple
      * untenanted session to the caller or churn the pool.
      *
      * @return the tenant bound to the calling thread
-     * @throws IllegalStateException when no tenant is present in {@link TenantContext}
+     * @throws IllegalStateException when no tenant is present in the binding source
      */
     private TenantId requireTenantOrFail() {
-        return TenantContext.current()
+        return bindingSource.current()
                 .orElseThrow(() -> {
                     notifyObserver(() -> observer.onBindingMissing(poolName));
                     return new IllegalStateException("TenantContext not populated — tenant-scoped datasource '"
@@ -305,7 +316,7 @@ public final class TenantSessionDataSourceProxy extends AbstractDataSource imple
         if (organizationScope == OrganizationScope.OFF || TenantIds.SYSTEM_OPS.equals(tenant)) {
             return null;
         }
-        final Optional<String> claim = TenantContext.currentOrganization()
+        final Optional<String> claim = bindingSource.currentOrganization()
                 .map(organization -> claimSigner.signOrganization(organization.value()));
         if (claim.isEmpty() && organizationScope == OrganizationScope.REQUIRED) {
             notifyObserver(() -> observer.onOrganizationBindingMissing(poolName));

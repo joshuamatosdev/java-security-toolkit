@@ -7,7 +7,6 @@ import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.core.Ordered;
 import org.springframework.core.annotation.Order;
-import org.springframework.http.HttpMethod;
 import org.springframework.security.config.annotation.web.reactive.EnableWebFluxSecurity;
 import org.springframework.security.config.web.server.ServerHttpSecurity;
 import org.springframework.security.oauth2.client.oidc.authentication.OidcIdTokenValidator;
@@ -40,7 +39,7 @@ import org.springframework.web.server.WebFilter;
  *       are explicitly permitted, then {@code /actuator/**} is explicitly denied, so an endpoint
  *       accidentally exposed in {@code management.endpoints.web.exposure} is still unreachable.
  *   <li><b>Narrow-before-broad</b> — the audit-export exception is registered before the broad
- *       admin gate so an auditor reaches it (first-match-wins). See {@link RouteAuthorities}.
+ *       admin gate so an auditor reaches it (first-match-wins). See {@link BrowserRouteTable}.
  *   <li><b>OIDC login</b> via Authorization-Code + PKCE; the generated login page is suppressed so
  *       the gateway leaks no client-registration identity (the SPA owns all login UX).
  *   <li><b>CSRF</b> double-submit cookie, <b>CORS</b> credentialed allow-list, <b>security
@@ -61,30 +60,22 @@ public class BrowserSecurityChainConfig {
       ServerCsrfTokenRepository csrfTokenRepository,
       ServerCsrfTokenRequestHandler csrfTokenRequestHandler,
       ServerOAuth2AuthorizationRequestResolver authorizationRequestResolver,
-      CorsConfigurationSource corsConfigurationSource) {
+      CorsConfigurationSource corsConfigurationSource,
+      BrowserRouteTable routeTable) {
     return http.cors(cors -> cors.configurationSource(corsConfigurationSource))
         .csrf(
             csrf ->
                 csrf.csrfTokenRepository(csrfTokenRepository)
                     .csrfTokenRequestHandler(csrfTokenRequestHandler))
         .authorizeExchange(
-                exchanges ->
-                exchanges
-                    .pathMatchers(HttpMethod.GET, RouteAuthorities.PUBLIC_PATHS)
-                    .permitAll()
-                    .pathMatchers(HttpMethod.GET, "/actuator/health/**", "/actuator/info")
-                    .permitAll()
-                    .pathMatchers("/actuator/**")
-                    .denyAll()
-                    .pathMatchers(RouteAuthorities.DOCUMENT_PATHS)
-                    .authenticated()
-                    // Narrow exception MUST precede the broad admin gate (first-match-wins).
-                    .pathMatchers(RouteAuthorities.AUDIT_EXPORT_PATHS)
-                    .hasAnyAuthority(RouteAuthorities.AUDIT_EXPORT_AUTHORITIES)
-                    .pathMatchers(RouteAuthorities.ADMIN_PATHS)
-                    .hasAnyAuthority(RouteAuthorities.ADMIN_AUTHORITIES)
-                    .anyExchange()
-                    .denyAll())
+            exchanges -> {
+              routeTable
+                  .rules()
+                  .forEach(
+                      rule ->
+                          rule.authorization().apply(rule.matcher().match(exchanges)));
+              exchanges.anyExchange().denyAll();
+            })
         // An explicit loginPage suppresses Spring Security's generated OAuth2 login page, which
         // would otherwise leak the client-registration id and confirm the IdP backend. Pointing
         // it at the single client's authorization endpoint makes an HTML auth challenge redirect

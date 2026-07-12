@@ -28,12 +28,12 @@ Run one module:
 - Never commit these. Secrets. Real tenant or customer data. Internal hostnames. Production identifiers. Private keys. Tokens. Credentials. `.env` files.
 - Keep module boundaries clear. Cross-module identity types belong in `shared`. Module-specific behavior stays in its module.
 - Did a change touch these? Add or update tests. A security boundary. An authorization decision. A tenant boundary. A crypto seam. A supply-chain check. A public contract.
-- ADRs are append-only decision records. Did a security decision change? Update or add an ADR.
+- When public behavior changes, update the owning module README and any affected adoption guide, glossary entry, and executable contract.
 - Keep comments useful. Prefer comments that explain the why. Why a boundary exists. Why a test matters.
 
-## Pull Request Checklist
+## Change Checklist
 
-Before opening a pull request:
+Before committing and pushing to `main`:
 
 ```bash
 ./gradlew test
@@ -52,4 +52,4 @@ A dependency update must explain itself. Say why the update is needed. Then say 
 
 ## Security Reports
 
-Never post exploitable details publicly. Not in issues. Not in pull requests. Follow [SECURITY.md](SECURITY.md) for private reporting.
+Never post exploitable details publicly. Not in issues or other public repository content. Follow [SECURITY.md](SECURITY.md) for private reporting.

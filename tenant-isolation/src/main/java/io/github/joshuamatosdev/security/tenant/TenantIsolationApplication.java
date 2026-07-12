@@ -11,7 +11,7 @@ import org.springframework.boot.autoconfigure.SpringBootApplication;
  * behavior lives in the datasource, binding, and schema components.
  *
  * <p>Why this exists: a runnable Spring boundary keeps the tenant-isolation pattern executable,
- * configurable, and testable instead of only described in ADR prose.
+ * configurable, and testable instead of only described in prose.
  */
 @SpringBootApplication
 public class TenantIsolationApplication {

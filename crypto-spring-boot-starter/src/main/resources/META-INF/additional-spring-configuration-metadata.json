@@ -2,7 +2,7 @@
   "properties": [
     {
       "name": "crypto.default-algorithm",
-      "defaultValue": "ed25519"
+      "defaultValue": "EdDSA"
     },
     {
       "name": "crypto.default-key-id",
@@ -12,7 +12,7 @@
       "name": "crypto.enabled",
       "type": "java.lang.Boolean",
       "sourceType": "io.github.joshuamatosdev.security.crypto.spring.CryptoAutoConfiguration",
-      "description": "Whether the crypto auto-configuration activates and wires the provider registry, envelope codec, audit sink, and DocumentSigner.",
+      "description": "Whether the crypto auto-configuration activates and wires the provider registry, envelope codec, audit sink, DocumentSigner, and optional DefaultDocumentSigner capability.",
       "defaultValue": true
     },
     {
@@ -27,13 +27,6 @@
       "type": "java.lang.Boolean",
       "sourceType": "io.github.joshuamatosdev.security.crypto.spring.CryptoAutoConfiguration",
       "description": "Whether the local JCA ECDSA P-256 signature provider is registered.",
-      "defaultValue": false
-    },
-    {
-      "name": "crypto.providers.jca.ml-dsa-44-placeholder.enabled",
-      "type": "java.lang.Boolean",
-      "sourceType": "io.github.joshuamatosdev.security.crypto.spring.CryptoAutoConfiguration",
-      "description": "Whether the ML-DSA-44 placeholder provider is registered. Demonstrates the post-quantum migration seam; not a production signature provider.",
       "defaultValue": false
     },
     {

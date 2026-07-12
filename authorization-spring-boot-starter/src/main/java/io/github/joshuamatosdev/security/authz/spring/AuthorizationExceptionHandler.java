@@ -9,8 +9,8 @@ import org.springframework.web.bind.annotation.RestControllerAdvice;
 import java.util.Map;
 
 /**
- * Maps a fine-grained {@link AuthorizationDeniedException} to HTTP 403 — an authorization failure is a
- * 403, never masked as a 404, per the posture in ADR-0001.
+ * Maps a fine-grained {@link AuthorizationDeniedException} to HTTP 403. A known authorization
+ * failure is not disguised as a missing resource at this boundary.
  *
  * <p>The body is a generic {@code {"error":"forbidden"}}. The specific {@link
  * io.github.joshuamatosdev.security.authz.decision.DenialReason} is recorded on the server-side audit

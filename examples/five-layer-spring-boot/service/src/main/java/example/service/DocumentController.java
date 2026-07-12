@@ -60,7 +60,7 @@ class DocumentController {
         }
 
         ProtectedResource toResource(final RequestContext context) {
-            return new ProtectedResource(
+            return ProtectedResource.userOwned(
                     new ResourceId(id),
                     context.tenantId(),
                     organizationId == null ? null : new OrganizationId(organizationId),
@@ -103,7 +103,7 @@ class DocumentController {
         // CREATE is decided against the prospective resource's placement. The decision needs a
         // resource id for the audit record only — the persisted id is minted by the database's
         // id_v7 default, never by application code.
-        final ProtectedResource prospective = new ProtectedResource(
+        final ProtectedResource prospective = ProtectedResource.userOwned(
                 new ResourceId(UUID.randomUUID()),
                 context.tenantId(),
                 context.organizationId(),
@@ -144,7 +144,7 @@ class DocumentController {
         if (row.isEmpty()) {
             authorization.auditDeny(
                     context,
-                    new ProtectedResource(new ResourceId(id), context.tenantId(), null, null),
+                    ProtectedResource.unowned(new ResourceId(id), context.tenantId(), null),
                     action,
                     DenialReason.RESOURCE_NOT_FOUND);
             throw new ResponseStatusException(HttpStatus.NOT_FOUND);

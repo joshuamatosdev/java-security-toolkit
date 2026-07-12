@@ -29,7 +29,6 @@ import java.time.Duration;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicReference;
 import javax.sql.DataSource;
-import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
 import org.mockito.InOrder;
 import org.springframework.jdbc.datasource.DelegatingDataSource;
@@ -49,17 +48,13 @@ class TenantSessionDataSourceProxyTest {
     private static final String WRAPPER_INTERFACE_MESSAGE = "wrapper interface";
     private static final TenantClaimSigner CLAIM_SIGNER = new TenantClaimSigner(
             TenantTestConstants.CLAIM_SECRET, Duration.ofMinutes(30), Clock.systemUTC());
-
-    @AfterEach
-    void clearTenantContext() {
-        TenantContext.clear();
-    }
+    private final TenantContext tenantContext = new TenantContext(() -> false);
 
     @Test
     void rejectsCallerSuppliedCredentials() throws Exception {
         final DataSource delegate = mock(DataSource.class);
         final TenantSessionDataSourceProxy proxy =
-                new TenantSessionDataSourceProxy(delegate, POOL_NAME, CLAIM_SIGNER);
+                new TenantSessionDataSourceProxy(delegate, POOL_NAME, CLAIM_SIGNER, tenantContext);
 
         assertThatThrownBy(() -> proxy.getConnection(
                         TenantTestConstants.POSTGRES_USERNAME,
@@ -74,7 +69,7 @@ class TenantSessionDataSourceProxyTest {
     void doesNotExposeTheDelegateDataSource() throws Exception {
         final DataSource delegate = mock(DataSource.class);
         final TenantSessionDataSourceProxy proxy =
-                new TenantSessionDataSourceProxy(delegate, POOL_NAME, CLAIM_SIGNER);
+                new TenantSessionDataSourceProxy(delegate, POOL_NAME, CLAIM_SIGNER, tenantContext);
         final Class<? extends DataSource> delegateClass = delegate.getClass();
         when(delegate.isWrapperFor(delegateClass)).thenReturn(true);
 
@@ -110,6 +105,7 @@ class TenantSessionDataSourceProxyTest {
                 delegate,
                 POOL_NAME,
                 CLAIM_SIGNER,
+                tenantContext,
                 () -> List.of(snapshot));
 
         assertThat(proxy.isWrapperFor(TenantPoolInspection.class)).isTrue();
@@ -124,7 +120,7 @@ class TenantSessionDataSourceProxyTest {
         final DataSource delegate = mock(DataSource.class);
         final Connection raw = mock(Connection.class);
         final TenantSessionDataSourceProxy proxy =
-                new TenantSessionDataSourceProxy(delegate, POOL_NAME, CLAIM_SIGNER);
+                new TenantSessionDataSourceProxy(delegate, POOL_NAME, CLAIM_SIGNER, tenantContext);
         final SQLException bindingFailure = new SQLException("binding failed");
         when(delegate.getConnection()).thenReturn(raw);
         when(raw.prepareStatement(anyString())).thenThrow(bindingFailure);
@@ -141,6 +137,7 @@ class TenantSessionDataSourceProxyTest {
                 delegate,
                 POOL_NAME,
                 CLAIM_SIGNER,
+                tenantContext,
                 observerThrowingOn(ObserverFailure.BINDING_MISSING));
 
         assertThatThrownBy(proxy::getConnection)
@@ -159,7 +156,7 @@ class TenantSessionDataSourceProxyTest {
                 Duration.ofMinutes(30),
                 failingClock);
         final TenantSessionDataSourceProxy proxy =
-                new TenantSessionDataSourceProxy(delegate, POOL_NAME, failingSigner);
+                new TenantSessionDataSourceProxy(delegate, POOL_NAME, failingSigner, tenantContext);
         when(failingClock.instant()).thenThrow(new IllegalStateException("clock failed"));
 
         assertThatThrownBy(() -> supplyAsAcme(proxy::getConnection))
@@ -173,13 +170,14 @@ class TenantSessionDataSourceProxyTest {
     void constructorRejectsBlankOrMalformedPoolName() {
         final DataSource delegate = mock(DataSource.class);
 
-        assertThatThrownBy(() -> new TenantSessionDataSourceProxy(delegate, " ", CLAIM_SIGNER))
+        assertThatThrownBy(() -> new TenantSessionDataSourceProxy(delegate, " ", CLAIM_SIGNER, tenantContext))
                 .isInstanceOf(IllegalArgumentException.class)
                 .hasMessage("poolName must not be blank");
-        assertThatThrownBy(() -> new TenantSessionDataSourceProxy(delegate, " tenant", CLAIM_SIGNER))
+        assertThatThrownBy(() -> new TenantSessionDataSourceProxy(delegate, " tenant", CLAIM_SIGNER, tenantContext))
                 .isInstanceOf(IllegalArgumentException.class)
                 .hasMessage("poolName must not include leading or trailing whitespace");
-        assertThatThrownBy(() -> new TenantSessionDataSourceProxy(delegate, "tenant\nforged", CLAIM_SIGNER))
+        assertThatThrownBy(() -> new TenantSessionDataSourceProxy(
+                        delegate, "tenant\nforged", CLAIM_SIGNER, tenantContext))
                 .isInstanceOf(IllegalArgumentException.class)
                 .hasMessage("poolName must not contain control characters");
     }
@@ -194,6 +192,7 @@ class TenantSessionDataSourceProxyTest {
                 delegate,
                 POOL_NAME,
                 CLAIM_SIGNER,
+                tenantContext,
                 observerThrowingOn(ObserverFailure.BINDING_SET));
         when(delegate.getConnection()).thenReturn(raw);
         when(raw.prepareStatement(anyString())).thenReturn(bindingStatement, resetStatement);
@@ -214,6 +213,7 @@ class TenantSessionDataSourceProxyTest {
                 delegate,
                 POOL_NAME,
                 CLAIM_SIGNER,
+                tenantContext,
                 observerThrowingOn(ObserverFailure.RESET_FAILED));
         final SQLException resetFailure = new SQLException("reset failed");
         when(delegate.getConnection()).thenReturn(raw);
@@ -233,7 +233,7 @@ class TenantSessionDataSourceProxyTest {
         final PreparedStatement bindingStatement = mock(PreparedStatement.class);
         final PreparedStatement resetStatement = mock(PreparedStatement.class);
         final TenantSessionDataSourceProxy proxy =
-                new TenantSessionDataSourceProxy(delegate, POOL_NAME, CLAIM_SIGNER);
+                new TenantSessionDataSourceProxy(delegate, POOL_NAME, CLAIM_SIGNER, tenantContext);
         when(delegate.getConnection()).thenReturn(raw);
         when(raw.prepareStatement(anyString())).thenReturn(bindingStatement, resetStatement);
         when(raw.getAutoCommit()).thenReturn(true);
@@ -254,7 +254,7 @@ class TenantSessionDataSourceProxyTest {
         final PreparedStatement bindingStatement = mock(PreparedStatement.class);
         final PreparedStatement resetStatement = mock(PreparedStatement.class);
         final TenantSessionDataSourceProxy proxy =
-                new TenantSessionDataSourceProxy(delegate, POOL_NAME, CLAIM_SIGNER);
+                new TenantSessionDataSourceProxy(delegate, POOL_NAME, CLAIM_SIGNER, tenantContext);
         when(delegate.getConnection()).thenReturn(raw);
         when(raw.prepareStatement(anyString())).thenReturn(bindingStatement, resetStatement);
         when(raw.getAutoCommit()).thenReturn(true);
@@ -276,7 +276,7 @@ class TenantSessionDataSourceProxyTest {
         final PreparedStatement bindingStatement = mock(PreparedStatement.class);
         final PreparedStatement resetStatement = mock(PreparedStatement.class);
         final TenantSessionDataSourceProxy proxy =
-                new TenantSessionDataSourceProxy(delegate, POOL_NAME, CLAIM_SIGNER);
+                new TenantSessionDataSourceProxy(delegate, POOL_NAME, CLAIM_SIGNER, tenantContext);
         when(delegate.getConnection()).thenReturn(raw);
         when(raw.prepareStatement(anyString())).thenReturn(bindingStatement, resetStatement);
         when(raw.getAutoCommit()).thenReturn(false);
@@ -306,7 +306,7 @@ class TenantSessionDataSourceProxyTest {
         final Connection raw = mock(Connection.class);
         final PreparedStatement statement = mock(PreparedStatement.class);
         final TenantSessionDataSourceProxy proxy =
-                new TenantSessionDataSourceProxy(delegate, POOL_NAME, CLAIM_SIGNER);
+                new TenantSessionDataSourceProxy(delegate, POOL_NAME, CLAIM_SIGNER, tenantContext);
         when(delegate.getConnection()).thenReturn(raw);
         when(raw.prepareStatement(anyString())).thenReturn(statement);
 
@@ -323,7 +323,7 @@ class TenantSessionDataSourceProxyTest {
         final Connection raw = mock(Connection.class);
         final PreparedStatement statement = mock(PreparedStatement.class);
         final TenantSessionDataSourceProxy proxy =
-                new TenantSessionDataSourceProxy(delegate, POOL_NAME, CLAIM_SIGNER);
+                new TenantSessionDataSourceProxy(delegate, POOL_NAME, CLAIM_SIGNER, tenantContext);
         when(delegate.getConnection()).thenReturn(raw);
         when(raw.prepareStatement(anyString())).thenReturn(statement);
 
@@ -343,7 +343,7 @@ class TenantSessionDataSourceProxyTest {
         final VendorConnection raw = mock(VendorConnection.class);
         final PreparedStatement statement = mock(PreparedStatement.class);
         final TenantSessionDataSourceProxy proxy =
-                new TenantSessionDataSourceProxy(delegate, POOL_NAME, CLAIM_SIGNER);
+                new TenantSessionDataSourceProxy(delegate, POOL_NAME, CLAIM_SIGNER, tenantContext);
         when(delegate.getConnection()).thenReturn(raw);
         when(raw.prepareStatement(anyString())).thenReturn(statement);
         when(raw.isWrapperFor(VendorConnection.class)).thenReturn(true);
@@ -359,10 +359,10 @@ class TenantSessionDataSourceProxyTest {
         verify(raw, never()).unwrap(VendorConnection.class);
     }
 
-    private static Connection supplyAsAcme(final SqlConnectionSupplier work) throws SQLException {
+    private Connection supplyAsAcme(final SqlConnectionSupplier work) throws SQLException {
         final AtomicReference<Connection> result = new AtomicReference<>();
         final AtomicReference<SQLException> failure = new AtomicReference<>();
-        TenantContext.runAs(TenantIds.ACME, () -> {
+        tenantContext.runAs(TenantIds.ACME, () -> {
             try {
                 result.set(work.get());
             } catch (final SQLException exception) {
@@ -392,6 +392,9 @@ class TenantSessionDataSourceProxyTest {
             public void onResetFailed(final String poolName) {
                 throwIf(ObserverFailure.RESET_FAILED, failure);
             }
+
+            @Override
+            public void onOrganizationBindingMissing(final String poolName) {}
         };
     }
 

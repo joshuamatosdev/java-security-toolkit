@@ -14,7 +14,6 @@ import java.sql.Connection;
 import java.sql.SQLFeatureNotSupportedException;
 import java.util.concurrent.atomic.AtomicInteger;
 import javax.sql.DataSource;
-import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.jdbc.datasource.AbstractDataSource;
 
@@ -26,20 +25,17 @@ import org.springframework.jdbc.datasource.AbstractDataSource;
  */
 class SystemOpsRoutingDataSourceTest {
 
-    @AfterEach
-    void clearTenantContext() {
-        TenantContext.clear();
-    }
+    private final TenantContext tenantContext = new TenantContext(() -> false);
 
     @Test
     void ordinaryTenantUsesRuntimePool() throws Exception {
         final DataSource runtime = mock(DataSource.class);
         final DataSource systemOps = mock(DataSource.class);
         final Connection runtimeConnection = mock(Connection.class);
-        final SystemOpsRoutingDataSource router = new SystemOpsRoutingDataSource(runtime, systemOps);
+        final SystemOpsRoutingDataSource router = new SystemOpsRoutingDataSource(runtime, systemOps, tenantContext);
         when(runtime.getConnection()).thenReturn(runtimeConnection);
 
-        TenantContext.runAs(TenantIds.ACME, () -> {
+        tenantContext.runAs(TenantIds.ACME, () -> {
             try {
                 assertThat(router.getConnection()).isSameAs(runtimeConnection);
             } catch (Exception ex) {
@@ -56,10 +52,10 @@ class SystemOpsRoutingDataSourceTest {
         final DataSource runtime = mock(DataSource.class);
         final DataSource systemOps = mock(DataSource.class);
         final Connection systemOpsConnection = mock(Connection.class);
-        final SystemOpsRoutingDataSource router = new SystemOpsRoutingDataSource(runtime, systemOps);
+        final SystemOpsRoutingDataSource router = new SystemOpsRoutingDataSource(runtime, systemOps, tenantContext);
         when(systemOps.getConnection()).thenReturn(systemOpsConnection);
 
-        TenantContext.runAsSystemOps(() -> {
+        tenantContext.runAsSystemOps(() -> {
             try {
                 assertThat(router.getConnection()).isSameAs(systemOpsConnection);
             } catch (Exception ex) {
@@ -75,7 +71,7 @@ class SystemOpsRoutingDataSourceTest {
     void missingTenantContextFailsClosedRatherThanFallingToRuntime() throws Exception {
         final DataSource runtime = mock(DataSource.class);
         final DataSource systemOps = mock(DataSource.class);
-        final SystemOpsRoutingDataSource router = new SystemOpsRoutingDataSource(runtime, systemOps);
+        final SystemOpsRoutingDataSource router = new SystemOpsRoutingDataSource(runtime, systemOps, tenantContext);
 
         // No tenant context is bound. The router must fail closed — symmetric with the schema and
         // database routers' requireCurrent() — rather than silently default to the runtime pool.
@@ -89,7 +85,7 @@ class SystemOpsRoutingDataSourceTest {
     void constructorRejectsMissingRuntimePool() {
         final DataSource systemOps = mock(DataSource.class);
 
-        assertThatThrownBy(() -> new SystemOpsRoutingDataSource(null, systemOps))
+        assertThatThrownBy(() -> new SystemOpsRoutingDataSource(null, systemOps, tenantContext))
                 .isInstanceOf(NullPointerException.class)
                 .hasMessageContaining("runtime");
     }
@@ -98,7 +94,7 @@ class SystemOpsRoutingDataSourceTest {
     void constructorRejectsMissingSystemOpsPool() {
         final DataSource runtime = mock(DataSource.class);
 
-        assertThatThrownBy(() -> new SystemOpsRoutingDataSource(runtime, null))
+        assertThatThrownBy(() -> new SystemOpsRoutingDataSource(runtime, null, tenantContext))
                 .isInstanceOf(NullPointerException.class)
                 .hasMessageContaining("systemOps");
     }
@@ -107,7 +103,7 @@ class SystemOpsRoutingDataSourceTest {
     void rejectsCallerSuppliedCredentials() {
         final DataSource runtime = mock(DataSource.class);
         final DataSource systemOps = mock(DataSource.class);
-        final SystemOpsRoutingDataSource router = new SystemOpsRoutingDataSource(runtime, systemOps);
+        final SystemOpsRoutingDataSource router = new SystemOpsRoutingDataSource(runtime, systemOps, tenantContext);
 
         assertThatThrownBy(() -> router.getConnection(
                         TenantTestConstants.POSTGRES_USERNAME,
@@ -120,7 +116,7 @@ class SystemOpsRoutingDataSourceTest {
     void closesClosableRuntimeAndSystemOpsPools() throws Exception {
         final CloseableDataSource runtime = mock(CloseableDataSource.class);
         final CloseableDataSource systemOps = mock(CloseableDataSource.class);
-        final SystemOpsRoutingDataSource router = new SystemOpsRoutingDataSource(runtime, systemOps);
+        final SystemOpsRoutingDataSource router = new SystemOpsRoutingDataSource(runtime, systemOps, tenantContext);
 
         assertThat(router).isInstanceOf(AutoCloseable.class);
         router.close();
@@ -134,7 +130,7 @@ class SystemOpsRoutingDataSourceTest {
         final AtomicInteger closes = new AtomicInteger();
         final EqualCloseableDataSource runtime = new EqualCloseableDataSource(closes);
         final EqualCloseableDataSource systemOps = new EqualCloseableDataSource(closes);
-        final SystemOpsRoutingDataSource router = new SystemOpsRoutingDataSource(runtime, systemOps);
+        final SystemOpsRoutingDataSource router = new SystemOpsRoutingDataSource(runtime, systemOps, tenantContext);
 
         router.close();
 

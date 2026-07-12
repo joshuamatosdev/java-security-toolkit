@@ -1,5 +1,6 @@
 package example;
 
+import io.github.joshuamatosdev.security.crypto.api.DefaultDocumentSigner;
 import io.github.joshuamatosdev.security.crypto.api.DocumentSigner;
 import io.github.joshuamatosdev.security.crypto.api.KeyHandle;
 import io.github.joshuamatosdev.security.crypto.api.KeyHandleResolver;
@@ -22,7 +23,8 @@ public class SpringBootCryptoExample {
 
     @Bean
     CommandLineRunner signAndVerify(
-            final DocumentSigner signer,
+            final DefaultDocumentSigner signer,
+            final DocumentSigner verifier,
             final KeyHandleResolver keys,
             final CryptoProperties properties) {
         return args -> {
@@ -30,7 +32,7 @@ public class SpringBootCryptoExample {
                     signer.sign("workforce document".getBytes(StandardCharsets.UTF_8));
 
             // Integrity: the key embedded in the document verifies the payload.
-            if (!signer.verify(signed)) {
+            if (!verifier.verify(signed).isVerified()) {
                 throw new IllegalStateException("signature verification failed");
             }
 
@@ -41,7 +43,7 @@ public class SpringBootCryptoExample {
                     keys.resolve(properties.defaultAlgorithm(), properties.defaultKeyId());
             final TrustAnchor anchor =
                     TrustAnchor.pinnedKeys(Map.of(trusted.keyId(), trusted.publicKey()));
-            if (!signer.verify(signed, anchor)) {
+            if (!verifier.verify(signed, anchor).isVerified()) {
                 throw new IllegalStateException("trust-anchored verification failed");
             }
 

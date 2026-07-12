@@ -92,7 +92,7 @@ class PostgresJdbcUrlsTest {
 
         final Set<String> stalePolicyNames = new TreeSet<>(PostgresJdbcUrls.classifiedQueryParameterNames());
         stalePolicyNames.removeAll(pgJdbcPropertyNames);
-        stalePolicyNames.removeAll(PostgresJdbcUrls.compatibilityAliasParameterNames());
+        stalePolicyNames.removeAll(PostgresJdbcUrls.extraPolicyParameterNames());
         assertThat(stalePolicyNames).isEmpty();
     }
 

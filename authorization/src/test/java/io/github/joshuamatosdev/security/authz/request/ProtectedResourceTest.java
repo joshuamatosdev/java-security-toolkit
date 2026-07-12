@@ -52,6 +52,6 @@ class ProtectedResourceTest {
     }
 
     private static ProtectedResource resource(final String ownerPrincipalKey) {
-        return new ProtectedResource(RESOURCE, TENANT, null, PrincipalType.USER, ownerPrincipalKey);
+        return ProtectedResource.owned(RESOURCE, TENANT, null, PrincipalType.USER, ownerPrincipalKey);
     }
 }

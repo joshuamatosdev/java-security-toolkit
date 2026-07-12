@@ -1,6 +1,6 @@
 plugins {
     `java-library`
-    alias(libs.plugins.spring.dep.management)
+    id("io.spring.dependency-management")
 }
 
 dependencies {

@@ -22,7 +22,7 @@ import reactor.core.publisher.Mono;
  * token is the cross-service identity statement.
  *
  * <p>The routes sit under the browser plane's authenticated document surface
- * ({@code RouteAuthorities.DOCUMENT_PATHS}); the downstream service re-verifies the token against
+ * (the document entries in {@code BrowserRouteTable}); the downstream service re-verifies the token against
  * the same pinned issuer and makes its own authorization and tenant-isolation decisions — the
  * perimeter's word is never authority past the perimeter.
  */

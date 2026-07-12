@@ -48,15 +48,6 @@ public record RoleAssignment(
     }
 
     /**
-     * Assignment of {@code roleKey} at {@code scopeType} with an organization scope id — the shape
-     * that predates the team dimension, kept so existing callers stay source-compatible.
-     */
-    public RoleAssignment(
-        final String roleKey, final PolicyScopeType scopeType, @Nullable final OrganizationId scopeId) {
-        this(roleKey, scopeType, scopeId, null);
-    }
-
-    /**
      * Tenant-wide assignment of {@code roleKey}.
      */
     public static RoleAssignment tenant(final String roleKey) {

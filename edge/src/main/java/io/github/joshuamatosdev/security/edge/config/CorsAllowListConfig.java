@@ -1,8 +1,9 @@
 package io.github.joshuamatosdev.security.edge.config;
 
-import io.github.joshuamatosdev.security.edge.chain.RouteAuthorities;
+import io.github.joshuamatosdev.security.edge.chain.BrowserRouteTable;
 import java.net.URI;
 import java.util.List;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.web.cors.CorsConfiguration;
@@ -29,11 +30,16 @@ import org.springframework.web.cors.reactive.UrlBasedCorsConfigurationSource;
 @Configuration
 public class CorsAllowListConfig {
 
-  private static final List<String> GET_ONLY_METHODS = List.of("GET");
-  private static final List<String> DOCUMENT_METHODS = List.of("GET", "POST", "DELETE");
+  /** Default route policy; applications may provide their own immutable table. */
+  @Bean
+  @ConditionalOnMissingBean(BrowserRouteTable.class)
+  public BrowserRouteTable browserRouteTable() {
+    return BrowserRouteTable.defaults();
+  }
 
   @Bean
-  public CorsConfigurationSource corsConfigurationSource(EdgeProperties properties) {
+  public CorsConfigurationSource corsConfigurationSource(
+      EdgeProperties properties, BrowserRouteTable routeTable) {
     var origins = properties.cors().allowedOrigins();
 
     if (origins.stream().anyMatch(origin -> origin == null || origin.isBlank())) {
@@ -50,22 +56,22 @@ public class CorsAllowListConfig {
     }
     origins.forEach(CorsAllowListConfig::validateCredentialedOrigin);
 
-    // Browser-plane route truth lives once, in RouteAuthorities — registering from the same
-    // constants the authorization rules use means the CORS surface cannot drift from the routes.
     var source = new UrlBasedCorsConfigurationSource();
-    for (String path : RouteAuthorities.PUBLIC_PATHS) {
-      source.registerCorsConfiguration(path, credentialedCors(origins, GET_ONLY_METHODS));
-    }
-    for (String path : RouteAuthorities.DOCUMENT_PATHS) {
-      source.registerCorsConfiguration(path, credentialedCors(origins, DOCUMENT_METHODS));
-    }
-    for (String path : RouteAuthorities.ADMIN_PATHS) {
-      source.registerCorsConfiguration(path, credentialedCors(origins, GET_ONLY_METHODS));
-    }
-    // The actuator is not a RouteAuthorities surface (its permit/deny split lives in the browser
-    // chain); only its read-only health/info exposure is reachable, so GET-only CORS is correct.
-    source.registerCorsConfiguration("/actuator/**", credentialedCors(origins, GET_ONLY_METHODS));
+    routeTable.rules().stream()
+        .filter(route -> !route.corsMethods().isEmpty())
+        .forEach(
+            route -> {
+              var methods = route.corsMethods().stream().map(method -> method.name()).toList();
+              route.matcher().paths().forEach(
+                  path -> source.registerCorsConfiguration(
+                      path, credentialedCors(origins, methods)));
+            });
     return source;
+  }
+
+  /** Builds CORS from the shipped route table outside a Spring application context. */
+  public CorsConfigurationSource corsConfigurationSource(EdgeProperties properties) {
+    return corsConfigurationSource(properties, BrowserRouteTable.defaults());
   }
 
   private static CorsConfiguration credentialedCors(List<String> origins, List<String> methods) {

@@ -11,27 +11,25 @@ public final class JcaSignatureProviders {
 
     /** EdDSA / Ed25519 over the JDK platform provider. */
     public static SignatureProvider ed25519() {
-        return new JcaSignatureProvider(
-                SignatureAlgorithm.ED25519, "Ed25519", null, "Ed25519", "Ed25519");
+        return new JcaSignatureProvider(new JcaSignatureSpec(
+                SignatureAlgorithm.ED25519,
+                "Ed25519",
+                null,
+                "Ed25519",
+                "Ed25519",
+                JcaKeyValidation::isEd25519Pair,
+                JcaKeyValidation::isEd25519PublicKey));
     }
 
     /** ECDSA over NIST P-256 with SHA-256 using JOSE-compatible P1363 signature bytes. */
     public static SignatureProvider ecdsaP256() {
-        return new JcaSignatureProvider(
+        return new JcaSignatureProvider(new JcaSignatureSpec(
                 SignatureAlgorithm.ECDSA_P256,
                 "EC",
                 new ECGenParameterSpec("secp256r1"),
                 "SHA256withECDSAinP1363Format",
-                "EC");
-    }
-
-    /**
-     * ML-DSA-44 migration slot backed by an Ed25519 stand-in primitive.
-     *
-     * <p>This exercises the agility path but is not ML-DSA conformance or quantum resistance.
-     */
-    public static SignatureProvider postQuantumPlaceholder() {
-        return new JcaSignatureProvider(
-                SignatureAlgorithm.ML_DSA_44, "Ed25519", null, "Ed25519", "Ed25519");
+                "EC",
+                JcaKeyValidation::isP256Pair,
+                JcaKeyValidation::isP256PublicKey));
     }
 }

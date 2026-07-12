@@ -6,10 +6,8 @@ Service-to-service authentication is a separate chain. It enforces deny-by-defau
 routing. It sets response headers. It locks down the actuator. All at one place.
 Every response passes through it.
 
-It covers Layer 1. That is identity and authentication. It also covers Layer 4.
-That is transport and runtime hardening. Both fit the
-[five-layer posture](../docs/adr/0001-five-layer-security-posture.md). The decision
-record is [ADR-0004](../docs/adr/0004-edge-dual-plane.md).
+It covers Layer 1, identity and authentication, plus Layer 4, transport and runtime
+hardening, in the repository's composed security posture.
 
 ## Table of Contents
 

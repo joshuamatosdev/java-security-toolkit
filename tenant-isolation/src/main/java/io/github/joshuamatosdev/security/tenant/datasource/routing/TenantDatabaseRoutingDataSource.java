@@ -3,7 +3,7 @@ package io.github.joshuamatosdev.security.tenant.datasource.routing;
 import io.github.joshuamatosdev.security.shared.TenantId;
 import io.github.joshuamatosdev.security.tenant.TenantIds;
 import io.github.joshuamatosdev.security.tenant.binding.SystemTenantBoundary;
-import io.github.joshuamatosdev.security.tenant.binding.TenantContext;
+import io.github.joshuamatosdev.security.tenant.binding.TenantBindingSource;
 import io.github.joshuamatosdev.security.tenant.datasource.pool.TenantPoolInspection;
 import io.github.joshuamatosdev.security.tenant.datasource.pool.TenantPoolSnapshot;
 import io.github.joshuamatosdev.security.tenant.datasource.session.TenantSessionDataSourceProxy;
@@ -25,7 +25,7 @@ import org.springframework.jdbc.datasource.AbstractDataSource;
 /**
  * Tenant-aware datasource for database-per-tenant deployments.
  *
- * <p>The active {@link TenantContext} is resolved against an allowlisted tenant-to-datasource map.
+ * <p>The active {@link TenantBindingSource} is resolved against an allowlisted tenant-to-datasource map.
  * The selected tenant pool is the primary isolation boundary. {@code TenantDataSourceFactory} wraps
  * this router in {@link TenantSessionDataSourceProxy} so each selected database also receives the
  * signed tenant claim used by database defaults, checks, or RLS policies.
@@ -38,12 +38,15 @@ public final class TenantDatabaseRoutingDataSource extends AbstractDataSource im
 
     private final Map<TenantId, DataSource> dataSourceByTenant;
     private final TenantPoolInspection poolInspection;
+    private final TenantBindingSource bindingSource;
 
     public TenantDatabaseRoutingDataSource(
             final Map<TenantId, ? extends DataSource> dataSourceByTenant,
-            final TenantPoolInspection poolInspection) {
+            final TenantPoolInspection poolInspection,
+            final TenantBindingSource bindingSource) {
         this.dataSourceByTenant = validateDatabasePlacements(dataSourceByTenant);
         this.poolInspection = Objects.requireNonNull(poolInspection, "poolInspection");
+        this.bindingSource = Objects.requireNonNull(bindingSource, "bindingSource");
     }
 
     @Override
@@ -114,7 +117,7 @@ public final class TenantDatabaseRoutingDataSource extends AbstractDataSource im
     }
 
     private DataSource currentDelegate() {
-        final TenantId tenant = TenantContext.requireCurrent();
+        final TenantId tenant = bindingSource.requireCurrent();
         if (TenantIds.SYSTEM_OPS.equals(tenant)) {
             throw new SecurityException(
                     "database isolation cannot use one ambient system-ops connection across all tenants");

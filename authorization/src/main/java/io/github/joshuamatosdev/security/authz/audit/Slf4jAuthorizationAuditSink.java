@@ -1,5 +1,8 @@
 package io.github.joshuamatosdev.security.authz.audit;
 
+import io.github.joshuamatosdev.security.authz.decision.Allow;
+import io.github.joshuamatosdev.security.authz.decision.Deny;
+import io.github.joshuamatosdev.security.authz.decision.GrantBasis;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -18,29 +21,28 @@ public final class Slf4jAuthorizationAuditSink implements AuthorizationAuditSink
 
     @Override
     public void record(final AuthorizationAuditRecord record) {
-        if (record.allowed()) {
-            LOG.info(
-                "authz allow basis={} wideScope={} principal={}:{} tenant={} org={} resource={} action={} corr={}",
-                record.grantBasis(),
-                record.wideScope(),
-                record.principalType(),
-                record.principalKey(),
-                record.tenantId(),
-                record.resourceOrganizationId(),
-                record.resourceId(),
-                record.action(),
-                record.correlationId());
-        } else {
-            LOG.warn(
-                "authz DENY reason={} principal={}:{} tenant={} org={} resource={} action={} corr={}",
-                record.denialReason(),
-                record.principalType(),
-                record.principalKey(),
-                record.tenantId(),
-                record.resourceOrganizationId(),
-                record.resourceId(),
-                record.action(),
-                record.correlationId());
+        switch (record.outcome()) {
+            case Allow allow -> LOG.info(
+                    "authz allow basis={} wideScope={} principal={}:{} tenant={} org={} resource={} action={} corr={}",
+                    allow.basis(),
+                    allow.basis() == GrantBasis.WIDE_SCOPE_ADMIN,
+                    record.principalType(),
+                    record.principalKey(),
+                    record.tenantId(),
+                    record.resourceOrganizationId(),
+                    record.resourceId(),
+                    record.action(),
+                    record.correlationId());
+            case Deny deny -> LOG.warn(
+                    "authz DENY reason={} principal={}:{} tenant={} org={} resource={} action={} corr={}",
+                    deny.reason(),
+                    record.principalType(),
+                    record.principalKey(),
+                    record.tenantId(),
+                    record.resourceOrganizationId(),
+                    record.resourceId(),
+                    record.action(),
+                    record.correlationId());
         }
     }
 }

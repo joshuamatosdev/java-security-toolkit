@@ -84,7 +84,8 @@ class AuthorizationPolicyTest {
         // Actor is even a wide-scope admin, but in a DIFFERENT tenant than the resource.
         final RequestContext admin =
             context(ACME, null, Set.of(RoleAssignment.tenant(Roles.PLATFORM_ADMIN)), user(ADMIN_SUBJECT));
-        final ProtectedResource resourceInOtherTenant = new ProtectedResource(DOC, GLOBEX, ENGINEERING, ADMIN_SUBJECT);
+        final ProtectedResource resourceInOtherTenant =
+            ProtectedResource.userOwned(DOC, GLOBEX, ENGINEERING, ADMIN_SUBJECT);
 
         final Decision decision = policy.decide(admin, resourceInOtherTenant, Action.READ, SANE_POLICY);
 
@@ -95,7 +96,7 @@ class AuthorizationPolicyTest {
     void tenantScopedAdminIsAllowedAsWideScopeEvenForAnActionNoRulePermits() {
         final RequestContext admin =
             context(ACME, null, Set.of(RoleAssignment.tenant(Roles.PLATFORM_ADMIN)), user(ADMIN_SUBJECT));
-        final ProtectedResource doc = new ProtectedResource(DOC, ACME, ENGINEERING, OTHER_OWNER);
+        final ProtectedResource doc = ProtectedResource.userOwned(DOC, ACME, ENGINEERING, OTHER_OWNER);
 
         // DELETE has no ALLOW rule for anyone, yet the wide-scope admin is granted.
         final Decision decision = policy.decide(admin, doc, Action.DELETE, SANE_POLICY);
@@ -109,7 +110,7 @@ class AuthorizationPolicyTest {
             new EffectivePolicy(List.of(PolicyRule.deny(Roles.PLATFORM_ADMIN, Action.DELETE, PolicyScopeType.TENANT)));
         final RequestContext admin =
             context(ACME, null, Set.of(RoleAssignment.tenant(Roles.PLATFORM_ADMIN)), user(ADMIN_SUBJECT));
-        final ProtectedResource doc = new ProtectedResource(DOC, ACME, ENGINEERING, OTHER_OWNER);
+        final ProtectedResource doc = ProtectedResource.userOwned(DOC, ACME, ENGINEERING, OTHER_OWNER);
 
         final Decision decision = policy.decide(admin, doc, Action.DELETE, denyAdminDelete);
 
@@ -120,7 +121,7 @@ class AuthorizationPolicyTest {
     void resourceOwnerIsAllowed() {
         final RequestContext owner = context(ACME, ENGINEERING, Set.of(), user(OWNER_SUBJECT));
         final ProtectedResource ownedByAlice =
-            new ProtectedResource(DOC, ACME, ENGINEERING, PrincipalType.USER, OWNER_SUBJECT);
+            ProtectedResource.owned(DOC, ACME, ENGINEERING, PrincipalType.USER, OWNER_SUBJECT);
 
         final Decision decision = policy.decide(owner, ownedByAlice, Action.DELETE, SANE_POLICY);
 
@@ -133,7 +134,7 @@ class AuthorizationPolicyTest {
         final RequestContext serviceWithCollidingKey =
             context(ACME, ENGINEERING, Set.of(), new ServicePrincipal(OWNER_SUBJECT, 1L));
         final ProtectedResource userOwnedResource =
-            new ProtectedResource(DOC, ACME, ENGINEERING, PrincipalType.USER, OWNER_SUBJECT);
+            ProtectedResource.owned(DOC, ACME, ENGINEERING, PrincipalType.USER, OWNER_SUBJECT);
 
         final Decision decision = policy.decide(serviceWithCollidingKey, userOwnedResource, Action.DELETE, SANE_POLICY);
 
@@ -144,7 +145,7 @@ class AuthorizationPolicyTest {
     void organizationMemberIsAllowedForAnOrgScopedAction() {
         final RequestContext orgMember =
             context(ACME, ENGINEERING, Set.of(RoleAssignment.organization(Roles.MEMBER, ENGINEERING)), user(MEMBER_SUBJECT));
-        final ProtectedResource doc = new ProtectedResource(DOC, ACME, ENGINEERING, OTHER_OWNER);
+        final ProtectedResource doc = ProtectedResource.userOwned(DOC, ACME, ENGINEERING, OTHER_OWNER);
 
         final Decision decision = policy.decide(orgMember, doc, Action.READ, SANE_POLICY);
 
@@ -155,7 +156,7 @@ class AuthorizationPolicyTest {
     void organizationMemberIsDeniedForAnActionNoRulePermits() {
         final RequestContext orgMember =
             context(ACME, ENGINEERING, Set.of(RoleAssignment.organization(Roles.MEMBER, ENGINEERING)), user(MEMBER_SUBJECT));
-        final ProtectedResource doc = new ProtectedResource(DOC, ACME, ENGINEERING, OTHER_OWNER);
+        final ProtectedResource doc = ProtectedResource.userOwned(DOC, ACME, ENGINEERING, OTHER_OWNER);
 
         // The policy allows a member to READ/UPDATE in-org but not DELETE — per-action granularity.
         final Decision decision = policy.decide(orgMember, doc, Action.DELETE, SANE_POLICY);
@@ -198,7 +199,7 @@ class AuthorizationPolicyTest {
             ACME, ENGINEERING,
             Set.of(RoleAssignment.team(Roles.MEMBER, ENGINEERING, PLATFORM_TEAM)),
             user(MEMBER_SUBJECT));
-        final ProtectedResource orgWideDoc = new ProtectedResource(DOC, ACME, ENGINEERING, OTHER_OWNER);
+        final ProtectedResource orgWideDoc = ProtectedResource.userOwned(DOC, ACME, ENGINEERING, OTHER_OWNER);
 
         final Decision decision = policy.decide(teamMember, orgWideDoc, Action.READ, TEAM_POLICY);
 
@@ -261,7 +262,7 @@ class AuthorizationPolicyTest {
         final RequestContext orgMember =
             context(ACME, ENGINEERING, Set.of(RoleAssignment.organization(Roles.MEMBER, ENGINEERING)), user(MEMBER_SUBJECT));
         // Placement with a non-caller owner, so the owner grant stays out of the branch under test.
-        final ProtectedResource prospectiveDoc = new ProtectedResource(DOC, ACME, ENGINEERING, OTHER_OWNER);
+        final ProtectedResource prospectiveDoc = ProtectedResource.userOwned(DOC, ACME, ENGINEERING, OTHER_OWNER);
 
         // SANE_POLICY allows in-org READ and UPDATE; the new CREATE verb must inherit neither.
         final Decision decision = policy.decide(orgMember, prospectiveDoc, Action.CREATE, SANE_POLICY);
@@ -275,7 +276,7 @@ class AuthorizationPolicyTest {
             PolicyRule.allow(Roles.MEMBER, Action.CREATE, PolicyScopeType.ORGANIZATION)));
         final RequestContext orgMember =
             context(ACME, ENGINEERING, Set.of(RoleAssignment.organization(Roles.MEMBER, ENGINEERING)), user(MEMBER_SUBJECT));
-        final ProtectedResource prospectiveDoc = new ProtectedResource(DOC, ACME, ENGINEERING, OTHER_OWNER);
+        final ProtectedResource prospectiveDoc = ProtectedResource.userOwned(DOC, ACME, ENGINEERING, OTHER_OWNER);
 
         final Decision decision = policy.decide(orgMember, prospectiveDoc, Action.CREATE, allowCreate);
 
@@ -287,7 +288,7 @@ class AuthorizationPolicyTest {
         // Member of SALES, but the resource belongs to ENGINEERING — the org-scoped grant does not reach it.
         final RequestContext salesMember =
             context(ACME, SALES, Set.of(RoleAssignment.organization(Roles.MEMBER, SALES)), user("carol"));
-        final ProtectedResource engineeringDoc = new ProtectedResource(DOC, ACME, ENGINEERING, OTHER_OWNER);
+        final ProtectedResource engineeringDoc = ProtectedResource.userOwned(DOC, ACME, ENGINEERING, OTHER_OWNER);
 
         final Decision decision = policy.decide(salesMember, engineeringDoc, Action.READ, SANE_POLICY);
 
@@ -298,7 +299,7 @@ class AuthorizationPolicyTest {
     void tenantWideMemberIsAllowedByEffectivePermission() {
         final RequestContext tenantMember =
             context(ACME, null, Set.of(RoleAssignment.tenant(Roles.MEMBER)), user("dan"));
-        final ProtectedResource doc = new ProtectedResource(DOC, ACME, ENGINEERING, OTHER_OWNER);
+        final ProtectedResource doc = ProtectedResource.userOwned(DOC, ACME, ENGINEERING, OTHER_OWNER);
 
         final Decision decision = policy.decide(tenantMember, doc, Action.READ, SANE_POLICY);
 
@@ -312,7 +313,7 @@ class AuthorizationPolicyTest {
             PolicyRule.deny(Roles.MEMBER, Action.UPDATE, PolicyScopeType.ORGANIZATION)));
         final RequestContext orgMember =
             context(ACME, ENGINEERING, Set.of(RoleAssignment.organization(Roles.MEMBER, ENGINEERING)), user(MEMBER_SUBJECT));
-        final ProtectedResource doc = new ProtectedResource(DOC, ACME, ENGINEERING, OTHER_OWNER);
+        final ProtectedResource doc = ProtectedResource.userOwned(DOC, ACME, ENGINEERING, OTHER_OWNER);
 
         final Decision decision = policy.decide(orgMember, doc, Action.UPDATE, allowThenDeny);
 
@@ -328,7 +329,7 @@ class AuthorizationPolicyTest {
             PolicyRule.deny(Roles.MEMBER, Action.READ, PolicyScopeType.TENANT)));
         final RequestContext orgMember =
             context(ACME, ENGINEERING, Set.of(RoleAssignment.organization(Roles.MEMBER, ENGINEERING)), user(MEMBER_SUBJECT));
-        final ProtectedResource doc = new ProtectedResource(DOC, ACME, ENGINEERING, OTHER_OWNER);
+        final ProtectedResource doc = ProtectedResource.userOwned(DOC, ACME, ENGINEERING, OTHER_OWNER);
 
         final Decision decision = policy.decide(orgMember, doc, Action.READ, orgAllowTenantDeny);
 
@@ -345,7 +346,7 @@ class AuthorizationPolicyTest {
             PolicyRule.deny(Roles.MEMBER, Action.READ, PolicyScopeType.ORGANIZATION)));
         final RequestContext orgMember =
             context(ACME, ENGINEERING, Set.of(RoleAssignment.organization(Roles.MEMBER, ENGINEERING)), user(MEMBER_SUBJECT));
-        final ProtectedResource doc = new ProtectedResource(DOC, ACME, ENGINEERING, OTHER_OWNER);
+        final ProtectedResource doc = ProtectedResource.userOwned(DOC, ACME, ENGINEERING, OTHER_OWNER);
 
         final Decision decision = policy.decide(orgMember, doc, Action.READ, denyBothScopes);
 
@@ -356,7 +357,7 @@ class AuthorizationPolicyTest {
     void actorWithNoMatchingAssignmentIsDeniedByDefault() {
         // In-tenant, not the owner, holds no role the policy grants — the function ends in deny.
         final RequestContext stranger = context(ACME, null, Set.of(), user("eve"));
-        final ProtectedResource doc = new ProtectedResource(DOC, ACME, ENGINEERING, OTHER_OWNER);
+        final ProtectedResource doc = ProtectedResource.userOwned(DOC, ACME, ENGINEERING, OTHER_OWNER);
 
         final Decision decision = policy.decide(stranger, doc, Action.READ, SANE_POLICY);
 

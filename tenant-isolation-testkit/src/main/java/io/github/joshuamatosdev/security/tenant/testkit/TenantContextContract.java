@@ -17,26 +17,27 @@ public interface TenantContextContract {
         return TenantIds.ACME;
     }
 
+    /** Context instance supplied by the adopter. */
+    TenantContext tenantContext();
+
     @AfterEach
     default void clearTenantContext() {
-        TenantContext.useTenantTransactionActiveCheck(() -> false);
-        TenantContext.clear();
-        TenantContext.resetTenantTransactionActiveCheck();
+        tenantContext().clear();
     }
 
     @Test
     default void scopedTenantBindingRestoresPriorContext() {
-        assertThat(TenantContext.current()).isEmpty();
+        assertThat(tenantContext().current()).isEmpty();
 
-        TenantContext.runAs(ordinaryTenant(), () -> assertThat(TenantContext.requireCurrent())
+        tenantContext().runAs(ordinaryTenant(), () -> assertThat(tenantContext().requireCurrent())
                 .isEqualTo(ordinaryTenant()));
 
-        assertThat(TenantContext.current()).isEmpty();
+        assertThat(tenantContext().current()).isEmpty();
     }
 
     @Test
     default void ordinaryBindingRejectsSystemOpsTenant() {
-        assertThatThrownBy(() -> TenantContext.runAs(TenantIds.SYSTEM_OPS, () -> { }))
+        assertThatThrownBy(() -> tenantContext().runAs(TenantIds.SYSTEM_OPS, () -> { }))
                 .isInstanceOf(SecurityException.class)
                 .hasMessageContaining("SYSTEM_OPS tenant requires");
     }

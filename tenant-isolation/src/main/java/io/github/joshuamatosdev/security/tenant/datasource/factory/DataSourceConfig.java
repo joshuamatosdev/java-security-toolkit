@@ -2,6 +2,7 @@ package io.github.joshuamatosdev.security.tenant.datasource.factory;
 
 import com.zaxxer.hikari.HikariDataSource;
 import io.github.joshuamatosdev.security.tenant.binding.SystemTenantBoundary;
+import io.github.joshuamatosdev.security.tenant.binding.TenantContext;
 import io.github.joshuamatosdev.security.tenant.config.TenantBindingProperties;
 import io.github.joshuamatosdev.security.tenant.config.TenantIsolationProperties;
 import io.github.joshuamatosdev.security.tenant.datasource.pool.TenantPoolInspection;
@@ -77,6 +78,13 @@ public class DataSourceConfig {
         return Clock.systemUTC();
     }
 
+    /** Application-scoped tenant binding context shared by request and datasource boundaries. */
+    @Bean
+    @ConditionalOnMissingBean(TenantContext.class)
+    static TenantContext tenantContext() {
+        return new TenantContext();
+    }
+
     /**
      * Builds the ordinary tenant runtime pool.
      *
@@ -141,10 +149,12 @@ public class DataSourceConfig {
     @Primary
     public DataSource dataSource(
             final DataSourceProperties properties,
-            final TenantPoolInspection tenantPoolInspection) {
+            final TenantPoolInspection tenantPoolInspection,
+            final TenantContext tenantContext) {
         return dataSourceFactory.dataSource(
                 () -> tenantRuntimePool(properties),
                 () -> tenantSystemOpsPool(properties),
-                tenantPoolInspection);
+                tenantPoolInspection,
+                tenantContext);
     }
 }

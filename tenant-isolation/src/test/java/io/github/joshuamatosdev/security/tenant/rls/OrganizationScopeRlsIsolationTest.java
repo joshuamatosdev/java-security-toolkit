@@ -4,7 +4,6 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 import io.github.joshuamatosdev.security.shared.OrganizationId;
 import io.github.joshuamatosdev.security.tenant.TenantIds;
-import io.github.joshuamatosdev.security.tenant.binding.TenantContext;
 import io.github.joshuamatosdev.security.tenant.persistence.DocumentEntity;
 import io.github.joshuamatosdev.security.tenant.persistence.DocumentRepository;
 import io.github.joshuamatosdev.security.tenant.testfixtures.AbstractRlsTest;
@@ -66,7 +65,7 @@ class OrganizationScopeRlsIsolationTest extends AbstractRlsTest {
     void organizationBoundSessionReadsOnlyItsOrganizationsRows() throws Exception {
         seedTenantWithTwoOrganizations();
 
-        var engineeringView = TenantContext.supplyAs(TenantIds.ACME, ENGINEERING, repository::findAll);
+        var engineeringView = tenantContext.supplyAs(TenantIds.ACME, ENGINEERING, repository::findAll);
 
         assertThat(engineeringView).hasSize(1);
         assertThat(engineeringView.getFirst().getTitle()).isEqualTo(ENGINEERING_TITLE);
@@ -76,7 +75,7 @@ class OrganizationScopeRlsIsolationTest extends AbstractRlsTest {
     void organizationUnscopedSessionSeesTheWholeTenant() throws Exception {
         seedTenantWithTwoOrganizations();
 
-        var tenantView = TenantContext.supplyAs(TenantIds.ACME, repository::findAll);
+        var tenantView = tenantContext.supplyAs(TenantIds.ACME, repository::findAll);
 
         assertThat(tenantView)
                 .extracting(DocumentEntity::getTitle)
@@ -89,7 +88,7 @@ class OrganizationScopeRlsIsolationTest extends AbstractRlsTest {
         seedAsSuperuser(UUID.randomUUID(), TenantIds.GLOBEX, ENGINEERING,
                 TenantTestConstants.GLOBEX_DOCUMENT_TITLE, TenantTestConstants.DOCUMENT_BODY_Y);
 
-        var globexEngineering = TenantContext.supplyAs(TenantIds.GLOBEX, ENGINEERING, repository::findAll);
+        var globexEngineering = tenantContext.supplyAs(TenantIds.GLOBEX, ENGINEERING, repository::findAll);
 
         assertThat(globexEngineering)
                 .extracting(DocumentEntity::getTitle)
@@ -98,16 +97,16 @@ class OrganizationScopeRlsIsolationTest extends AbstractRlsTest {
 
     @Test
     void stampsOrganizationFromSessionOnInsert() {
-        var id = TenantContext.supplyAs(TenantIds.ACME, ENGINEERING,
+        var id = tenantContext.supplyAs(TenantIds.ACME, ENGINEERING,
                 () -> repository.save(new DocumentEntity("fresh", "z")).getId());
 
         var jdbc = new JdbcTemplate(dataSource);
-        var stampedOrganization = TenantContext.supplyAs(TenantIds.ACME, ENGINEERING,
+        var stampedOrganization = tenantContext.supplyAs(TenantIds.ACME, ENGINEERING,
                 () -> jdbc.queryForObject(
                         "SELECT organization_id FROM document WHERE id = ?", UUID.class, id));
 
         assertThat(stampedOrganization).isEqualTo(ENGINEERING.value());
-        assertThat(TenantContext.supplyAs(TenantIds.ACME, LOGISTICS, () -> repository.findById(id)))
+        assertThat(tenantContext.supplyAs(TenantIds.ACME, LOGISTICS, () -> repository.findById(id)))
                 .as("another organization's session must not see the row")
                 .isEmpty();
     }
@@ -117,13 +116,13 @@ class OrganizationScopeRlsIsolationTest extends AbstractRlsTest {
         seedTenantWithTwoOrganizations();
         var jdbc = new JdbcTemplate(dataSource);
 
-        int updated = TenantContext.supplyAs(TenantIds.ACME, ENGINEERING,
+        int updated = tenantContext.supplyAs(TenantIds.ACME, ENGINEERING,
                 () -> jdbc.update("UPDATE document SET title = ? WHERE title = ?", "stolen", LOGISTICS_TITLE));
 
         assertThat(updated)
                 .as("the logistics row is invisible to an engineering-bound session, so 0 rows update")
                 .isZero();
-        var unscopedTitles = TenantContext.supplyAs(TenantIds.ACME, repository::findAll);
+        var unscopedTitles = tenantContext.supplyAs(TenantIds.ACME, repository::findAll);
         assertThat(unscopedTitles)
                 .extracting(DocumentEntity::getTitle)
                 .contains(LOGISTICS_TITLE);
@@ -131,13 +130,13 @@ class OrganizationScopeRlsIsolationTest extends AbstractRlsTest {
 
     @Test
     void organizationUnscopedInsertStaysInvisibleToOrganizationBoundSessions() {
-        var id = TenantContext.supplyAs(TenantIds.ACME,
+        var id = tenantContext.supplyAs(TenantIds.ACME,
                 () -> repository.save(new DocumentEntity(UNASSIGNED_TITLE, "z")).getId());
 
-        assertThat(TenantContext.supplyAs(TenantIds.ACME, ENGINEERING, () -> repository.findById(id)))
+        assertThat(tenantContext.supplyAs(TenantIds.ACME, ENGINEERING, () -> repository.findById(id)))
                 .as("rows with no organization stay tenant-admin material")
                 .isEmpty();
-        assertThat(TenantContext.supplyAs(TenantIds.ACME, () -> repository.findById(id)))
+        assertThat(tenantContext.supplyAs(TenantIds.ACME, () -> repository.findById(id)))
                 .isPresent();
     }
 

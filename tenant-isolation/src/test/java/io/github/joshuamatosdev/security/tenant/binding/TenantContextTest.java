@@ -5,7 +5,6 @@ import static org.assertj.core.api.Assertions.assertThatCode;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import io.github.joshuamatosdev.security.tenant.TenantIds;
-import io.github.joshuamatosdev.security.tenant.testfixtures.WithTenant;
 import java.util.concurrent.atomic.AtomicBoolean;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
@@ -31,31 +30,29 @@ import org.springframework.transaction.support.TransactionSynchronizationManager
 class TenantContextTest {
 
     private static final String ACTIVE_TRANSACTION_MESSAGE = "active transaction";
+    private TenantContext tenantContext = new TenantContext();
 
     @AfterEach
     void reset() {
         TransactionSynchronizationManager.setActualTransactionActive(false);
-        TenantContext.useTenantTransactionActiveCheck(() -> false);
-        TenantContext.clear();
-        TenantContext.resetTenantTransactionActiveCheck();
     }
 
     @Test
     void setRejectsTheSystemOpsTenant() {
-        assertThatThrownBy(() -> TenantContext.set(TenantIds.SYSTEM_OPS))
+        assertThatThrownBy(() -> tenantContext.set(TenantIds.SYSTEM_OPS))
                 .isInstanceOf(SecurityException.class)
                 .hasMessageContaining("runAsSystemOps");
     }
 
     @Test
     void ordinaryTenantEntryPointsRejectNullTenantBeforeRunningWork() {
-        assertThatThrownBy(() -> TenantContext.runAs(null, () -> {
+        assertThatThrownBy(() -> tenantContext.runAs(null, () -> {
             throw new AssertionError("work must not run");
         }))
                 .isInstanceOf(NullPointerException.class)
                 .hasMessageContaining("tenant must not be null");
 
-        assertThatThrownBy(() -> TenantContext.supplyAs(null, () -> {
+        assertThatThrownBy(() -> tenantContext.supplyAs(null, () -> {
             throw new AssertionError("work must not run");
         }))
                 .isInstanceOf(NullPointerException.class)
@@ -64,69 +61,69 @@ class TenantContextTest {
 
     @Test
     void tenantEntryPointsRejectNullWorkBeforeChangingContext() {
-        TenantContext.set(TenantIds.ACME);
+        tenantContext.set(TenantIds.ACME);
 
-        assertThatThrownBy(() -> TenantContext.runAs(TenantIds.GLOBEX, null))
+        assertThatThrownBy(() -> tenantContext.runAs(TenantIds.GLOBEX, null))
                 .isInstanceOf(NullPointerException.class)
                 .hasMessageContaining("work must not be null");
-        assertThat(TenantContext.current()).contains(TenantIds.ACME);
+        assertThat(tenantContext.current()).contains(TenantIds.ACME);
 
-        assertThatThrownBy(() -> TenantContext.runAsSystemOps(null))
+        assertThatThrownBy(() -> tenantContext.runAsSystemOps(null))
                 .isInstanceOf(NullPointerException.class)
                 .hasMessageContaining("work must not be null");
-        assertThat(TenantContext.current()).contains(TenantIds.ACME);
+        assertThat(tenantContext.current()).contains(TenantIds.ACME);
     }
 
     @Test
     void switchingTenantViaSetInsideActiveTransactionFailsClosed() {
-        TenantContext.set(TenantIds.ACME);
+        tenantContext.set(TenantIds.ACME);
         TransactionSynchronizationManager.setActualTransactionActive(true);
 
-        assertThatThrownBy(() -> TenantContext.set(TenantIds.GLOBEX))
+        assertThatThrownBy(() -> tenantContext.set(TenantIds.GLOBEX))
                 .isInstanceOf(SecurityException.class)
                 .hasMessageContaining(ACTIVE_TRANSACTION_MESSAGE);
     }
 
     @Test
     void switchingTenantViaRunAsInsideActiveTransactionFailsClosed() {
-        TenantContext.set(TenantIds.ACME);
+        tenantContext.set(TenantIds.ACME);
         TransactionSynchronizationManager.setActualTransactionActive(true);
 
-        assertThatThrownBy(() -> TenantContext.runAs(TenantIds.GLOBEX, () -> {}))
+        assertThatThrownBy(() -> tenantContext.runAs(TenantIds.GLOBEX, () -> {}))
                 .isInstanceOf(SecurityException.class)
                 .hasMessageContaining(ACTIVE_TRANSACTION_MESSAGE);
     }
 
     @Test
     void enteringSystemOpsInsideActiveTransactionFailsClosed() {
-        TenantContext.set(TenantIds.ACME);
+        tenantContext.set(TenantIds.ACME);
         TransactionSynchronizationManager.setActualTransactionActive(true);
 
-        assertThatThrownBy(() -> TenantContext.runAsSystemOps(() -> {}))
+        assertThatThrownBy(() -> tenantContext.runAsSystemOps(() -> {}))
                 .isInstanceOf(SecurityException.class)
                 .hasMessageContaining(ACTIVE_TRANSACTION_MESSAGE);
     }
 
     @Test
     void reenteringTheSameTenantInsideActiveTransactionIsAllowed() {
-        TenantContext.set(TenantIds.ACME);
+        tenantContext.set(TenantIds.ACME);
         TransactionSynchronizationManager.setActualTransactionActive(true);
 
-        assertThatCode(() -> TenantContext.runAs(TenantIds.ACME, () -> {})).doesNotThrowAnyException();
+        assertThatCode(() -> tenantContext.runAs(TenantIds.ACME, () -> {})).doesNotThrowAnyException();
     }
 
     @Test
     void switchingTenantWithoutAnActiveTransactionIsAllowed() {
-        TenantContext.set(TenantIds.ACME);
+        tenantContext.set(TenantIds.ACME);
 
-        assertThatCode(() -> TenantContext.runAs(TenantIds.GLOBEX, () -> {})).doesNotThrowAnyException();
+        assertThatCode(() -> tenantContext.runAs(TenantIds.GLOBEX, () -> {})).doesNotThrowAnyException();
     }
 
     @Test
     void bindingTheFirstTenantInsideAnActiveTransactionIsRejected() {
         TransactionSynchronizationManager.setActualTransactionActive(true);
 
-        assertThatThrownBy(() -> TenantContext.set(TenantIds.ACME))
+        assertThatThrownBy(() -> tenantContext.set(TenantIds.ACME))
                 .isInstanceOf(SecurityException.class)
                 .hasMessageContaining("before the transaction starts");
     }
@@ -138,57 +135,57 @@ class TenantContextTest {
         // binding the tenant is permitted (the datasource proxy still fails closed if the tenant pool
         // is later borrowed without a tenant).
         TransactionSynchronizationManager.setActualTransactionActive(true);
-        TenantContext.useTenantTransactionActiveCheck(() -> false);
+        tenantContext = new TenantContext(() -> false);
 
-        assertThatCode(() -> TenantContext.set(TenantIds.ACME)).doesNotThrowAnyException();
+        assertThatCode(() -> tenantContext.set(TenantIds.ACME)).doesNotThrowAnyException();
     }
 
     @Test
     void clearingTenantInsideActiveTransactionFailsClosedAndKeepsBinding() {
-        TenantContext.set(TenantIds.ACME);
+        tenantContext.set(TenantIds.ACME);
         TransactionSynchronizationManager.setActualTransactionActive(true);
 
-        assertThatThrownBy(TenantContext::clear)
+        assertThatThrownBy(tenantContext::clear)
                 .isInstanceOf(SecurityException.class)
                 .hasMessageContaining("cannot clear tenant binding")
                 .hasMessageContaining(ACTIVE_TRANSACTION_MESSAGE);
-        assertThat(TenantContext.current()).contains(TenantIds.ACME);
+        assertThat(tenantContext.current()).contains(TenantIds.ACME);
     }
 
     @Test
     void restoringToNoTenantInsideActiveTransactionFailsClosedAndKeepsBinding() {
         final AtomicBoolean tenantTransactionActive = new AtomicBoolean(false);
-        TenantContext.useTenantTransactionActiveCheck(tenantTransactionActive::get);
+        tenantContext = new TenantContext(tenantTransactionActive::get);
 
-        assertThatThrownBy(() -> TenantContext.runAs(TenantIds.ACME, () -> tenantTransactionActive.set(true)))
+        assertThatThrownBy(() -> tenantContext.runAs(TenantIds.ACME, () -> tenantTransactionActive.set(true)))
                 .isInstanceOf(SecurityException.class)
                 .hasMessageContaining("cannot restore tenant binding")
                 .hasMessageContaining(ACTIVE_TRANSACTION_MESSAGE);
-        assertThat(TenantContext.current()).contains(TenantIds.ACME);
+        assertThat(tenantContext.current()).contains(TenantIds.ACME);
     }
 
     @Test
     void restoringPriorTenantInsideActiveTransactionFailsClosedAndKeepsInnerBinding() {
         final AtomicBoolean tenantTransactionActive = new AtomicBoolean(false);
-        TenantContext.useTenantTransactionActiveCheck(tenantTransactionActive::get);
-        TenantContext.set(TenantIds.ACME);
+        tenantContext = new TenantContext(tenantTransactionActive::get);
+        tenantContext.set(TenantIds.ACME);
 
-        assertThatThrownBy(() -> TenantContext.runAs(TenantIds.GLOBEX, () -> tenantTransactionActive.set(true)))
+        assertThatThrownBy(() -> tenantContext.runAs(TenantIds.GLOBEX, () -> tenantTransactionActive.set(true)))
                 .isInstanceOf(SecurityException.class)
                 .hasMessageContaining("cannot restore tenant binding")
                 .hasMessageContaining(ACTIVE_TRANSACTION_MESSAGE);
-        assertThat(TenantContext.current()).contains(TenantIds.GLOBEX);
+        assertThat(tenantContext.current()).contains(TenantIds.GLOBEX);
     }
 
     @Test
     void workFailureSurvivesRestoreFailureAsTheRootCause() {
         final AtomicBoolean tenantTransactionActive = new AtomicBoolean(false);
-        TenantContext.useTenantTransactionActiveCheck(tenantTransactionActive::get);
+        tenantContext = new TenantContext(tenantTransactionActive::get);
 
         // Work fails mid-"transaction": the restore guard also fires, but the work's exception is
         // the root cause an operator needs — the guard failure rides along as suppressed, and the
         // fail-closed inner binding is retained exactly as on the success path.
-        assertThatThrownBy(() -> TenantContext.runAs(TenantIds.ACME, () -> {
+        assertThatThrownBy(() -> tenantContext.runAs(TenantIds.ACME, () -> {
                     tenantTransactionActive.set(true);
                     throw new IllegalStateException("work failed");
                 }))
@@ -200,17 +197,17 @@ class TenantContextTest {
                         .extracting(Throwable::getMessage)
                         .asString()
                         .contains("cannot restore tenant binding"));
-        assertThat(TenantContext.current()).contains(TenantIds.ACME);
+        assertThat(tenantContext.current()).contains(TenantIds.ACME);
     }
 
     @Test
     void testFixtureRestoresPriorSystemOpsContext() {
-        TenantContext.runAsSystemOps(() -> {
-            WithTenant.runAs(TenantIds.ACME, () -> assertThat(TenantContext.current()).contains(TenantIds.ACME));
+        tenantContext.runAsSystemOps(() -> {
+            tenantContext.runAs(TenantIds.ACME, () -> assertThat(tenantContext.current()).contains(TenantIds.ACME));
 
-            assertThat(TenantContext.current()).contains(TenantIds.SYSTEM_OPS);
+            assertThat(tenantContext.current()).contains(TenantIds.SYSTEM_OPS);
         });
 
-        assertThat(TenantContext.current()).isEmpty();
+        assertThat(tenantContext.current()).isEmpty();
     }
 }

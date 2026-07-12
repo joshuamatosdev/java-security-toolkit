@@ -36,7 +36,8 @@ public class DocumentBoundaryAuthorizer {
         final TenantId requestedTenant,
         final ResourceId resourceId,
         final Action action) {
-        final ProtectedResource attemptedResource = new ProtectedResource(resourceId, requestedTenant, null, null);
+        final ProtectedResource attemptedResource =
+                ProtectedResource.unowned(resourceId, requestedTenant, null);
         final RequestContextResolver.ResolvedRequestContext resolved =
             requestContextResolver.resolve(authentication);
 

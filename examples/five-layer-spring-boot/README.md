@@ -22,7 +22,7 @@ Browser / SPA
 ```
 
 Layer 3 is secrets and config. It is posture, not code. Every credential arrives by
-environment variable. This follows ADR-0001. And the release checklist.
+environment variable and is checked against the release checklist.
 
 ## What Each Test Proves
 

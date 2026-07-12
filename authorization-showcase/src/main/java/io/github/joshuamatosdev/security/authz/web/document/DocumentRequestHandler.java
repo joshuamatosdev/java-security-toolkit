@@ -69,7 +69,7 @@ public class DocumentRequestHandler {
             .find(context.tenantId(), id)
             .orElseThrow(() -> {
                 final ProtectedResource attemptedResource =
-                    new ProtectedResource(id, context.tenantId(), null, null);
+                    ProtectedResource.unowned(id, context.tenantId(), null);
                 authorizationService.auditDeny(
                     context,
                     attemptedResource,

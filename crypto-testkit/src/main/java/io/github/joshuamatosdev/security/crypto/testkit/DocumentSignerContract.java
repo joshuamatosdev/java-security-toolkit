@@ -36,7 +36,7 @@ public interface DocumentSignerContract {
     default void signedDocumentsVerify() {
         final SignedDocument signed = signer().sign(signingKey(), contractDocument());
 
-        assertThat(signer().verify(signed)).isTrue();
+        assertThat(signer().verify(signed).isVerified()).isTrue();
     }
 
     @Test
@@ -49,7 +49,7 @@ public interface DocumentSignerContract {
                 "crypto signed document tampered".getBytes(StandardCharsets.UTF_8),
                 signed.signature());
 
-        assertThat(signer().verify(tampered)).isFalse();
+        assertThat(signer().verify(tampered).isVerified()).isFalse();
     }
 
     @Test
@@ -63,7 +63,7 @@ public interface DocumentSignerContract {
                 signed.payload(),
                 signed.signature());
 
-        assertThat(signer().verify(relabeled)).isFalse();
+        assertThat(signer().verify(relabeled).isVerified()).isFalse();
     }
 
     @Test
@@ -71,7 +71,7 @@ public interface DocumentSignerContract {
         final SignedDocument signed = signer().sign(signingKey(), contractDocument());
         final TrustAnchor anchor = TrustAnchor.pinnedKeys(Map.of(signed.keyId(), signed.publicKey()));
 
-        assertThat(signer().verify(signed, anchor)).isTrue();
+        assertThat(signer().verify(signed, anchor).isVerified()).isTrue();
     }
 
     @Test
@@ -83,7 +83,7 @@ public interface DocumentSignerContract {
         substituted[0] ^= 0x01;
         final TrustAnchor anchor = TrustAnchor.pinnedKeys(Map.of(signed.keyId(), substituted));
 
-        assertThat(signer().verify(signed, anchor)).isFalse();
+        assertThat(signer().verify(signed, anchor).isVerified()).isFalse();
     }
 
     @Test
@@ -92,6 +92,6 @@ public interface DocumentSignerContract {
         final TrustAnchor anchor =
                 TrustAnchor.pinnedKeys(Map.of(signed.keyId() + "-rotated-away", signed.publicKey()));
 
-        assertThat(signer().verify(signed, anchor)).isFalse();
+        assertThat(signer().verify(signed, anchor).isVerified()).isFalse();
     }
 }

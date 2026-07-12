@@ -3,6 +3,7 @@ package io.github.joshuamatosdev.security.crypto.jca;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatCode;
 import static org.assertj.core.api.Assertions.assertThatIllegalArgumentException;
+import static org.assertj.core.api.Assertions.assertThatIllegalStateException;
 import static org.assertj.core.api.Assertions.assertThatNullPointerException;
 
 import io.github.joshuamatosdev.security.crypto.api.KeyHandle;
@@ -15,6 +16,7 @@ import java.security.KeyPairGenerator;
 import java.security.Signature;
 import java.security.spec.ECGenParameterSpec;
 import java.util.Arrays;
+import java.util.List;
 import org.junit.jupiter.api.Test;
 
 class JcaSignatureProviderTest {
@@ -46,31 +48,38 @@ class JcaSignatureProviderTest {
     }
 
     @Test
-    void providerConfigurationMustMatchReportedAlgorithm() {
-        assertThatIllegalArgumentException()
-                .isThrownBy(() -> new JcaSignatureProvider(
-                        SignatureAlgorithm.ECDSA_P256,
-                        "EC",
-                        null,
-                        "SHA256withECDSAinP1363Format",
-                        "EC"))
-                .withMessage("ECDSA_P256 provider must be constrained to secp256r1");
-        assertThatIllegalArgumentException()
-                .isThrownBy(() -> new JcaSignatureProvider(
-                        SignatureAlgorithm.ECDSA_P256,
-                        "EC",
-                        new ECGenParameterSpec("secp256r1"),
-                        "SHA256withECDSA",
-                        "EC"))
-                .withMessage("ECDSA_P256 provider must use SHA256withECDSAinP1363Format");
-        assertThatIllegalArgumentException()
-                .isThrownBy(() -> new JcaSignatureProvider(
-                        SignatureAlgorithm.ED25519,
-                        "EC",
-                        new ECGenParameterSpec("secp256r1"),
-                        "SHA256withECDSAinP1363Format",
-                        "EC"))
-                .withMessage("ED25519 provider must use Ed25519 JCA primitives without key parameters");
+    void customJcaSpecsArePlugAndPlayWithoutCoreEdits() {
+        final SignatureAlgorithm customAlgorithm = SignatureAlgorithm.of("CUSTOM-ED25519");
+        final SignatureProvider provider = new JcaSignatureProvider(new JcaSignatureSpec(
+                customAlgorithm,
+                "Ed25519",
+                null,
+                "Ed25519",
+                "Ed25519",
+                JcaKeyValidation::isEd25519Pair,
+                JcaKeyValidation::isEd25519PublicKey));
+        final var registry = new io.github.joshuamatosdev.security.crypto.api.SignatureProviderRegistry(
+                List.of(provider));
+        final KeyHandle key = registry.resolve(customAlgorithm).generateKey("custom-1");
+
+        assertThat(provider.algorithm()).isEqualTo(customAlgorithm);
+        assertThat(provider.verify(key.publicKey(), PAYLOAD, key.sign(PAYLOAD))).isTrue();
+    }
+
+    @Test
+    void generatedKeyPolicyIsSuppliedByTheSpec() {
+        final JcaSignatureSpec rejectingSpec = new JcaSignatureSpec(
+                SignatureAlgorithm.of("REJECTING-ED25519"),
+                "Ed25519",
+                null,
+                "Ed25519",
+                "Ed25519",
+                keyPair -> false,
+                publicKey -> true);
+
+        assertThatIllegalStateException()
+                .isThrownBy(() -> new JcaSignatureProvider(rejectingSpec).generateKey("k1"))
+                .withMessageContaining("REJECTING-ED25519");
     }
 
     @Test
@@ -79,16 +88,15 @@ class JcaSignatureProviderTest {
         final KeyPair otherEd25519 = KeyPairGenerator.getInstance("Ed25519").generateKeyPair();
 
         assertThatNullPointerException()
-                .isThrownBy(() -> new JcaKeyHandle(null, SignatureAlgorithm.ED25519, "Ed25519", ed25519))
+                .isThrownBy(() -> new JcaKeyHandle(null, ed25519Spec(), ed25519))
                 .withMessage("keyId must not be null");
         assertThatIllegalArgumentException()
-                .isThrownBy(() -> new JcaKeyHandle(" ", SignatureAlgorithm.ED25519, "Ed25519", ed25519))
+                .isThrownBy(() -> new JcaKeyHandle(" ", ed25519Spec(), ed25519))
                 .withMessage("keyId must not be blank");
         assertThatIllegalArgumentException()
                 .isThrownBy(() -> new JcaKeyHandle(
                         "k1",
-                        SignatureAlgorithm.ED25519,
-                        "Ed25519",
+                        ed25519Spec(),
                         new KeyPair(otherEd25519.getPublic(), ed25519.getPrivate())))
                 .withMessage("keyPair public key must verify signatures from its private key");
     }
@@ -106,13 +114,14 @@ class JcaSignatureProviderTest {
         assertThatCode(() -> provider.verify(publicKey, PAYLOAD, null)).doesNotThrowAnyException();
     }
 
-    @Test
-    void postQuantumSlotStillRunsClassicalStandIn() {
-        final SignatureProvider placeholder = JcaSignatureProviders.postQuantumPlaceholder();
-        final KeyHandle handle = placeholder.generateKey("pqc-1");
-        final byte[] signature = handle.sign(PAYLOAD);
-
-        assertThat(SignatureAlgorithm.ML_DSA_44.fipsApproved()).isTrue();
-        assertThat(JcaSignatureProviders.ed25519().verify(handle.publicKey(), PAYLOAD, signature)).isTrue();
+    private static JcaSignatureSpec ed25519Spec() {
+        return new JcaSignatureSpec(
+                SignatureAlgorithm.ED25519,
+                "Ed25519",
+                null,
+                "Ed25519",
+                "Ed25519",
+                JcaKeyValidation::isEd25519Pair,
+                JcaKeyValidation::isEd25519PublicKey);
     }
 }

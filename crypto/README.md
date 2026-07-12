@@ -1,14 +1,11 @@
 # Crypto
 
-This is a stable signing API. Algorithms and providers are replaceable. It is the
+This is a stable signing API. Algorithms and providers are plug-and-play. It is the
 toolkit's cryptographic-agility seam.
 
-Call sites depend on `DocumentSigner`. Algorithms live behind a seam. These include
-`Ed25519` and `ECDSA P-256`. A reserved post-quantum slot too. Providers live there
-too. They sit behind `SignatureProvider`. And behind a registry. An algorithm
-migration changes configuration. It changes provider wiring. It never changes call
-sites. The decision record is
-[ADR-0006](../docs/adr/0006-crypto-provider-seam.md).
+Call sites depend on `DocumentSigner`. Algorithms live behind `SignatureProvider` and
+an immutable registry. `Ed25519` and `ECDSA P-256` ship as built-ins. Additional
+providers bring their own `SignatureAlgorithm` identity without edits to the core.
 
 ## Quick Start
 
@@ -39,7 +36,8 @@ Runnable consumer examples exist. See
 
 | Type | Role |
 |---|---|
-| `DocumentSigner` | Sign and verify. The only app-facing type. |
+| `DocumentSigner` | Explicit-key signing and typed verification. |
+| `DefaultDocumentSigner` | Default-key signing, available only when key resolution is configured. |
 | `SignedDocument` | Payload + signature + embedded public key + `alg`/`keyId` metadata. |
 | `TrustAnchor` | The deployment's trusted key per id. |
 | `SignatureProvider` / `SignatureProviderRegistry` | Provider seam. `JcaSignatureProviders` ships JCA implementations. |
@@ -55,7 +53,7 @@ Documents crossing a trust boundary differ. They must use the anchored overload:
 
 ```java
 TrustAnchor anchor = TrustAnchor.pinnedKeys(Map.of("k1", trustedPublicKey));
-boolean authentic = signer.verify(signed, anchor);   // fails closed on an untrusted key
+boolean authentic = signer.verify(signed, anchor).isVerified();
 ```
 
 The anchor is checked first. This happens before any signature computation. A rejection
@@ -66,7 +64,7 @@ public-key lookup. Or use a key directory. `pinnedKeys` compares in constant tim
 
 ```yaml
 crypto:
-  default-algorithm: ED25519
+  default-algorithm: EdDSA
   default-key-id: local-ed25519-1
   providers:
     jca:
@@ -74,8 +72,8 @@ crypto:
         enabled: true
 ```
 
-The starter injects `DocumentSigner`. Default-key signing needs app-owned key custody.
-Provide a `KeyHandleResolver`. One opt-in is demo-only. It is
+The starter always injects `DocumentSigner`. It injects `DefaultDocumentSigner` only
+when app-owned key custody supplies a `KeyHandleResolver`. One opt-in is demo-only. It is
 `crypto.local-ephemeral-keys.enabled`. It generates in-memory keys. It must
 stay off in production. Disable the whole starter easily. Set
 `crypto.enabled: false`.

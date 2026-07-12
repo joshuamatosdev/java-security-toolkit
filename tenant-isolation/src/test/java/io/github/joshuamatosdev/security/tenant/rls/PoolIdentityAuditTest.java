@@ -6,8 +6,6 @@ import io.github.joshuamatosdev.security.tenant.TenantIds;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
-import io.github.joshuamatosdev.security.tenant.binding.TenantContext;
-import io.github.joshuamatosdev.security.tenant.testfixtures.WithTenant;
 import java.sql.Connection;
 import java.sql.ResultSet;
 import java.sql.Statement;
@@ -64,7 +62,7 @@ class PoolIdentityAuditTest extends AbstractRlsTest {
     @Test
     void runtimePoolRoleCannotBypassRls() {
         // A tenant must be bound for the fail-closed proxy to hand out a connection at all.
-        WithTenant.runAs(TenantIds.ACME, () -> {
+        tenantContext.runAs(TenantIds.ACME, () -> {
             try (Connection c = dataSource.getConnection();
                     Statement st = c.createStatement();
                     ResultSet rs = st.executeQuery(
@@ -88,7 +86,7 @@ class PoolIdentityAuditTest extends AbstractRlsTest {
 
     @Test
     void systemOpsPoolUsesReadOnlyBypassRoleMembership() {
-        TenantContext.runAsSystemOps(() -> {
+        tenantContext.runAsSystemOps(() -> {
             try (Connection c = dataSource.getConnection();
                     Statement st = c.createStatement();
                     ResultSet rs = st.executeQuery(

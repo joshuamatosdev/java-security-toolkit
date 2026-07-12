@@ -1,5 +1,6 @@
 package io.github.joshuamatosdev.security.crypto.spring;
 
+import io.github.joshuamatosdev.security.crypto.api.DefaultDocumentSigner;
 import io.github.joshuamatosdev.security.crypto.api.DocumentSigner;
 import io.github.joshuamatosdev.security.crypto.api.KeyHandle;
 import io.github.joshuamatosdev.security.crypto.api.KeyHandleResolver;
@@ -14,8 +15,8 @@ import io.github.joshuamatosdev.security.crypto.jca.JcaSignatureProviders;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
-import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.boot.autoconfigure.AutoConfiguration;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnBean;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnClass;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
@@ -51,16 +52,6 @@ public class CryptoAutoConfiguration {
     }
 
     @Bean
-    @ConditionalOnMissingBean(name = "mlDsa44PlaceholderSignatureProvider")
-    @ConditionalOnProperty(
-            prefix = "crypto.providers.jca.ml-dsa-44-placeholder",
-            name = "enabled",
-            havingValue = "true")
-    SignatureProvider mlDsa44PlaceholderSignatureProvider() {
-        return JcaSignatureProviders.postQuantumPlaceholder();
-    }
-
-    @Bean
     @ConditionalOnMissingBean
     SignatureProviderRegistry signatureProviderRegistry(final List<SignatureProvider> providers) {
         return new SignatureProviderRegistry(providers);
@@ -93,7 +84,7 @@ public class CryptoAutoConfiguration {
     KeyHandleResolver localEphemeralKeyHandleResolver(final SignatureProviderRegistry registry) {
         final Map<String, KeyHandle> keys = new ConcurrentHashMap<>();
         return (algorithm, keyId) -> keys.computeIfAbsent(
-                algorithm.name() + ":" + keyId,
+                algorithm.joseAlg() + ":" + keyId,
                 ignored -> registry.resolve(algorithm).generateKey(keyId));
     }
 
@@ -101,22 +92,29 @@ public class CryptoAutoConfiguration {
     @ConditionalOnMissingBean
     DocumentSigner documentSigner(
             final SignatureProviderRegistry registry,
-            final CryptoProperties properties,
-            final ObjectProvider<KeyHandleResolver> keyHandleResolver,
-            final KeyIdStrategy keyIdStrategy,
             final SignatureEnvelopeCodec envelopeCodec,
             final SignatureAuditSink auditSink) {
+        return new DocumentSigner(registry, envelopeCodec, auditSink);
+    }
+
+    @Bean
+    @ConditionalOnMissingBean
+    @ConditionalOnBean(KeyHandleResolver.class)
+    DefaultDocumentSigner defaultDocumentSigner(
+            final DocumentSigner signer,
+            final SignatureProviderRegistry registry,
+            final CryptoProperties properties,
+            final KeyHandleResolver keyHandleResolver,
+            final KeyIdStrategy keyIdStrategy) {
         final SignatureAlgorithm defaultAlgorithm = properties.defaultAlgorithm();
         if (!registry.hasProvider(defaultAlgorithm)) {
             throw new IllegalStateException(
                     "No SignatureProvider registered for default algorithm " + defaultAlgorithm);
         }
-        return new DocumentSigner(
-                registry,
+        return new DefaultDocumentSigner(
+                signer,
                 defaultAlgorithm,
-                keyHandleResolver.getIfAvailable(),
-                keyIdStrategy,
-                envelopeCodec,
-                auditSink);
+                keyHandleResolver,
+                keyIdStrategy);
     }
 }

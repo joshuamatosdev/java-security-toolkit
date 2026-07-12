@@ -55,11 +55,11 @@ Copy a module into your service. Keep its tests running. This works best for:
 - BFF security-chain structure
 - supply-chain checks and build policy
 
-Are you adapting source? Keep the package boundaries clear. Update the ADR that records it.
+Are you adapting source? Keep the package boundaries clear. Update the owning module documentation and executable contracts.
 
 ### Acceptance-Criteria Adoption
 
-Use the tests and ADRs. Treat them as acceptance criteria. Apply them to an existing platform. This path often fits. Your app may have a gateway. Or an authorization service. Or a database topology.
+Use the tests and module documentation. Treat them as acceptance criteria. Apply them to an existing platform. This path often fits. Your app may have a gateway. Or an authorization service. Or a database topology.
 
 ## Production Replacement Points
 
@@ -128,7 +128,7 @@ Adopt `supply-chain` directly into CI. Building similar checks in another build?
 - Enable dependency review. Enable secret scanning. Do this in the host repository.
 - Publish SBOMs with release artifacts.
 - Pin base images by digest.
-- Decide when dependency-check runs. On every PR? Nightly? Release only?
+- Decide when dependency-check runs. On every push? Nightly? Release only?
 - Add artifact signing and provenance. Do it if the release requires.
 
 ## Release Expectations

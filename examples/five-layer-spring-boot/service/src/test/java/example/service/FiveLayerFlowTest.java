@@ -11,7 +11,9 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 import io.github.joshuamatosdev.security.authz.audit.AuthorizationAuditRecord;
+import io.github.joshuamatosdev.security.authz.decision.Allow;
 import io.github.joshuamatosdev.security.authz.decision.DenialReason;
+import io.github.joshuamatosdev.security.authz.decision.Deny;
 import io.github.joshuamatosdev.security.authz.decision.GrantBasis;
 import java.sql.Connection;
 import java.sql.DriverManager;
@@ -175,8 +177,7 @@ class FiveLayerFlowTest {
 
         // The CREATE decision was audited before the insert ran.
         final AuthorizationAuditRecord created = audit.last();
-        assertThat(created.allowed()).isTrue();
-        assertThat(created.grantBasis()).isEqualTo(GrantBasis.RESOURCE_OWNER);
+        assertThat(created.outcome()).isEqualTo(new Allow(GrantBasis.RESOURCE_OWNER));
 
         audit.clear();
         mvc.perform(get("/documents/" + id).with(alice()))
@@ -185,9 +186,7 @@ class FiveLayerFlowTest {
                 .andExpect(jsonPath("$.owner").value("alice"));
 
         final AuthorizationAuditRecord read = audit.last();
-        assertThat(read.allowed()).isTrue();
-        assertThat(read.grantBasis()).isEqualTo(GrantBasis.RESOURCE_OWNER);
-        assertThat(read.wideScope()).isFalse();
+        assertThat(read.outcome()).isEqualTo(new Allow(GrantBasis.RESOURCE_OWNER));
     }
 
     @Test
@@ -206,8 +205,8 @@ class FiveLayerFlowTest {
         assertThat(audit.records()).hasSize(2);
         assertThat(audit.records())
                 .allSatisfy(record -> {
-                    assertThat(record.allowed()).isFalse();
-                    assertThat(record.denialReason()).isEqualTo(DenialReason.RESOURCE_NOT_FOUND);
+                    assertThat(record.outcome())
+                            .isEqualTo(new Deny(DenialReason.RESOURCE_NOT_FOUND));
                 });
     }
 
@@ -218,15 +217,14 @@ class FiveLayerFlowTest {
 
         // Bob is an organization peer: the seeded policy grants organization members READ...
         mvc.perform(get("/documents/" + id).with(bob())).andExpect(status().isOk());
-        assertThat(audit.last().grantBasis()).isEqualTo(GrantBasis.ORGANIZATION_MEMBER);
+        assertThat(audit.last().outcome()).isEqualTo(new Allow(GrantBasis.ORGANIZATION_MEMBER));
 
         // ...but no rule grants MEMBER a DELETE. RLS shows him the row; the fine-grained policy
         // denies, the denial is recorded, and the starter's advice translates it to a 403.
         mvc.perform(delete("/documents/" + id).with(bob())).andExpect(status().isForbidden());
 
         final AuthorizationAuditRecord denied = audit.last();
-        assertThat(denied.allowed()).isFalse();
-        assertThat(denied.denialReason()).isEqualTo(DenialReason.NO_MATCHING_RULE);
+        assertThat(denied.outcome()).isEqualTo(new Deny(DenialReason.NO_MATCHING_RULE));
 
         // The 403 masked nothing: alice's document is still there for alice.
         mvc.perform(get("/documents/" + id).with(alice())).andExpect(status().isOk());
@@ -241,9 +239,7 @@ class FiveLayerFlowTest {
                 .andExpect(status().isOk());
 
         final AuthorizationAuditRecord allowed = audit.last();
-        assertThat(allowed.allowed()).isTrue();
-        assertThat(allowed.grantBasis()).isEqualTo(GrantBasis.WIDE_SCOPE_ADMIN);
-        assertThat(allowed.wideScope()).isTrue();
+        assertThat(allowed.outcome()).isEqualTo(new Allow(GrantBasis.WIDE_SCOPE_ADMIN));
     }
 
     @Test
@@ -283,7 +279,7 @@ class FiveLayerFlowTest {
         audit.clear();
 
         mvc.perform(delete("/documents/" + id).with(alice())).andExpect(status().isNoContent());
-        assertThat(audit.last().allowed()).isTrue();
+        assertThat(audit.last().outcome()).isInstanceOf(Allow.class);
 
         mvc.perform(get("/documents/" + id).with(alice())).andExpect(status().isNotFound());
     }

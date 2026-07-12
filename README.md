@@ -8,6 +8,7 @@
 Java 21 security toolkit, for multi-tenant SaaS systems.
 
 You can use this toolkit as a foundation: adopt the modules directly, publish them as internal artifacts, or extract the underlying design patterns.
+
 ## Quick Start
 
 Requirements:
@@ -98,7 +99,7 @@ Typical adoption paths:
 - **Library adoption:** publish with `./gradlew publishToMavenLocal`. Then depend
   on selected modules.
 - **Source adoption:** copy a module in. Keep its tests as contracts.
-- **Pattern adoption:** use ADRs as acceptance criteria.
+- **Pattern adoption:** use module contracts and tests as acceptance criteria.
 
 See the [production adoption guide](docs/PRODUCTION_ADOPTION.md). It lists
 replacement points and hardening notes.
@@ -124,9 +125,9 @@ java-security-toolkit/
 |-- crypto/                  # stable API, JCA providers, signer, registry
 |-- crypto-spring-boot-starter/ # optional Boot auto-configuration
 |-- crypto-testkit/          # reusable contract tests and fakes
+|-- build-logic/             # reusable Gradle convention plugins
 |-- examples/                # standalone consumer examples
 |-- docs/
-|   |-- adr/                 # architecture decision records
 |   `-- GLOSSARY.md          # shared vocabulary
 |-- gradle/                  # version catalog and wrapper files
 |-- CONVENTIONS.md           # repository rules
@@ -141,7 +142,7 @@ The controls are structural and explicit. Everything denies by default.
 |---|---|---|
 | 1. Identity / AuthN | OIDC, PKCE, credential separation | `edge` |
 | 2. Authorization | Route gate plus resource policy | `authorization` (gate shown in `authorization-showcase`) |
-| 3. Secrets / config | No secret in source | ADR-0001 and release checklist |
+| 3. Secrets / config | No secret in source | Repository hygiene checks and release checklist |
 | 4. Transport / runtime | Routing, headers, actuator lockdown | `edge` |
 | 5. Data | Tenant placement, least privilege, RLS | `tenant-isolation` |
 | 6. Supply chain | SBOM and pin verification | `supply-chain` |
@@ -170,7 +171,6 @@ policy decision, then RLS. Each layer refuses on its own.
 - [Changelog](CHANGELOG.md)
 - [Production adoption guide](docs/PRODUCTION_ADOPTION.md)
 - [Glossary](docs/GLOSSARY.md)
-- [Architecture decisions](docs/adr/README.md)
 
 ## Development
 
@@ -191,7 +191,7 @@ Repository rules:
 - One module demonstrates one pattern.
 - A clean clone must build. Only JDK 21 and Docker.
 - Shared types live in `shared` once.
-- ADRs are append-only decision records.
+- Public behavior changes update the owning module README and executable contracts.
 - Examples use fictional values like `acme`.
 
 ## License

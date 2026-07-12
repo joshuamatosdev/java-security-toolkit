@@ -29,6 +29,12 @@ import org.springframework.web.filter.OncePerRequestFilter;
 @Component
 class TenantBindingFilter extends OncePerRequestFilter {
 
+    private final TenantContext tenantContext;
+
+    TenantBindingFilter(final TenantContext tenantContext) {
+        this.tenantContext = tenantContext;
+    }
+
     @Override
     protected void doFilterInternal(
             final HttpServletRequest request, final HttpServletResponse response, final FilterChain chain)
@@ -54,9 +60,9 @@ class TenantBindingFilter extends OncePerRequestFilter {
             }
         };
         if (organizationClaim == null) {
-            TenantContext.runAs(tenant, work);
+            tenantContext.runAs(tenant, work);
         } else {
-            TenantContext.runAs(tenant, OrganizationId.fromString(organizationClaim), work);
+            tenantContext.runAs(tenant, OrganizationId.fromString(organizationClaim), work);
         }
     }
 }

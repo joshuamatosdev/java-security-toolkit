@@ -26,7 +26,7 @@ public final class PlainJavaCryptoExample {
                 signer.sign(key, "workforce document".getBytes(StandardCharsets.UTF_8));
 
         // Integrity: the key embedded in the document verifies the payload.
-        if (!signer.verify(signed)) {
+        if (!signer.verify(signed).isVerified()) {
             throw new IllegalStateException("signature verification failed");
         }
 
@@ -34,7 +34,7 @@ public final class PlainJavaCryptoExample {
         // so a tampered payload re-signed with an attacker's embedded key fails closed. Pin from
         // your key custody or configuration — never from the document you are verifying.
         final TrustAnchor anchor = TrustAnchor.pinnedKeys(Map.of(key.keyId(), key.publicKey()));
-        if (!signer.verify(signed, anchor)) {
+        if (!signer.verify(signed, anchor).isVerified()) {
             throw new IllegalStateException("trust-anchored verification failed");
         }
 

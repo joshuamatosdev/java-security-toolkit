@@ -21,7 +21,7 @@ Otherwise it can outlive the request.
 `ThreadLocal<T>` stores one value per thread:
 
 ```java
-private static final ThreadLocal<TenantId> CURRENT = new ThreadLocal<>();
+private final ThreadLocal<TenantBinding> current = new ThreadLocal<>();
 ```
 
 Thread A stores `ACME`. Thread B cannot see it. Thread B stores `GLOBEX`.
@@ -118,7 +118,7 @@ PostgreSQL.
 Code may borrow a tenant-scoped connection. But it binds no tenant. Then the
 allowed rows are unclear.
 
-This module fails closed. `TenantContext.requireCurrent()` throws with no
+This module fails closed. The injected `tenantContext.requireCurrent()` throws with no
 tenant. `TenantSessionDataSourceProxy` rejects the borrow. It rejects before
 taking a connection. It never touches a raw connection.
 
@@ -130,7 +130,7 @@ A pool worker handles request A. Then it handles request B. Request A may leave
 This module uses scoped entry points. They prevent that leak:
 
 ```text
-TenantContext.runAs(TenantIds.ACME, () -> {
+tenantContext.runAs(TenantIds.ACME, () -> {
     // tenant-scoped work
 });
 ```
@@ -151,14 +151,14 @@ tenants. This is not a normal tenant. That is deliberate.
 Ordinary entry points reject `TenantIds.SYSTEM_OPS`:
 
 ```text
-TenantContext.runAs(TenantIds.SYSTEM_OPS, work); // rejected
+tenantContext.runAs(TenantIds.SYSTEM_OPS, work); // rejected
 ```
 
 Use the explicit system-ops entry points:
 
 ```text
-TenantContext.runAsSystemOps(work);
-TenantContext.supplyAsSystemOps(work);
+tenantContext.runAsSystemOps(work);
+tenantContext.supplyAsSystemOps(work);
 ```
 
 This makes cross-tenant reads visible. They show at the call site.
@@ -175,7 +175,7 @@ This module rejects that pattern. The tenant binds before the transaction.
 Correct shape:
 
 ```text
-TenantContext.runAs(TenantIds.ACME, () -> {
+tenantContext.runAs(TenantIds.ACME, () -> {
     transactionalService.doTenantWork();
 });
 ```
@@ -185,7 +185,7 @@ Risky shape:
 ```java
 @Transactional
 void doTenantWork() {
-    TenantContext.runAs(TenantIds.ACME, () -> repository.findAll());
+    tenantContext.runAs(TenantIds.ACME, () -> repository.findAll());
 }
 ```
 
@@ -195,9 +195,16 @@ tenant transactions. Re-entering the same tenant is allowed.
 
 Consider a single-datasource application. The default check is broad. It counts
 any active Spring transaction. Each becomes the tenant transaction. Now consider
-multiple datasources. Startup code can narrow the check. Use
-`TenantContext.useTenantTransactionActiveCheck(...)`. Then it will not block
-binding.
+multiple datasources. Supply an application-scoped `TenantContext` bean whose
+`BooleanSupplier` reports only the tenant datasource's transaction activity. The starter backs
+off when that bean is present:
+
+```java
+@Bean
+TenantContext tenantContext(TenantTransactionMonitor transactions) {
+    return new TenantContext(transactions::isTenantTransactionActive);
+}
+```
 
 ### Async Work
 
@@ -208,10 +215,10 @@ outlive its request.
 Async work must bind the tenant. Do it explicitly:
 
 ```text
-TenantId tenant = TenantContext.requireCurrent();
+TenantId tenant = tenantContext.requireCurrent();
 
 executor.submit(() ->
-    TenantContext.runAs(tenant, () -> {
+    tenantContext.runAs(tenant, () -> {
         // async tenant-scoped work
     }));
 ```

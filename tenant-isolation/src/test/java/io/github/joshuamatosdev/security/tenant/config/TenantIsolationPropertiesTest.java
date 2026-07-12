@@ -440,17 +440,24 @@ class TenantIsolationPropertiesTest {
                 databaseModeProperties(databaseTenant(TENANT_PASSWORD, POSTGRES_DRIVER, STABLE_POOL_NAME, 4, 4));
 
         assertThat(properties.databasePlacements())
-                .containsEntry(
-                        TenantIds.ACME,
-                        new TenantIsolationProperties.DatabaseTenantProperties(
-                                TenantIds.ACME.toString(),
-                                ACME_JDBC_URL,
-                                TENANT_USER,
-                                TENANT_PASSWORD,
-                                POSTGRES_DRIVER,
-                                STABLE_POOL_NAME,
-                                4,
-                                4));
+                .containsKey(TenantIds.ACME);
+        assertThat(properties.databasePlacements().get(TenantIds.ACME))
+                .extracting(
+                        TenantIsolationProperties.DatabasePlacement::jdbcUrl,
+                        TenantIsolationProperties.DatabasePlacement::username,
+                        TenantIsolationProperties.DatabasePlacement::password,
+                        TenantIsolationProperties.DatabasePlacement::driverClassName,
+                        TenantIsolationProperties.DatabasePlacement::poolName,
+                        TenantIsolationProperties.DatabasePlacement::maximumPoolSize,
+                        TenantIsolationProperties.DatabasePlacement::minimumIdle)
+                .containsExactly(
+                        ACME_JDBC_URL,
+                        TENANT_USER,
+                        TENANT_PASSWORD,
+                        POSTGRES_DRIVER,
+                        STABLE_POOL_NAME,
+                        4,
+                        4);
     }
 
     @Test

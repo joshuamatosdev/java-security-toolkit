@@ -4,10 +4,7 @@ Tenant-aware datasource infrastructure for PostgreSQL-backed services. The
 module demonstrates tenant placement. You choose placement through
 configuration. Database-side controls stay fail-closed.
 
-It covers Layer 5, data isolation. See the
-[five-layer posture](../docs/adr/0001-five-layer-security-posture.md). The
-decision record is
-[ADR-0002](../docs/adr/0002-tenant-isolation-rls-session-binding.md).
+It covers Layer 5, data isolation, in the repository's composed security posture.
 
 ## Table of Contents
 
@@ -130,8 +127,8 @@ header. Bind them atomically. The filter is compiled and tested. See
 [`TenantBindingFilter.java`](../examples/tenant-isolation-spring-boot/src/main/java/example/TenantBindingFilter.java).
 It lives in the example app. Non-JWT requests pass through. An unbound borrow
 fails closed anyway. A JWT may lack `tenant_id`. Then it is rejected with 403.
-Otherwise it binds the tenant. It adds `organization_id` when present. It uses
-`TenantContext.runAs(...)`. This wraps the remaining chain.
+Otherwise it binds the tenant. It adds `organization_id` when present. It uses the injected
+`tenantContext.runAs(...)`. This wraps the remaining chain.
 
 You get key properties for free. Org can never bind without tenant. No API
 allows it. `runAs` restores the prior binding. Switching tenant or org is
@@ -143,9 +140,9 @@ every borrow. It signs and binds `app.tenant_claim`. That claim looks like
 Close resets both claims.
 
 Some jobs must cross tenants. These are platform or admin jobs. They use
-`TenantContext.runAsSystemOps(work)`. It uses a read-only pool. It never carries
+`tenantContext.runAsSystemOps(work)`. It uses a read-only pool. It never carries
 an org. Some backfills assign orgs to rows. These rows were unassigned. They run
-org-unscoped. Use `TenantContext.runAs(tenant, work)`.
+org-unscoped. Use `tenantContext.runAs(tenant, work)`.
 
 ### 4. Own the database side
 
@@ -344,8 +341,7 @@ the tenant accepted.
 
 Organizations subdivide a tenant. Think teams, departments, workspaces. The
 tenant stays the outer boundary. The organization scopes rows within it.
-[ADR-0007](../docs/adr/0007-organization-scope-within-tenant-isolation.md) is
-the decision record.
+The organization binding is a co-equal, optional dimension inside the tenant boundary.
 
 Select the posture with:
 
@@ -366,7 +362,7 @@ Bind the organization atomically. Bind it with the tenant. No entry point binds
 it alone:
 
 ```java
-TenantContext.runAs(tenantId, organizationId, work);
+tenantContext.runAs(tenantId, organizationId, work);
 ```
 
 This is the organization claim. It has its own kind marker. The marker sits
@@ -386,8 +382,7 @@ like `tenant_id`.
 Sometimes the platform brokers sharing. The sharing crosses the tenant boundary.
 It is deliberate. Think a licensed dataset. Or a paid cross-region read. An
 entitlement is an explicit grant. It is a grant row. It is not a wider identity.
-[ADR-0008](../docs/adr/0008-entitlement-cross-tenant-read-grants.md) is the
-decision record.
+The grant ledger is explicit, expiring, and read-only for ordinary tenant traffic.
 
 The reference DDL holds grant rows. They live in `tenant_security.read_grant`.
 Each row has four columns. They are
@@ -472,5 +467,4 @@ Important tests:
 ## Documentation
 
 - [Thread context protection](docs/thread-context-protection.md)
-- [ADR-0002](../docs/adr/0002-tenant-isolation-rls-session-binding.md)
 - [Glossary](../docs/GLOSSARY.md)

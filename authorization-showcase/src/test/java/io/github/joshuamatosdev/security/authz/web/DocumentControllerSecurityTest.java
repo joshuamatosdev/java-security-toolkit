@@ -1,7 +1,9 @@
 package io.github.joshuamatosdev.security.authz.web;
 
 import io.github.joshuamatosdev.security.authz.audit.AuthorizationAuditRecord;
+import io.github.joshuamatosdev.security.authz.decision.Allow;
 import io.github.joshuamatosdev.security.authz.decision.DenialReason;
+import io.github.joshuamatosdev.security.authz.decision.Deny;
 import io.github.joshuamatosdev.security.authz.decision.GrantBasis;
 import io.github.joshuamatosdev.security.authz.policy.Action;
 import io.github.joshuamatosdev.security.authz.policy.Roles;
@@ -263,7 +265,7 @@ class DocumentControllerSecurityTest {
             .andExpect(status().isNotFound());
 
         final AuthorizationAuditRecord record = auditSink.only();
-        assertThat(record.denialReason()).isEqualTo(DenialReason.RESOURCE_NOT_FOUND);
+        assertThat(record.outcome()).isEqualTo(new Deny(DenialReason.RESOURCE_NOT_FOUND));
         assertThat(record.tenantId()).isEqualTo(DocumentDirectory.ACME);
         assertThat(record.action()).isEqualTo(Action.READ);
         assertThat(record.resourceId().value().toString()).isEqualTo(MISSING_DOCUMENT);
@@ -281,7 +283,7 @@ class DocumentControllerSecurityTest {
             .andExpect(status().isNotFound());
 
         final AuthorizationAuditRecord record = auditSink.only();
-        assertThat(record.denialReason()).isEqualTo(DenialReason.RESOURCE_NOT_FOUND);
+        assertThat(record.outcome()).isEqualTo(new Deny(DenialReason.RESOURCE_NOT_FOUND));
         assertThat(record.tenantId()).isEqualTo(DocumentDirectory.ACME);
         assertThat(record.action()).isEqualTo(Action.READ);
         assertThat(record.resourceId()).isEqualTo(OWNED_IN_OTHER_TENANT_ID);
@@ -298,7 +300,7 @@ class DocumentControllerSecurityTest {
             .andExpect(jsonPath(ERROR_JSON_PATH).value(FORBIDDEN_ERROR));
 
         final AuthorizationAuditRecord record = auditSink.only();
-        assertThat(record.denialReason()).isEqualTo(DenialReason.TENANT_MISMATCH);
+        assertThat(record.outcome()).isEqualTo(new Deny(DenialReason.TENANT_MISMATCH));
         assertThat(record.tenantId()).isEqualTo(DocumentDirectory.ACME);
         assertThat(record.action()).isEqualTo(Action.READ);
         assertThat(record.resourceId()).isEqualTo(OWNED_BY_MEMBER_ID);
@@ -314,7 +316,7 @@ class DocumentControllerSecurityTest {
             .andExpect(jsonPath(ERROR_JSON_PATH).value(FORBIDDEN_ERROR));
 
         final AuthorizationAuditRecord record = auditSink.only();
-        assertThat(record.denialReason()).isEqualTo(DenialReason.TENANT_MISMATCH);
+        assertThat(record.outcome()).isEqualTo(new Deny(DenialReason.TENANT_MISMATCH));
         assertThat(record.tenantId()).isEqualTo(DocumentDirectory.ACME);
         assertThat(record.resourceId().value().toString()).isEqualTo(MISSING_DOCUMENT);
         assertThat(record.resourceOrganizationId()).isNull();
@@ -332,8 +334,7 @@ class DocumentControllerSecurityTest {
             .andExpect(status().isOk());
 
         final AuthorizationAuditRecord record = auditSink.only();
-        assertThat(record.allowed()).isTrue();
-        assertThat(record.grantBasis()).isEqualTo(GrantBasis.ORGANIZATION_MEMBER);
+        assertThat(record.outcome()).isEqualTo(new Allow(GrantBasis.ORGANIZATION_MEMBER));
         assertThat(record.action()).isEqualTo(Action.READ);
         assertThat(record.resourceId()).isEqualTo(OWNED_BY_OTHER_ID);
     }
@@ -350,7 +351,7 @@ class DocumentControllerSecurityTest {
         final AuthorizationAuditRecord record = auditSink.only();
         assertThat(record.principalKey()).isEqualTo(DemoAccounts.MALICIOUS_USERNAME);
         assertThat(record.tenantId()).isNull();
-        assertThat(record.denialReason()).isEqualTo(DenialReason.NO_MATCHING_RULE);
+        assertThat(record.outcome()).isEqualTo(new Deny(DenialReason.NO_MATCHING_RULE));
         assertThat(record.resourceId()).isEqualTo(OWNED_BY_OTHER_ID);
     }
 
@@ -366,7 +367,7 @@ class DocumentControllerSecurityTest {
         final AuthorizationAuditRecord record = auditSink.only();
         assertThat(record.principalKey()).isEqualTo(DemoAccounts.MALICIOUS_USERNAME);
         assertThat(record.tenantId()).isNull();
-        assertThat(record.denialReason()).isEqualTo(DenialReason.NO_MATCHING_RULE);
+        assertThat(record.outcome()).isEqualTo(new Deny(DenialReason.NO_MATCHING_RULE));
         assertThat(record.resourceId().value().toString()).isEqualTo(MISSING_DOCUMENT);
         assertThat(record.resourceOrganizationId()).isNull();
     }
@@ -404,7 +405,7 @@ class DocumentControllerSecurityTest {
         assertThat(record.principalType()).isEqualTo(PrincipalType.SERVICE);
         assertThat(record.principalKey()).isEqualTo(DemoAccounts.ADMIN_USERNAME);
         assertThat(record.tenantId()).isNull();
-        assertThat(record.denialReason()).isEqualTo(DenialReason.NO_MATCHING_RULE);
+        assertThat(record.outcome()).isEqualTo(new Deny(DenialReason.NO_MATCHING_RULE));
     }
 
     @Test
@@ -445,7 +446,7 @@ class DocumentControllerSecurityTest {
 
         // The generic body carries no reason; the specific reason is still captured on the audit path.
         final AuthorizationAuditRecord record = auditSink.only();
-        assertThat(record.denialReason()).isEqualTo(DenialReason.NO_MATCHING_RULE);
+        assertThat(record.outcome()).isEqualTo(new Deny(DenialReason.NO_MATCHING_RULE));
         assertThat(record.resourceId()).isEqualTo(OWNED_BY_OTHER_ID);
     }
 }

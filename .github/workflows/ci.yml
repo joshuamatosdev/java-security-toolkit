@@ -3,8 +3,6 @@ name: ci
 on:
   push:
     branches: [main]
-  pull_request:
-    branches: [main]
   schedule:
     # Weekly dependency CVE scan against a fresh NVD feed, independent of commit cadence.
     - cron: "0 7 * * 1"
@@ -78,26 +76,11 @@ jobs:
           name: coverage-report
           path: build/reports/jacoco/testCodeCoverageReport/
 
-  dependency-review:
-    name: dependency review
-    runs-on: ubuntu-latest
-    if: github.event_name == 'pull_request'
-    permissions:
-      contents: read
-      pull-requests: read
-
-    steps:
-      - name: Check out repository
-        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
-
-      - name: Review dependency changes
-        uses: actions/dependency-review-action@a1d282b36b6f3519aa1f3fc636f609c47dddb294 # v4
-
   dependency-scan:
     name: dependency CVE scan
     runs-on: ubuntu-latest
     # The OWASP scan needs the NVD feed (network + API key), so it runs on a schedule and on demand
-    # rather than on every push — keeping the default build offline (see ADR-0005).
+    # rather than on every push, keeping the default build offline.
     if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
     timeout-minutes: 30
 

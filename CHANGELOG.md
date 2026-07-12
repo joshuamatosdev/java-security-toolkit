@@ -10,10 +10,10 @@ Entries mirror the commit history. One section per history segment. Oldest first
 
 - Design basis written before code. Gradle composite skeleton shipped.
 
-### 2. Posture and first ADRs
+### 2. Posture and tenant isolation design
 
 - Five-layer posture documented. License and conventions added.
-- ADR-0001 and ADR-0002 recorded.
+- Tenant isolation boundaries and tests documented.
 
 ### 3. Tenant isolation, v1
 
@@ -95,8 +95,9 @@ Entries mirror the commit history. One section per history segment. Oldest first
 ### 19. Release engineering
 
 - Runtime closures are build-checked. One report merges all coverage.
-- Dependabot updates all build roots. Tags build and create releases.
+- Dependency pins cover all build roots. Tags build and create releases.
 - Pushes publish Javadoc to Pages. Artifact signing is env-gated.
+
 
 ### 20. Gate coverage invariant
 

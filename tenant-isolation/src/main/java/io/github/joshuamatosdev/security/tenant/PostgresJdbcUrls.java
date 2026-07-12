@@ -115,7 +115,7 @@ public final class PostgresJdbcUrls {
                     entry("usespnego", BLOCKED),
                     entry("xmlfactoryfactory", BLOCKED));
 
-    private static final Set<String> COMPATIBILITY_ALIAS_PARAMETER_NAMES = Set.of("username");
+    private static final Set<String> EXTRA_POLICY_PARAMETER_NAMES = Set.of("username");
 
     private PostgresJdbcUrls() {}
 
@@ -162,20 +162,12 @@ public final class PostgresJdbcUrls {
         return Optional.empty();
     }
 
-    /**
-     * @deprecated use {@link #containsUnsafeQueryParameter(String)}.
-     */
-    @Deprecated(since = "0.1.0", forRemoval = false)
-    public static boolean containsCredentialQueryParameter(final String jdbcUrl) {
-        return containsUnsafeQueryParameter(jdbcUrl);
-    }
-
     static Set<String> classifiedQueryParameterNames() {
         return QUERY_PARAMETER_POLICIES.keySet();
     }
 
-    static Set<String> compatibilityAliasParameterNames() {
-        return COMPATIBILITY_ALIAS_PARAMETER_NAMES;
+    static Set<String> extraPolicyParameterNames() {
+        return EXTRA_POLICY_PARAMETER_NAMES;
     }
 
     private static int nextTokenEnd(final String jdbcUrl, final int tokenStart) {

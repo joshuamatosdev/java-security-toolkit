@@ -1,7 +1,7 @@
 plugins {
     `java-library`
-    alias(libs.plugins.cyclonedx.bom)
-    alias(libs.plugins.owasp.dependencycheck)
+    id("org.cyclonedx.bom")
+    id("org.owasp.dependencycheck")
 }
 
 dependencies {

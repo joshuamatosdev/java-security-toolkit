@@ -5,7 +5,6 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import io.github.joshuamatosdev.security.shared.OrganizationId;
 import io.github.joshuamatosdev.security.tenant.TenantIds;
-import io.github.joshuamatosdev.security.tenant.binding.TenantContext;
 import io.github.joshuamatosdev.security.tenant.persistence.DocumentEntity;
 import io.github.joshuamatosdev.security.tenant.persistence.DocumentRepository;
 import io.github.joshuamatosdev.security.tenant.testfixtures.AbstractRlsTest;
@@ -24,7 +23,7 @@ import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
 
 /**
- * Proves cross-tenant read entitlements (ADR-0008) are enforced by the database, not by query
+ * Proves cross-tenant read entitlements are enforced by the database, not by query
  * predicates: an explicit grant row is the only thing that lets one tenant read another tenant's
  * rows, the grant is directional, class-scoped, expiring, and revocable, and it can never widen a
  * write. The repository under test has no tenant or entitlement predicate anywhere.
@@ -63,7 +62,7 @@ class CrossTenantReadEntitlementTest extends AbstractRlsTest {
         seedOneDocumentPerTenant();
         grantReadAsSuperuser(TenantIds.GLOBEX, TenantIds.ACME, DOCUMENT_CLASS, null);
 
-        var acmeView = TenantContext.supplyAs(TenantIds.ACME, repository::findAll);
+        var acmeView = tenantContext.supplyAs(TenantIds.ACME, repository::findAll);
 
         assertThat(acmeView)
                 .extracting(DocumentEntity::getTitle)
@@ -76,7 +75,7 @@ class CrossTenantReadEntitlementTest extends AbstractRlsTest {
         seedOneDocumentPerTenant();
         grantReadAsSuperuser(TenantIds.GLOBEX, TenantIds.ACME, DOCUMENT_CLASS, null);
 
-        var globexView = TenantContext.supplyAs(TenantIds.GLOBEX, repository::findAll);
+        var globexView = tenantContext.supplyAs(TenantIds.GLOBEX, repository::findAll);
 
         assertThat(globexView)
                 .as("a grant from globex to acme must not open acme's rows to globex")
@@ -89,7 +88,7 @@ class CrossTenantReadEntitlementTest extends AbstractRlsTest {
         seedOneDocumentPerTenant();
         grantReadAsSuperuser(TenantIds.GLOBEX, TenantIds.ACME, UNRELATED_CLASS, null);
 
-        var acmeView = TenantContext.supplyAs(TenantIds.ACME, repository::findAll);
+        var acmeView = tenantContext.supplyAs(TenantIds.ACME, repository::findAll);
 
         assertThat(acmeView)
                 .as("a grant for another resource class must not open document rows")
@@ -103,7 +102,7 @@ class CrossTenantReadEntitlementTest extends AbstractRlsTest {
         grantReadAsSuperuser(
                 TenantIds.GLOBEX, TenantIds.ACME, DOCUMENT_CLASS, OffsetDateTime.now().minusSeconds(5));
 
-        var acmeView = TenantContext.supplyAs(TenantIds.ACME, repository::findAll);
+        var acmeView = tenantContext.supplyAs(TenantIds.ACME, repository::findAll);
 
         assertThat(acmeView)
                 .extracting(DocumentEntity::getTitle)
@@ -114,12 +113,12 @@ class CrossTenantReadEntitlementTest extends AbstractRlsTest {
     void revokedEntitlementDeniesTheNextRead() throws Exception {
         seedOneDocumentPerTenant();
         grantReadAsSuperuser(TenantIds.GLOBEX, TenantIds.ACME, DOCUMENT_CLASS, null);
-        var entitledView = TenantContext.supplyAs(TenantIds.ACME, repository::findAll);
+        var entitledView = tenantContext.supplyAs(TenantIds.ACME, repository::findAll);
         assertThat(entitledView).hasSize(2);
 
         revokeReadAsSuperuser(TenantIds.GLOBEX, TenantIds.ACME);
 
-        var revokedView = TenantContext.supplyAs(TenantIds.ACME, repository::findAll);
+        var revokedView = tenantContext.supplyAs(TenantIds.ACME, repository::findAll);
         assertThat(revokedView)
                 .as("revocation is a row delete and takes effect on the next statement")
                 .extracting(DocumentEntity::getTitle)
@@ -132,17 +131,17 @@ class CrossTenantReadEntitlementTest extends AbstractRlsTest {
         grantReadAsSuperuser(TenantIds.GLOBEX, TenantIds.ACME, DOCUMENT_CLASS, null);
         var jdbc = new JdbcTemplate(dataSource);
 
-        int updated = TenantContext.supplyAs(TenantIds.ACME, () -> jdbc.update(
+        int updated = tenantContext.supplyAs(TenantIds.ACME, () -> jdbc.update(
                 "UPDATE document SET title = ? WHERE title = ?",
                 "stolen", TenantTestConstants.GLOBEX_DOCUMENT_TITLE));
-        int deleted = TenantContext.supplyAs(TenantIds.ACME, () -> jdbc.update(
+        int deleted = tenantContext.supplyAs(TenantIds.ACME, () -> jdbc.update(
                 "DELETE FROM document WHERE title = ?", TenantTestConstants.GLOBEX_DOCUMENT_TITLE));
 
         assertThat(updated)
                 .as("the entitlement policy is FOR SELECT, so no write plan can see the foreign row")
                 .isZero();
         assertThat(deleted).isZero();
-        var globexView = TenantContext.supplyAs(TenantIds.GLOBEX, repository::findAll);
+        var globexView = tenantContext.supplyAs(TenantIds.GLOBEX, repository::findAll);
         assertThat(globexView)
                 .extracting(DocumentEntity::getTitle)
                 .containsExactly(TenantTestConstants.GLOBEX_DOCUMENT_TITLE);
@@ -177,7 +176,7 @@ class CrossTenantReadEntitlementTest extends AbstractRlsTest {
                 TenantTestConstants.GLOBEX_DOCUMENT_TITLE, TenantTestConstants.DOCUMENT_BODY_Y);
         grantReadAsSuperuser(TenantIds.GLOBEX, TenantIds.ACME, DOCUMENT_CLASS, null);
 
-        var engineeringView = TenantContext.supplyAs(TenantIds.ACME, ENGINEERING, repository::findAll);
+        var engineeringView = tenantContext.supplyAs(TenantIds.ACME, ENGINEERING, repository::findAll);
 
         assertThat(engineeringView)
                 .as("the reader's own organization cap scopes its own tenant, not the grantor's rows")

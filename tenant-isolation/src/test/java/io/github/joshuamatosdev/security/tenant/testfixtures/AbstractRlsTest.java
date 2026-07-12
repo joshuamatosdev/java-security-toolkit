@@ -3,8 +3,10 @@ package io.github.joshuamatosdev.security.tenant.testfixtures;
 import io.github.joshuamatosdev.security.shared.OrganizationId;
 import io.github.joshuamatosdev.security.shared.TenantId;
 import io.github.joshuamatosdev.security.tenant.testfixtures.TenantTestConstants;
+import io.github.joshuamatosdev.security.tenant.binding.TenantContext;
 import org.junit.jupiter.api.BeforeEach;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
 import org.testcontainers.containers.PostgreSQLContainer;
@@ -35,6 +37,9 @@ public abstract class AbstractRlsTest {
     protected static final String SYSTEM_OPS_USERNAME = TenantTestConstants.SYSTEM_OPS_USERNAME;
     protected static final String DEV_PASSWORD = TenantTestConstants.DEV_PASSWORD;
     protected static final String DOCUMENT_TABLE = "document";
+
+    @Autowired
+    protected TenantContext tenantContext;
 
     // Singleton container: started once on first use, shared by every test class, reaped by Ryuk at
     // JVM exit. One stable container instead of one per test class.

@@ -33,86 +33,84 @@ class TenantOrganizationContextTest {
             OrganizationId.fromString("0190a000-0000-7000-8000-0000000000e1");
     private static final OrganizationId LOGISTICS =
             OrganizationId.fromString("0190a000-0000-7000-8000-0000000000e2");
+    private TenantContext tenantContext = new TenantContext();
 
     @AfterEach
     void reset() {
         TransactionSynchronizationManager.setActualTransactionActive(false);
-        TenantContext.useTenantTransactionActiveCheck(() -> false);
-        TenantContext.clear();
-        TenantContext.resetTenantTransactionActiveCheck();
     }
 
     @Test
     void organizationBindsAndRestoresAtomicallyWithTheTenant() {
-        TenantContext.runAs(TenantIds.ACME, ENGINEERING, () -> {
-            assertThat(TenantContext.current()).contains(TenantIds.ACME);
-            assertThat(TenantContext.currentOrganization()).contains(ENGINEERING);
+        tenantContext.runAs(TenantIds.ACME, ENGINEERING, () -> {
+            assertThat(tenantContext.current()).contains(TenantIds.ACME);
+            assertThat(tenantContext.currentOrganization()).contains(ENGINEERING);
         });
 
-        assertThat(TenantContext.current()).isEmpty();
-        assertThat(TenantContext.currentOrganization()).isEmpty();
+        assertThat(tenantContext.current()).isEmpty();
+        assertThat(tenantContext.currentOrganization()).isEmpty();
     }
 
     @Test
     void nestedOrganizationScopeRestoresTheOuterOrganization() {
-        TenantContext.runAs(TenantIds.ACME, ENGINEERING, () -> {
-            TenantContext.runAs(TenantIds.ACME, LOGISTICS, () ->
-                    assertThat(TenantContext.currentOrganization()).contains(LOGISTICS));
+        tenantContext.runAs(TenantIds.ACME, ENGINEERING, () -> {
+            tenantContext.runAs(TenantIds.ACME, LOGISTICS, () ->
+                    assertThat(tenantContext.currentOrganization()).contains(LOGISTICS));
 
-            assertThat(TenantContext.currentOrganization()).contains(ENGINEERING);
+            assertThat(tenantContext.currentOrganization()).contains(ENGINEERING);
         });
     }
 
     @Test
     void tenantOnlyBindingCarriesNoOrganization() {
-        TenantContext.runAs(TenantIds.ACME, () ->
-                assertThat(TenantContext.currentOrganization()).isEmpty());
+        tenantContext.runAs(TenantIds.ACME, () ->
+                assertThat(tenantContext.currentOrganization()).isEmpty());
     }
 
     @Test
     void systemOpsBindingCarriesNoOrganization() {
-        TenantContext.runAsSystemOps(() ->
-                assertThat(TenantContext.currentOrganization()).isEmpty());
+        tenantContext.runAsSystemOps(() ->
+                assertThat(tenantContext.currentOrganization()).isEmpty());
     }
 
     @Test
     void supplyAsWithOrganizationReturnsTheValueAndRestores() {
-        final String result = TenantContext.supplyAs(TenantIds.ACME, ENGINEERING, () -> {
-            assertThat(TenantContext.currentOrganization()).contains(ENGINEERING);
+        final String result = tenantContext.supplyAs(TenantIds.ACME, ENGINEERING, () -> {
+            assertThat(tenantContext.currentOrganization()).contains(ENGINEERING);
             return "scoped";
         });
 
         assertThat(result).isEqualTo("scoped");
-        assertThat(TenantContext.currentOrganization()).isEmpty();
+        assertThat(tenantContext.currentOrganization()).isEmpty();
     }
 
     @Test
     void requireCurrentOrganizationFailsClosedWhenAbsent() {
-        assertThatThrownBy(TenantContext::requireCurrentOrganization)
+        assertThatThrownBy(tenantContext::requireCurrentOrganization)
                 .isInstanceOf(SecurityException.class)
                 .hasMessageContaining("organization");
 
-        TenantContext.runAs(TenantIds.ACME, () ->
-                assertThatThrownBy(TenantContext::requireCurrentOrganization)
+        tenantContext.runAs(TenantIds.ACME, () ->
+                assertThatThrownBy(tenantContext::requireCurrentOrganization)
                         .isInstanceOf(SecurityException.class)
                         .hasMessageContaining("without organization binding"));
     }
 
     @Test
     void requireCurrentOrganizationReturnsTheBoundOrganization() {
-        TenantContext.runAs(TenantIds.ACME, ENGINEERING, () ->
-                assertThat(TenantContext.requireCurrentOrganization()).isEqualTo(ENGINEERING));
+        tenantContext.runAs(TenantIds.ACME, ENGINEERING, () ->
+                assertThat(tenantContext.requireCurrentOrganization()).isEqualTo(ENGINEERING));
     }
 
     @Test
     void organizationOverloadsRejectNullOrganizationBeforeRunningWork() {
-        assertThatThrownBy(() -> TenantContext.runAs(TenantIds.ACME, null, () -> {
+        assertThatThrownBy(() -> tenantContext.runAs(TenantIds.ACME, null, () -> {
             throw new AssertionError("work must not run");
         }))
                 .isInstanceOf(NullPointerException.class)
                 .hasMessageContaining("organization must not be null");
 
-        assertThatThrownBy(() -> TenantContext.supplyAs(TenantIds.ACME, null, () -> {
+        assertThatThrownBy(() -> tenantContext.supplyAs(TenantIds.ACME, null, () -> {
             throw new AssertionError("work must not run");
         }))
                 .isInstanceOf(NullPointerException.class)
@@ -121,10 +119,10 @@ class TenantOrganizationContextTest {
 
     @Test
     void switchingOrganizationInsideActiveTransactionFailsClosed() {
-        TenantContext.runAs(TenantIds.ACME, ENGINEERING, () -> {
+        tenantContext.runAs(TenantIds.ACME, ENGINEERING, () -> {
             TransactionSynchronizationManager.setActualTransactionActive(true);
 
-            assertThatThrownBy(() -> TenantContext.runAs(TenantIds.ACME, LOGISTICS, () -> {}))
+            assertThatThrownBy(() -> tenantContext.runAs(TenantIds.ACME, LOGISTICS, () -> {}))
                     .isInstanceOf(SecurityException.class)
                     .hasMessageContaining("cannot switch organization binding")
                     .hasMessageContaining(ACTIVE_TRANSACTION_MESSAGE);
@@ -135,10 +133,10 @@ class TenantOrganizationContextTest {
 
     @Test
     void unbindingTheOrganizationInsideActiveTransactionFailsClosed() {
-        TenantContext.runAs(TenantIds.ACME, ENGINEERING, () -> {
+        tenantContext.runAs(TenantIds.ACME, ENGINEERING, () -> {
             TransactionSynchronizationManager.setActualTransactionActive(true);
 
-            assertThatThrownBy(() -> TenantContext.runAs(TenantIds.ACME, () -> {}))
+            assertThatThrownBy(() -> tenantContext.runAs(TenantIds.ACME, () -> {}))
                     .isInstanceOf(SecurityException.class)
                     .hasMessageContaining("cannot switch organization binding")
                     .hasMessageContaining("none")
@@ -150,10 +148,10 @@ class TenantOrganizationContextTest {
 
     @Test
     void reenteringTheSameTenantAndOrganizationInsideActiveTransactionIsAllowed() {
-        TenantContext.runAs(TenantIds.ACME, ENGINEERING, () -> {
+        tenantContext.runAs(TenantIds.ACME, ENGINEERING, () -> {
             TransactionSynchronizationManager.setActualTransactionActive(true);
 
-            assertThatCode(() -> TenantContext.runAs(TenantIds.ACME, ENGINEERING, () -> {}))
+            assertThatCode(() -> tenantContext.runAs(TenantIds.ACME, ENGINEERING, () -> {}))
                     .doesNotThrowAnyException();
 
             TransactionSynchronizationManager.setActualTransactionActive(false);
@@ -163,16 +161,16 @@ class TenantOrganizationContextTest {
     @Test
     void restoringAcrossAnOrganizationChangeInsideActiveTransactionFailsClosed() {
         final AtomicBoolean tenantTransactionActive = new AtomicBoolean(false);
-        TenantContext.useTenantTransactionActiveCheck(tenantTransactionActive::get);
+        tenantContext = new TenantContext(tenantTransactionActive::get);
 
-        TenantContext.runAs(TenantIds.ACME, ENGINEERING, () -> {
-            assertThatThrownBy(() -> TenantContext.runAs(TenantIds.ACME, LOGISTICS,
+        tenantContext.runAs(TenantIds.ACME, ENGINEERING, () -> {
+            assertThatThrownBy(() -> tenantContext.runAs(TenantIds.ACME, LOGISTICS,
                     () -> tenantTransactionActive.set(true)))
                     .isInstanceOf(SecurityException.class)
                     .hasMessageContaining("cannot restore tenant binding")
                     .hasMessageContaining(ACTIVE_TRANSACTION_MESSAGE);
             // The failed restore leaves the inner binding in place (fail-closed).
-            assertThat(TenantContext.currentOrganization()).contains(LOGISTICS);
+            assertThat(tenantContext.currentOrganization()).contains(LOGISTICS);
             // Release the guard so the outer scope can restore and the test ends clean.
             tenantTransactionActive.set(false);
         });

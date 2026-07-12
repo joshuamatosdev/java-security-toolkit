@@ -1,6 +1,6 @@
 plugins {
     `java-library`
-    alias(libs.plugins.cyclonedx.bom)
+    id("org.cyclonedx.bom")
 }
 
 dependencies {

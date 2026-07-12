@@ -10,14 +10,12 @@ import io.github.joshuamatosdev.security.tenant.binding.TenantContext;
 import io.github.joshuamatosdev.security.tenant.persistence.DocumentEntity;
 import io.github.joshuamatosdev.security.tenant.persistence.DocumentRepository;
 import io.github.joshuamatosdev.security.tenant.testfixtures.TenantTestConstants;
-import io.github.joshuamatosdev.security.tenant.testfixtures.WithTenant;
 import java.sql.Connection;
 import java.sql.DriverManager;
 import java.sql.Statement;
 import java.util.Map;
 import java.util.UUID;
 import javax.sql.DataSource;
-import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -51,6 +49,9 @@ class SchemaIsolationModeIntegrationTest {
     @Autowired
     private DataSource dataSource;
 
+    @Autowired
+    private TenantContext tenantContext;
+
     @DynamicPropertySource
     static void props(final DynamicPropertyRegistry registry) {
         registry.add("spring.datasource.url", POSTGRES::getJdbcUrl);
@@ -73,16 +74,11 @@ class SchemaIsolationModeIntegrationTest {
         }
     }
 
-    @AfterEach
-    void clearTenantContext() {
-        TenantContext.clear();
-    }
-
     @Test
     void connectionBorrowSelectsSchemaAndBindsSignedTenantClaim() {
         final JdbcTemplate jdbc = new JdbcTemplate(dataSource);
 
-        final Map<String, Object> session = WithTenant.supplyAs(TenantIds.ACME, () ->
+        final Map<String, Object> session = tenantContext.supplyAs(TenantIds.ACME, () ->
                 jdbc.queryForMap("SELECT current_schema() AS schema_name, tenant_security.current_tenant_id() AS tenant_id"));
 
         assertThat(session.get("schema_name")).isEqualTo(ACME_SCHEMA);
@@ -91,13 +87,13 @@ class SchemaIsolationModeIntegrationTest {
 
     @Test
     void repositoryOperationsStayInsideTheSelectedTenantSchema() {
-        final UUID acmeId = WithTenant.supplyAs(TenantIds.ACME, () ->
+        final UUID acmeId = tenantContext.supplyAs(TenantIds.ACME, () ->
                 repository.save(new DocumentEntity(TenantTestConstants.ACME_DOCUMENT_TITLE, "schema-acme")).getId());
-        final UUID globexId = WithTenant.supplyAs(TenantIds.GLOBEX, () ->
+        final UUID globexId = tenantContext.supplyAs(TenantIds.GLOBEX, () ->
                 repository.save(new DocumentEntity(TenantTestConstants.GLOBEX_DOCUMENT_TITLE, "schema-globex")).getId());
 
-        final var acmeView = WithTenant.supplyAs(TenantIds.ACME, repository::findAll);
-        final var globexView = WithTenant.supplyAs(TenantIds.GLOBEX, repository::findAll);
+        final var acmeView = tenantContext.supplyAs(TenantIds.ACME, repository::findAll);
+        final var globexView = tenantContext.supplyAs(TenantIds.GLOBEX, repository::findAll);
 
         assertThat(acmeView).singleElement().satisfies(document -> {
             assertThat(document.getId()).isEqualTo(acmeId);
@@ -111,12 +107,12 @@ class SchemaIsolationModeIntegrationTest {
 
     @Test
     void retargetingSearchPathInsideBorrowedConnectionCannotReadAnotherTenantSchema() {
-        WithTenant.runAs(TenantIds.ACME, () ->
+        tenantContext.runAs(TenantIds.ACME, () ->
                 repository.save(new DocumentEntity(TenantTestConstants.ACME_DOCUMENT_TITLE, "schema-acme")));
-        WithTenant.runAs(TenantIds.GLOBEX, () ->
+        tenantContext.runAs(TenantIds.GLOBEX, () ->
                 repository.save(new DocumentEntity(TenantTestConstants.GLOBEX_DOCUMENT_TITLE, "schema-globex")));
 
-        final long globexRowsSeenFromAcme = WithTenant.supplyAs(TenantIds.ACME, this::countRowsAfterSchemaRetarget);
+        final long globexRowsSeenFromAcme = tenantContext.supplyAs(TenantIds.ACME, this::countRowsAfterSchemaRetarget);
 
         assertThat(globexRowsSeenFromAcme)
                 .as("schema selection is not the only isolation layer; signed-claim RLS must still filter reads")

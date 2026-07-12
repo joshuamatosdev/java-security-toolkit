@@ -52,27 +52,32 @@ public record ProtectedResource(
         }
     }
 
-    /** The team-unplaced shape that predates the team dimension, kept for source compatibility. */
-    public ProtectedResource(
+    /** Creates a user-owned resource without team placement. */
+    public static ProtectedResource userOwned(
         final ResourceId resourceId,
         final TenantId tenantId,
         @Nullable final OrganizationId organizationId,
-        @Nullable final PrincipalType ownerPrincipalType,
-        @Nullable final String ownerPrincipalKey) {
-        this(resourceId, tenantId, organizationId, null, ownerPrincipalType, ownerPrincipalKey);
+        final String ownerPrincipalKey) {
+        return new ProtectedResource(
+            resourceId, tenantId, organizationId, null, PrincipalType.USER, ownerPrincipalKey);
     }
 
-    public ProtectedResource(
+    /** Creates an unowned resource without team placement. */
+    public static ProtectedResource unowned(
+        final ResourceId resourceId,
+        final TenantId tenantId,
+        @Nullable final OrganizationId organizationId) {
+        return new ProtectedResource(resourceId, tenantId, organizationId, null, null, null);
+    }
+
+    /** Creates a typed-principal-owned resource without team placement. */
+    public static ProtectedResource owned(
         final ResourceId resourceId,
         final TenantId tenantId,
         @Nullable final OrganizationId organizationId,
-        @Nullable final String ownerPrincipalKey) {
-        this(
-            resourceId,
-            tenantId,
-            organizationId,
-            null,
-            ownerPrincipalKey == null ? null : PrincipalType.USER,
-            ownerPrincipalKey);
+        final PrincipalType ownerPrincipalType,
+        final String ownerPrincipalKey) {
+        return new ProtectedResource(
+            resourceId, tenantId, organizationId, null, ownerPrincipalType, ownerPrincipalKey);
     }
 }

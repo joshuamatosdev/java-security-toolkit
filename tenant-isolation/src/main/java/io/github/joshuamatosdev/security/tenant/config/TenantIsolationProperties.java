@@ -21,182 +21,156 @@ import io.github.joshuamatosdev.security.tenant.binding.SystemTenantBoundary;
 import java.util.Collections;
 import java.util.LinkedHashMap;
 import java.util.Map;
+import java.util.Objects;
 import org.springframework.boot.context.properties.ConfigurationProperties;
 
 /**
- * Typed tenant-isolation topology loaded from YAML or environment-backed Spring configuration.
+ * Immutable, validated tenant-isolation topology loaded from Spring configuration.
  *
- * <p>The mode chooses the datasource strategy. The mode-specific tenant maps are deployment
- * topology: callers still supply a trusted {@link io.github.joshuamatosdev.security.tenant.binding.TenantContext},
- * and the datasource resolves that tenant against these allowlisted placements.
- *
- * @param mode active tenant placement strategy; defaults to {@link TenantIsolationMode#ID}
- * @param schema schema-per-tenant placement config
- * @param database database-per-tenant placement config
- *
- * <p>Why this exists: tenant placement is a security boundary, so validation rejects ambiguous or
- * unsafe configuration before any datasource can route traffic.
+ * <p>Raw configuration is converted to typed placements once at the construction boundary. Pool
+ * and routing code only receives those validated values; it does not repeat parsing or policy.
  */
 @ConfigurationProperties("tenant.isolation")
 @SystemTenantBoundary
-public record TenantIsolationProperties(
-        TenantIsolationMode mode,
-        SchemaIsolationProperties schema,
-        DatabaseIsolationProperties database) {
+public final class TenantIsolationProperties {
 
-    /**
-     * Applies defaults and validates the active strategy's required placement data.
-     */
-    public TenantIsolationProperties {
-        mode = mode == null ? TenantIsolationMode.ID : mode;
-        schema = schema == null ? SchemaIsolationProperties.EMPTY : schema;
-        database = database == null ? DatabaseIsolationProperties.EMPTY : database;
+    private final TenantIsolationMode mode;
+    private final SchemaIsolationProperties schema;
+    private final DatabaseIsolationProperties database;
+    private final Map<TenantId, String> schemaPlacements;
+    private final Map<TenantId, DatabasePlacement> databasePlacements;
 
-        if (mode == TenantIsolationMode.SCHEMA) {
-            schema.requireCompleteForSchemaMode();
+    /** Applies defaults and validates all supplied topology. */
+    public TenantIsolationProperties(
+            final TenantIsolationMode mode,
+            final SchemaIsolationProperties schema,
+            final DatabaseIsolationProperties database) {
+        this.mode = mode == null ? TenantIsolationMode.ID : mode;
+        this.schema = schema == null ? SchemaIsolationProperties.EMPTY : schema;
+        this.database = database == null ? DatabaseIsolationProperties.EMPTY : database;
+
+        if (this.mode == TenantIsolationMode.SCHEMA) {
+            requireTenantMap(this.schema.tenants(), "tenant.isolation.schema.tenants");
         }
-        if (mode == TenantIsolationMode.DATABASE) {
-            database.requireCompleteForDatabaseMode();
+        if (this.mode == TenantIsolationMode.DATABASE) {
+            requireTenantMap(this.database.tenants(), "tenant.isolation.database.tenants");
         }
+
+        this.schemaPlacements = this.schema.tenants().isEmpty()
+                ? Map.of()
+                : buildSchemaPlacements(this.schema.tenants());
+        this.databasePlacements = this.database.tenants().isEmpty()
+                ? Map.of()
+                : buildDatabasePlacements(this.database.tenants());
     }
 
-    /**
-     * Returns schema placements keyed by typed tenant identifier.
-     *
-     * @return immutable tenant-to-schema map
-     */
+    public TenantIsolationMode mode() {
+        return mode;
+    }
+
+    public SchemaIsolationProperties schema() {
+        return schema;
+    }
+
+    public DatabaseIsolationProperties database() {
+        return database;
+    }
+
+    /** Returns the already-validated schema placement table. */
     public Map<TenantId, String> schemaPlacements() {
-        return schema.toPlacements();
+        return schemaPlacements;
     }
 
-    /**
-     * Returns database placements keyed by typed tenant identifier.
-     *
-     * @return immutable tenant-to-database map
-     */
-    public Map<TenantId, DatabaseTenantProperties> databasePlacements() {
-        return database.toPlacements();
+    /** Returns the already-validated database placement table. */
+    public Map<TenantId, DatabasePlacement> databasePlacements() {
+        return databasePlacements;
     }
 
-    /**
-     * Schema-per-tenant placement config.
-     *
-     * @param tenants tenant alias to schema placement
-     */
+    private static Map<TenantId, String> buildSchemaPlacements(
+            final Map<String, SchemaTenantProperties> tenants) {
+        final Map<TenantId, String> placements = new LinkedHashMap<>();
+        final Map<String, TenantId> schemaOwners = new LinkedHashMap<>();
+        tenants.forEach((alias, tenant) -> {
+            final SchemaTenantProperties requiredTenant = requireTenantConfig(alias, tenant);
+            final TenantId tenantId = parseTenantId(alias, requiredTenant.id());
+            final String schema = requireSchemaName(alias, requiredTenant.schema());
+            if (placements.putIfAbsent(tenantId, schema) != null) {
+                throw new IllegalArgumentException(
+                        DUPLICATE_TENANT_ID_PREFIX + tenantId + " in tenant.isolation.schema.tenants");
+            }
+            if (schemaOwners.putIfAbsent(schema, tenantId) != null) {
+                throw new IllegalArgumentException(
+                        "duplicate schema name " + schema + " in tenant.isolation.schema.tenants");
+            }
+        });
+        return Collections.unmodifiableMap(placements);
+    }
+
+    private static Map<TenantId, DatabasePlacement> buildDatabasePlacements(
+            final Map<String, DatabaseTenantProperties> tenants) {
+        final Map<TenantId, DatabasePlacement> placements = new LinkedHashMap<>();
+        final Map<String, TenantId> jdbcUrlOwners = new LinkedHashMap<>();
+        final Map<String, TenantId> poolNameOwners = new LinkedHashMap<>();
+        tenants.forEach((alias, tenant) -> {
+            final DatabaseTenantProperties requiredTenant = requireTenantConfig(alias, tenant);
+            final TenantId tenantId = parseTenantId(alias, requiredTenant.id());
+            final String jdbcUrl = requireJdbcUrl(alias, requiredTenant.jdbcUrl());
+            final String username = requireTenantPoolUsername(alias, requiredTenant.username());
+            final String password =
+                    requireNonBlankWithoutEdgeWhitespace(alias, requiredTenant.password(), "password");
+            requireOptionalDriverClassName(alias, requiredTenant.driverClassName());
+            requirePoolName(alias, requiredTenant.poolName());
+            requirePositive(alias, requiredTenant.maximumPoolSize(), "maximum-pool-size");
+            requireNonNegative(alias, requiredTenant.minimumIdle(), "minimum-idle");
+            requireMinimumIdleNotAboveMaximum(
+                    alias, requiredTenant.minimumIdle(), requiredTenant.maximumPoolSize());
+            final String poolName = databasePoolName(tenantId, requiredTenant);
+            final DatabasePlacement placement = new DatabasePlacement(
+                    jdbcUrl,
+                    username,
+                    password,
+                    requiredTenant.driverClassName(),
+                    poolName,
+                    requiredTenant.maximumPoolSize(),
+                    requiredTenant.minimumIdle());
+            if (placements.putIfAbsent(tenantId, placement) != null) {
+                throw new IllegalArgumentException(
+                        DUPLICATE_TENANT_ID_PREFIX + tenantId + " in tenant.isolation.database.tenants");
+            }
+            if (jdbcUrlOwners.putIfAbsent(jdbcUrl, tenantId) != null) {
+                throw new IllegalArgumentException(
+                        "duplicate jdbc-url " + jdbcUrl + " in tenant.isolation.database.tenants");
+            }
+            if (poolNameOwners.putIfAbsent(poolName, tenantId) != null) {
+                throw new IllegalArgumentException(
+                        "duplicate pool-name " + poolName + " in tenant.isolation.database.tenants");
+            }
+        });
+        return Collections.unmodifiableMap(placements);
+    }
+
+    /** Schema-per-tenant source configuration. */
     public record SchemaIsolationProperties(Map<String, SchemaTenantProperties> tenants) {
         static final SchemaIsolationProperties EMPTY = new SchemaIsolationProperties(Map.of());
 
-        /**
-         * Normalizes the tenant map.
-         */
         public SchemaIsolationProperties {
             tenants = immutableCopy(tenants);
         }
-
-        private void requireCompleteForSchemaMode() {
-            requireTenantMap(tenants, "tenant.isolation.schema.tenants");
-            toPlacements();
-        }
-
-        private Map<TenantId, String> toPlacements() {
-            final Map<TenantId, String> placements = new LinkedHashMap<>();
-            final Map<String, TenantId> schemaOwners = new LinkedHashMap<>();
-            tenants.forEach((alias, tenant) -> {
-                final SchemaTenantProperties requiredTenant = requireTenantConfig(alias, tenant);
-                final TenantId tenantId = parseTenantId(alias, requiredTenant.id());
-                final String schema = requireSchemaName(alias, requiredTenant.schema());
-                final String prior = placements.putIfAbsent(tenantId, schema);
-                if (prior != null) {
-                    throw new IllegalArgumentException(
-                            DUPLICATE_TENANT_ID_PREFIX + tenantId + " in tenant.isolation.schema.tenants");
-                }
-                final TenantId priorOwner = schemaOwners.putIfAbsent(schema, tenantId);
-                if (priorOwner != null) {
-                    throw new IllegalArgumentException(
-                            "duplicate schema name " + schema + " in tenant.isolation.schema.tenants");
-                }
-            });
-            return Collections.unmodifiableMap(placements);
-        }
     }
 
-    /**
-     * One tenant's schema placement.
-     *
-     * @param id canonical tenant UUID
-     * @param schema database schema name to select for that tenant
-     */
+    /** One tenant's schema source configuration. */
     public record SchemaTenantProperties(String id, String schema) {}
 
-    /**
-     * Database-per-tenant placement config.
-     *
-     * @param tenants tenant alias to database placement
-     */
+    /** Database-per-tenant source configuration. */
     public record DatabaseIsolationProperties(Map<String, DatabaseTenantProperties> tenants) {
         static final DatabaseIsolationProperties EMPTY = new DatabaseIsolationProperties(Map.of());
 
-        /**
-         * Normalizes the tenant map.
-         */
         public DatabaseIsolationProperties {
             tenants = immutableCopy(tenants);
         }
-
-        private void requireCompleteForDatabaseMode() {
-            requireTenantMap(tenants, "tenant.isolation.database.tenants");
-            toPlacements();
-        }
-
-        private Map<TenantId, DatabaseTenantProperties> toPlacements() {
-            final Map<TenantId, DatabaseTenantProperties> placements = new LinkedHashMap<>();
-            final Map<String, TenantId> jdbcUrlOwners = new LinkedHashMap<>();
-            final Map<String, TenantId> poolNameOwners = new LinkedHashMap<>();
-            tenants.forEach((alias, tenant) -> {
-                final DatabaseTenantProperties requiredTenant = requireTenantConfig(alias, tenant);
-                final TenantId tenantId = parseTenantId(alias, requiredTenant.id());
-                final String jdbcUrl = requireJdbcUrl(alias, requiredTenant.jdbcUrl());
-                requireTenantPoolUsername(alias, requiredTenant.username());
-                requireNonBlankWithoutEdgeWhitespace(alias, requiredTenant.password(), "password");
-                requireOptionalDriverClassName(alias, requiredTenant.driverClassName());
-                requirePoolName(alias, requiredTenant.poolName());
-                requirePositive(alias, requiredTenant.maximumPoolSize(), "maximum-pool-size");
-                requireNonNegative(alias, requiredTenant.minimumIdle(), "minimum-idle");
-                requireMinimumIdleNotAboveMaximum(
-                        alias, requiredTenant.minimumIdle(), requiredTenant.maximumPoolSize());
-                final DatabaseTenantProperties prior = placements.putIfAbsent(tenantId, requiredTenant);
-                if (prior != null) {
-                    throw new IllegalArgumentException(
-                            DUPLICATE_TENANT_ID_PREFIX + tenantId + " in tenant.isolation.database.tenants");
-                }
-                final TenantId priorJdbcOwner = jdbcUrlOwners.putIfAbsent(jdbcUrl, tenantId);
-                if (priorJdbcOwner != null) {
-                    throw new IllegalArgumentException(
-                            "duplicate jdbc-url " + jdbcUrl + " in tenant.isolation.database.tenants");
-                }
-                final String poolName = databasePoolName(requiredTenant);
-                final TenantId priorPoolOwner = poolNameOwners.putIfAbsent(poolName, tenantId);
-                if (priorPoolOwner != null) {
-                    throw new IllegalArgumentException(
-                            "duplicate pool-name " + poolName + " in tenant.isolation.database.tenants");
-                }
-            });
-            return Collections.unmodifiableMap(placements);
-        }
     }
 
-    /**
-     * One tenant's database placement.
-     *
-     * @param id canonical tenant UUID
-     * @param jdbcUrl JDBC URL for that tenant's database
-     * @param username login role for that tenant's database
-     * @param password password for {@code username}; bind from a secret source, not committed YAML
-     * @param driverClassName optional JDBC driver class name
-     * @param poolName optional Hikari pool name
-     * @param maximumPoolSize optional Hikari maximum pool size
-     * @param minimumIdle optional Hikari minimum idle count
-     */
+    /** One tenant's database source configuration. */
     public record DatabaseTenantProperties(
             String id,
             String jdbcUrl,
@@ -206,4 +180,60 @@ public record TenantIsolationProperties(
             String poolName,
             Integer maximumPoolSize,
             Integer minimumIdle) {}
+
+    /** Validated database placement consumed by pool creation. */
+    public static final class DatabasePlacement {
+        private final String jdbcUrl;
+        private final String username;
+        private final String password;
+        private final String driverClassName;
+        private final String poolName;
+        private final Integer maximumPoolSize;
+        private final Integer minimumIdle;
+
+        private DatabasePlacement(
+                final String jdbcUrl,
+                final String username,
+                final String password,
+                final String driverClassName,
+                final String poolName,
+                final Integer maximumPoolSize,
+                final Integer minimumIdle) {
+            this.jdbcUrl = Objects.requireNonNull(jdbcUrl, "jdbcUrl");
+            this.username = Objects.requireNonNull(username, "username");
+            this.password = Objects.requireNonNull(password, "password");
+            this.driverClassName = driverClassName;
+            this.poolName = Objects.requireNonNull(poolName, "poolName");
+            this.maximumPoolSize = maximumPoolSize;
+            this.minimumIdle = minimumIdle;
+        }
+
+        public String jdbcUrl() {
+            return jdbcUrl;
+        }
+
+        public String username() {
+            return username;
+        }
+
+        public String password() {
+            return password;
+        }
+
+        public String driverClassName() {
+            return driverClassName;
+        }
+
+        public String poolName() {
+            return poolName;
+        }
+
+        public Integer maximumPoolSize() {
+            return maximumPoolSize;
+        }
+
+        public Integer minimumIdle() {
+            return minimumIdle;
+        }
+    }
 }

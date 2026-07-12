@@ -5,11 +5,9 @@ import io.github.joshuamatosdev.security.tenant.testfixtures.AbstractRlsTest;
 import io.github.joshuamatosdev.security.tenant.TenantIds;
 
 import io.github.joshuamatosdev.security.shared.TenantId;
-import io.github.joshuamatosdev.security.tenant.binding.TenantContext;
 import io.github.joshuamatosdev.security.tenant.persistence.DocumentEntity;
 import io.github.joshuamatosdev.security.tenant.persistence.DocumentRepository;
 import io.github.joshuamatosdev.security.tenant.testfixtures.TenantTestConstants;
-import io.github.joshuamatosdev.security.tenant.testfixtures.WithTenant;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.jdbc.core.JdbcTemplate;
@@ -61,7 +59,7 @@ class RlsIsolationTest extends AbstractRlsTest {
         seedAsSuperuser(UUID.randomUUID(), TenantIds.GLOBEX,
                 TenantTestConstants.GLOBEX_DOCUMENT_TITLE, TenantTestConstants.DOCUMENT_BODY_Y);
 
-        var acmeView = WithTenant.supplyAs(TenantIds.ACME, repository::findAll);
+        var acmeView = tenantContext.supplyAs(TenantIds.ACME, repository::findAll);
 
         assertThat(acmeView).hasSize(1);
         assertThat(acmeView.getFirst().getTenantId()).isEqualTo(TenantIds.ACME.value());
@@ -74,7 +72,7 @@ class RlsIsolationTest extends AbstractRlsTest {
         seedAsSuperuser(UUID.randomUUID(), TenantIds.GLOBEX,
                 TenantTestConstants.GLOBEX_DOCUMENT_TITLE, TenantTestConstants.DOCUMENT_BODY_Y);
 
-        long all = TenantContext.supplyAsSystemOps(repository::count);
+        long all = tenantContext.supplyAsSystemOps(repository::count);
 
         assertThat(all).isEqualTo(2L);
     }
@@ -129,7 +127,7 @@ class RlsIsolationTest extends AbstractRlsTest {
         seedAsSuperuser(UUID.randomUUID(), TenantIds.GLOBEX,
                 TenantTestConstants.GLOBEX_DOCUMENT_TITLE, TenantTestConstants.DOCUMENT_BODY_Y);
 
-        WithTenant.runAs(TenantIds.ACME, () -> {
+        tenantContext.runAs(TenantIds.ACME, () -> {
             try (Connection c = dataSource.getConnection();
                     Statement st = c.createStatement()) {
                 try (var rs = st.executeQuery(COUNT_DOCUMENTS_SQL)) {
@@ -155,27 +153,27 @@ class RlsIsolationTest extends AbstractRlsTest {
 
     @Test
     void systemOpsIsReadOnly() {
-        assertThatThrownBy(() -> TenantContext.runAsSystemOps(
+        assertThatThrownBy(() -> tenantContext.runAsSystemOps(
                         () -> repository.save(new DocumentEntity("ops write", "z"))))
                 .hasStackTraceContaining(PERMISSION_DENIED_MESSAGE);
     }
 
     @Test
     void stampsTenantFromSessionOnInsert() {
-        var id = WithTenant.supplyAs(
+        var id = tenantContext.supplyAs(
                 TenantIds.ACME, () -> repository.save(new DocumentEntity(FRESH_DOCUMENT_TITLE, "z")).getId());
 
-        var asAcme = WithTenant.supplyAs(TenantIds.ACME, () -> repository.findById(id));
+        var asAcme = tenantContext.supplyAs(TenantIds.ACME, () -> repository.findById(id));
         assertThat(asAcme).isPresent();
         assertThat(asAcme.get().getTenantId()).isEqualTo(TenantIds.ACME.value());
 
-        var asGlobex = WithTenant.supplyAs(TenantIds.GLOBEX, () -> repository.findById(id));
+        var asGlobex = tenantContext.supplyAs(TenantIds.GLOBEX, () -> repository.findById(id));
         assertThat(asGlobex).isEmpty();
     }
 
     @Test
     void databaseMintsVersion7PrimaryKeyOnInsert() {
-        var saved = WithTenant.supplyAs(
+        var saved = tenantContext.supplyAs(
                 TenantIds.ACME, () -> repository.save(new DocumentEntity(FRESH_DOCUMENT_TITLE, "z")));
 
         assertThat(saved.getId())
@@ -190,7 +188,7 @@ class RlsIsolationTest extends AbstractRlsTest {
     void rejectsCallerSuppliedPrimaryKeyOnInsert() {
         var jdbc = new JdbcTemplate(dataSource);
 
-        assertThatThrownBy(() -> WithTenant.runAs(TenantIds.ACME, () -> jdbc.update(
+        assertThatThrownBy(() -> tenantContext.runAs(TenantIds.ACME, () -> jdbc.update(
                         "INSERT INTO document (id, title, body) VALUES (?, ?, ?)",
                         UUID.randomUUID(),
                         "caller id",
@@ -200,11 +198,11 @@ class RlsIsolationTest extends AbstractRlsTest {
 
     @Test
     void rejectsPrimaryKeyUpdate() {
-        var id = WithTenant.supplyAs(
+        var id = tenantContext.supplyAs(
                 TenantIds.ACME, () -> repository.save(new DocumentEntity(FRESH_DOCUMENT_TITLE, "z")).getId());
         var jdbc = new JdbcTemplate(dataSource);
 
-        assertThatThrownBy(() -> WithTenant.runAs(TenantIds.ACME, () -> jdbc.update(
+        assertThatThrownBy(() -> tenantContext.runAs(TenantIds.ACME, () -> jdbc.update(
                         "UPDATE document SET id = ? WHERE id = ?",
                         UUID.randomUUID(),
                         id)))
@@ -215,7 +213,7 @@ class RlsIsolationTest extends AbstractRlsTest {
     void rejectsCallerSuppliedTenantIdOnInsert() {
         var jdbc = new JdbcTemplate(dataSource);
 
-        assertThatThrownBy(() -> WithTenant.runAs(TenantIds.ACME, () -> jdbc.update(
+        assertThatThrownBy(() -> tenantContext.runAs(TenantIds.ACME, () -> jdbc.update(
                         "INSERT INTO document (tenant_id, title, body) VALUES (?, ?, ?)",
                         TenantIds.GLOBEX.value(),
                         "smuggled",

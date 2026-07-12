@@ -21,6 +21,6 @@ body:
     id: contract
     attributes:
       label: Security contract
-      description: Which boundary, test, ADR, or public API should define correctness?
+      description: Which boundary, test, module document, or public API should define correctness?
     validations:
       required: true

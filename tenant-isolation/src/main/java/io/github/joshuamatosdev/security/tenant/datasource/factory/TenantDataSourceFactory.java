@@ -4,6 +4,7 @@ import com.zaxxer.hikari.HikariDataSource;
 import io.github.joshuamatosdev.security.shared.TenantId;
 import io.github.joshuamatosdev.security.tenant.binding.OrganizationScope;
 import io.github.joshuamatosdev.security.tenant.binding.SystemTenantBoundary;
+import io.github.joshuamatosdev.security.tenant.binding.TenantBindingSource;
 import io.github.joshuamatosdev.security.tenant.config.TenantIsolationMode;
 import io.github.joshuamatosdev.security.tenant.config.TenantIsolationProperties;
 import io.github.joshuamatosdev.security.tenant.datasource.pool.HikariTenantPoolInspection;
@@ -83,46 +84,55 @@ final class TenantDataSourceFactory {
     DataSource dataSource(
             final Supplier<HikariDataSource> runtimePool,
             final Supplier<HikariDataSource> systemOpsPool,
-            final TenantPoolInspection tenantPoolInspection) {
+            final TenantPoolInspection tenantPoolInspection,
+            final TenantBindingSource bindingSource) {
         return switch (isolationProperties.mode()) {
-            case ID -> idIsolationDataSource(runtimePool, systemOpsPool, tenantPoolInspection);
-            case SCHEMA -> schemaIsolationDataSource(runtimePool, tenantPoolInspection);
-            case DATABASE -> databaseIsolationDataSource(tenantPoolInspection);
+            case ID -> idIsolationDataSource(runtimePool, systemOpsPool, tenantPoolInspection, bindingSource);
+            case SCHEMA -> schemaIsolationDataSource(runtimePool, tenantPoolInspection, bindingSource);
+            case DATABASE -> databaseIsolationDataSource(tenantPoolInspection, bindingSource);
         };
     }
 
     private DataSource idIsolationDataSource(
             final Supplier<HikariDataSource> runtimePool,
             final Supplier<HikariDataSource> systemOpsPool,
-            final TenantPoolInspection tenantPoolInspection) {
+            final TenantPoolInspection tenantPoolInspection,
+            final TenantBindingSource bindingSource) {
         return new TenantSessionDataSourceProxy(
-                new SystemOpsRoutingDataSource(runtimePool.get(), systemOpsPool.get()),
+                new SystemOpsRoutingDataSource(runtimePool.get(), systemOpsPool.get(), bindingSource),
                 ID_POOL_NAME,
                 claimSignerFactory.tenantClaimSigner(),
+                bindingSource,
                 organizationScope,
                 tenantPoolInspection);
     }
 
     private DataSource schemaIsolationDataSource(
             final Supplier<HikariDataSource> runtimePool,
-            final TenantPoolInspection tenantPoolInspection) {
+            final TenantPoolInspection tenantPoolInspection,
+            final TenantBindingSource bindingSource) {
         return new TenantSessionDataSourceProxy(
                 new TenantSchemaDataSource(
                         runtimePool.get(),
                         isolationProperties.schemaPlacements(),
-                        tenantPoolInspection),
+                        tenantPoolInspection,
+                        bindingSource),
                 SCHEMA_POOL_NAME,
                 claimSignerFactory.tenantClaimSigner(),
+                bindingSource,
                 organizationScope,
                 tenantPoolInspection);
     }
 
-    private DataSource databaseIsolationDataSource(final TenantPoolInspection tenantPoolInspection) {
+    private DataSource databaseIsolationDataSource(
+            final TenantPoolInspection tenantPoolInspection,
+            final TenantBindingSource bindingSource) {
         final Map<TenantId, HikariDataSource> pools = databasePools();
         return new TenantSessionDataSourceProxy(
-                new TenantDatabaseRoutingDataSource(pools, tenantPoolInspection),
+                new TenantDatabaseRoutingDataSource(pools, tenantPoolInspection, bindingSource),
                 DATABASE_POOL_NAME,
                 claimSignerFactory.tenantClaimSigner(),
+                bindingSource,
                 organizationScope,
                 tenantPoolInspection);
     }
@@ -134,4 +144,3 @@ final class TenantDataSourceFactory {
         return databasePools;
     }
 }
-

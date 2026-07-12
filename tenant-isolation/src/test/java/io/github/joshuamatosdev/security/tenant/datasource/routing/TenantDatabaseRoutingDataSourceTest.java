@@ -17,7 +17,6 @@ import java.sql.SQLFeatureNotSupportedException;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicInteger;
 import javax.sql.DataSource;
-import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.jdbc.datasource.AbstractDataSource;
 
@@ -29,10 +28,7 @@ import org.springframework.jdbc.datasource.AbstractDataSource;
  */
 class TenantDatabaseRoutingDataSourceTest {
 
-    @AfterEach
-    void clearTenantContext() {
-        TenantContext.clear();
-    }
+    private final TenantContext tenantContext = new TenantContext(() -> false);
 
     @Test
     void routesToTheCurrentTenantsDatabasePool() throws Exception {
@@ -41,10 +37,11 @@ class TenantDatabaseRoutingDataSourceTest {
         final Connection acmeConnection = mock(Connection.class);
         final TenantDatabaseRoutingDataSource dataSource = new TenantDatabaseRoutingDataSource(
                 Map.of(TenantIds.ACME, acmePool, TenantIds.GLOBEX, globexPool),
-                TenantPoolInspection.NONE);
+                TenantPoolInspection.NONE,
+                tenantContext);
         when(acmePool.getConnection()).thenReturn(acmeConnection);
 
-        TenantContext.runAs(TenantIds.ACME, () -> {
+        tenantContext.runAs(TenantIds.ACME, () -> {
             try {
                 assertThat(dataSource.getConnection()).isSameAs(acmeConnection);
             } catch (Exception ex) {
@@ -61,9 +58,10 @@ class TenantDatabaseRoutingDataSourceTest {
         final DataSource acmePool = mock(DataSource.class);
         final TenantDatabaseRoutingDataSource dataSource = new TenantDatabaseRoutingDataSource(
                 Map.of(TenantIds.ACME, acmePool),
-                TenantPoolInspection.NONE);
+                TenantPoolInspection.NONE,
+                tenantContext);
 
-        TenantContext.runAs(TenantIds.GLOBEX, () -> assertThatThrownBy(dataSource::getConnection)
+        tenantContext.runAs(TenantIds.GLOBEX, () -> assertThatThrownBy(dataSource::getConnection)
                 .isInstanceOf(SecurityException.class)
                 .hasMessageContaining("no database placement configured"));
 
@@ -76,7 +74,8 @@ class TenantDatabaseRoutingDataSourceTest {
 
         assertThatThrownBy(() -> new TenantDatabaseRoutingDataSource(
                         Map.of(TenantIds.ACME, sharedPool, TenantIds.GLOBEX, sharedPool),
-                        TenantPoolInspection.NONE))
+                        TenantPoolInspection.NONE,
+                        tenantContext))
                 .isInstanceOf(IllegalArgumentException.class)
                 .hasMessageContaining("duplicate database pool");
     }
@@ -86,9 +85,10 @@ class TenantDatabaseRoutingDataSourceTest {
         final DataSource acmePool = mock(DataSource.class);
         final TenantDatabaseRoutingDataSource dataSource = new TenantDatabaseRoutingDataSource(
                 Map.of(TenantIds.ACME, acmePool),
-                TenantPoolInspection.NONE);
+                TenantPoolInspection.NONE,
+                tenantContext);
 
-        TenantContext.runAsSystemOps(() -> assertThatThrownBy(dataSource::getConnection)
+        tenantContext.runAsSystemOps(() -> assertThatThrownBy(dataSource::getConnection)
                 .isInstanceOf(SecurityException.class)
                 .hasMessageContaining("database isolation cannot use one ambient system-ops connection"));
     }
@@ -98,7 +98,8 @@ class TenantDatabaseRoutingDataSourceTest {
         final DataSource acmePool = mock(DataSource.class);
         final TenantDatabaseRoutingDataSource dataSource = new TenantDatabaseRoutingDataSource(
                 Map.of(TenantIds.ACME, acmePool),
-                TenantPoolInspection.NONE);
+                TenantPoolInspection.NONE,
+                tenantContext);
 
         assertThatThrownBy(() -> dataSource.getConnection(
                         TenantTestConstants.POSTGRES_USERNAME,
@@ -114,7 +115,8 @@ class TenantDatabaseRoutingDataSourceTest {
         final EqualCloseableDataSource globexPool = new EqualCloseableDataSource(closes);
         final TenantDatabaseRoutingDataSource dataSource = new TenantDatabaseRoutingDataSource(
                 Map.of(TenantIds.ACME, acmePool, TenantIds.GLOBEX, globexPool),
-                TenantPoolInspection.NONE);
+                TenantPoolInspection.NONE,
+                tenantContext);
 
         dataSource.close();
 

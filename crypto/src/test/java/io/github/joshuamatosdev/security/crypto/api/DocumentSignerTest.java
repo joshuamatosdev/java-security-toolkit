@@ -3,6 +3,7 @@ package io.github.joshuamatosdev.security.crypto.api;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
+import io.github.joshuamatosdev.security.crypto.internal.DefaultSignatureEnvelopeCodec;
 import io.github.joshuamatosdev.security.crypto.jca.JcaSignatureProviders;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
@@ -16,22 +17,21 @@ class DocumentSignerTest {
 
     private final SignatureProviderRegistry registry =
             new SignatureProviderRegistry(
-                    List.of(
-                            JcaSignatureProviders.ed25519(),
-                            JcaSignatureProviders.ecdsaP256(),
-                            JcaSignatureProviders.postQuantumPlaceholder()));
+                    List.of(JcaSignatureProviders.ed25519(), JcaSignatureProviders.ecdsaP256()));
     private final DocumentSigner signer = new DocumentSigner(registry);
 
     @Test
     void signAndVerifyRoundTripUnderEveryAlgorithm() {
-        for (final SignatureAlgorithm algorithm : SignatureAlgorithm.values()) {
-            final KeyHandle key = registry.resolve(algorithm).generateKey("key-" + algorithm.name());
+        for (final SignatureAlgorithm algorithm :
+                List.of(SignatureAlgorithm.ED25519, SignatureAlgorithm.ECDSA_P256)) {
+            final String keyId = "key-" + algorithm.joseAlg();
+            final KeyHandle key = registry.resolve(algorithm).generateKey(keyId);
 
             final SignedDocument signed = signer.sign(key, DOCUMENT);
 
-            assertThat(signer.verify(signed)).isTrue();
+            assertThat(signer.verify(signed).isVerified()).isTrue();
             assertThat(signed.alg()).isEqualTo(algorithm.joseAlg());
-            assertThat(signed.keyId()).isEqualTo("key-" + algorithm.name());
+            assertThat(signed.keyId()).isEqualTo(keyId);
         }
     }
 
@@ -41,7 +41,7 @@ class DocumentSignerTest {
         final SignedDocument signed = signer.sign(key, DOCUMENT);
         final TrustAnchor anchor = TrustAnchor.pinnedKeys(Map.of("k1", key.publicKey()));
 
-        assertThat(signer.verify(signed, anchor)).isTrue();
+        assertThat(signer.verify(signed, anchor).isVerified()).isTrue();
     }
 
     @Test
@@ -54,10 +54,10 @@ class DocumentSignerTest {
                 signer.sign(attacker, "transcript of fraud".getBytes(StandardCharsets.UTF_8));
         final TrustAnchor anchor = TrustAnchor.pinnedKeys(Map.of("k1", legitimate.publicKey()));
 
-        assertThat(signer.verify(forged))
+        assertThat(signer.verify(forged).isVerified())
                 .as("integrity-only verify accepts the forgery — this is the documented gap")
                 .isTrue();
-        assertThat(signer.verify(forged, anchor))
+        assertThat(signer.verify(forged, anchor).isVerified())
                 .as("the anchored verify rejects the untrusted key before any signature check")
                 .isFalse();
     }
@@ -68,23 +68,18 @@ class DocumentSignerTest {
         final SignedDocument signed = signer.sign(key, DOCUMENT);
         final TrustAnchor anchor = TrustAnchor.pinnedKeys(Map.of("k1", key.publicKey()));
 
-        assertThat(signer.verify(signed, anchor)).isFalse();
+        assertThat(signer.verify(signed, anchor).isVerified()).isFalse();
     }
 
     @Test
     void trustAnchoredVerifyAuditsTheUntrustedKeyReason() {
         final List<SignatureAuditEvent> events = new ArrayList<>();
-        final DocumentSigner audited = new DocumentSigner(
-                registry,
-                null,
-                null,
-                null,
-                new io.github.joshuamatosdev.security.crypto.internal.DefaultSignatureEnvelopeCodec(),
-                events::add);
+        final DocumentSigner audited =
+                new DocumentSigner(registry, new DefaultSignatureEnvelopeCodec(), events::add);
         final KeyHandle key = registry.resolve(SignatureAlgorithm.ED25519).generateKey("k1");
         final SignedDocument signed = audited.sign(key, DOCUMENT);
 
-        assertThat(audited.verify(signed, TrustAnchor.pinnedKeys(Map.of()))).isFalse();
+        assertThat(audited.verify(signed, TrustAnchor.pinnedKeys(Map.of())).isVerified()).isFalse();
         assertThat(events.getLast().reason()).isEqualTo("untrusted key");
     }
 
@@ -98,48 +93,46 @@ class DocumentSignerTest {
                         signed.keyId(),
                         signed.publicKey(),
                         "transcript of fraud".getBytes(StandardCharsets.UTF_8),
-                        signed.signature())))
+                        signed.signature())).isVerified())
                 .isFalse();
         final byte[] tamperedSignature = signed.signature();
         tamperedSignature[tamperedSignature.length - 1] ^= 0x01;
         assertThat(signer.verify(new SignedDocument(
-                        signed.alg(), signed.keyId(), signed.publicKey(), signed.payload(), tamperedSignature)))
+                        signed.alg(), signed.keyId(), signed.publicKey(), signed.payload(), tamperedSignature))
+                        .isVerified())
                 .isFalse();
         assertThat(signer.verify(new SignedDocument(
-                        signed.alg(), "attacker-key-id", signed.publicKey(), signed.payload(), signed.signature())))
+                        signed.alg(), "attacker-key-id", signed.publicKey(), signed.payload(), signed.signature()))
+                        .isVerified())
                 .isFalse();
         assertThat(signer.verify(new SignedDocument(
                         SignatureAlgorithm.ECDSA_P256.joseAlg(),
                         signed.keyId(),
                         signed.publicKey(),
                         signed.payload(),
-                        signed.signature())))
+                        signed.signature())).isVerified())
                 .isFalse();
     }
 
     @Test
     void defaultSigningUsesConfiguredAlgorithmResolverAndKeyIdStrategy() {
         final KeyHandle key = registry.resolve(SignatureAlgorithm.ED25519).generateKey("default-k1");
-        final DocumentSigner defaultSigner = new DocumentSigner(
-                registry,
+        final DefaultDocumentSigner defaultSigner = new DefaultDocumentSigner(
+                signer,
                 SignatureAlgorithm.ED25519,
                 (algorithm, keyId) -> key,
-                algorithm -> "default-k1",
-                (alg, keyId, publicKey, payload) -> new io.github.joshuamatosdev.security.crypto.internal
-                        .DefaultSignatureEnvelopeCodec()
-                        .signingInput(alg, keyId, publicKey, payload),
-                SignatureAuditSink.noop());
+                algorithm -> "default-k1");
 
         final SignedDocument signed = defaultSigner.sign(DOCUMENT);
 
         assertThat(signed.keyId()).isEqualTo("default-k1");
-        assertThat(defaultSigner.verify(signed)).isTrue();
+        assertThat(signer.verify(signed).isVerified()).isTrue();
     }
 
     @Test
     void defaultSigningRejectsResolverKeysForTheWrongAlgorithm() {
         final KeyHandle wrongAlgorithm = registry.resolve(SignatureAlgorithm.ECDSA_P256).generateKey("default-k1");
-        final DocumentSigner defaultSigner =
+        final DefaultDocumentSigner defaultSigner =
                 defaultSigner(SignatureAlgorithm.ED25519, "default-k1", wrongAlgorithm);
 
         assertThatThrownBy(() -> defaultSigner.sign(DOCUMENT))
@@ -150,7 +143,7 @@ class DocumentSignerTest {
     @Test
     void defaultSigningRejectsResolverKeysForTheWrongKeyId() {
         final KeyHandle wrongKeyId = registry.resolve(SignatureAlgorithm.ED25519).generateKey("rotated-k2");
-        final DocumentSigner defaultSigner =
+        final DefaultDocumentSigner defaultSigner =
                 defaultSigner(SignatureAlgorithm.ED25519, "default-k1", wrongKeyId);
 
         assertThatThrownBy(() -> defaultSigner.sign(DOCUMENT))
@@ -160,26 +153,17 @@ class DocumentSignerTest {
 
     @Test
     void defaultSigningRejectsBlankCurrentKeyIdBeforeResolvingAKey() {
-        final DocumentSigner defaultSigner = new DocumentSigner(
-                registry,
+        final DefaultDocumentSigner defaultSigner = new DefaultDocumentSigner(
+                signer,
                 SignatureAlgorithm.ED25519,
                 (algorithm, keyId) -> {
                     throw new AssertionError("key resolver should not be called for a blank key id");
                 },
-                algorithm -> " ",
-                new io.github.joshuamatosdev.security.crypto.internal.DefaultSignatureEnvelopeCodec(),
-                SignatureAuditSink.noop());
+                algorithm -> " ");
 
         assertThatThrownBy(() -> defaultSigner.sign(DOCUMENT))
                 .isInstanceOf(IllegalStateException.class)
                 .hasMessage("default key id must not be blank");
-    }
-
-    @Test
-    void defaultSigningFailsFastUntilDefaultCollaboratorsAreConfigured() {
-        assertThatThrownBy(() -> signer.sign(DOCUMENT))
-                .isInstanceOf(IllegalStateException.class)
-                .hasMessageContaining("Default signing requires");
     }
 
     @Test
@@ -190,8 +174,10 @@ class DocumentSignerTest {
                 new SignedDocument("none", signed.keyId(), signed.publicKey(), signed.payload(), signed.signature());
         final DocumentSigner emptySigner = new DocumentSigner(new SignatureProviderRegistry(List.of()));
 
-        assertThat(signer.verify(unknownAlgorithm)).isFalse();
-        assertThat(emptySigner.verify(signed)).isFalse();
+        assertThat(signer.verify(unknownAlgorithm))
+                .isEqualTo(SignatureVerification.rejected(SignatureVerification.Failure.PROVIDER_MISSING));
+        assertThat(emptySigner.verify(signed))
+                .isEqualTo(SignatureVerification.rejected(SignatureVerification.Failure.PROVIDER_MISSING));
     }
 
     @Test
@@ -218,10 +204,7 @@ class DocumentSignerTest {
         final List<SignatureAuditEvent> events = new ArrayList<>();
         final DocumentSigner brokenSigner = new DocumentSigner(
                 new SignatureProviderRegistry(List.of(brokenProvider)),
-                null,
-                null,
-                null,
-                new io.github.joshuamatosdev.security.crypto.internal.DefaultSignatureEnvelopeCodec(),
+                new DefaultSignatureEnvelopeCodec(),
                 events::add);
 
         assertThatThrownBy(() -> brokenSigner.verify(signed))
@@ -258,13 +241,8 @@ class DocumentSignerTest {
             }
         };
         final List<SignatureAuditEvent> events = new ArrayList<>();
-        final DocumentSigner audited = new DocumentSigner(
-                registry,
-                null,
-                null,
-                null,
-                new io.github.joshuamatosdev.security.crypto.internal.DefaultSignatureEnvelopeCodec(),
-                events::add);
+        final DocumentSigner audited =
+                new DocumentSigner(registry, new DefaultSignatureEnvelopeCodec(), events::add);
 
         // Before the up-front validation, the malformed key id detonated inside the failure
         // recording itself: the audit event's validation replaced the root cause and delivered
@@ -278,30 +256,23 @@ class DocumentSignerTest {
     @Test
     void auditSinkReceivesSignAndVerifyEvents() {
         final List<SignatureAuditEvent> events = new ArrayList<>();
-        final DocumentSigner audited = new DocumentSigner(
-                registry,
-                null,
-                null,
-                null,
-                new io.github.joshuamatosdev.security.crypto.internal.DefaultSignatureEnvelopeCodec(),
-                events::add);
+        final DocumentSigner audited =
+                new DocumentSigner(registry, new DefaultSignatureEnvelopeCodec(), events::add);
         final SignedDocument signed =
                 audited.sign(registry.resolve(SignatureAlgorithm.ED25519).generateKey("k1"), DOCUMENT);
 
-        assertThat(audited.verify(signed)).isTrue();
+        assertThat(audited.verify(signed).isVerified()).isTrue();
         assertThat(events)
                 .extracting(SignatureAuditEvent::operation)
                 .containsExactly(SignatureAuditEvent.Operation.SIGN, SignatureAuditEvent.Operation.VERIFY);
     }
 
-    private DocumentSigner defaultSigner(
+    private DefaultDocumentSigner defaultSigner(
             final SignatureAlgorithm algorithm, final String currentKeyId, final KeyHandle resolvedKey) {
-        return new DocumentSigner(
-                registry,
+        return new DefaultDocumentSigner(
+                signer,
                 algorithm,
                 (requestedAlgorithm, requestedKeyId) -> resolvedKey,
-                requestedAlgorithm -> currentKeyId,
-                new io.github.joshuamatosdev.security.crypto.internal.DefaultSignatureEnvelopeCodec(),
-                SignatureAuditSink.noop());
+                requestedAlgorithm -> currentKeyId);
     }
 }

@@ -1,7 +1,7 @@
 plugins {
     `java-library`
-    alias(libs.plugins.spring.dep.management)
-    alias(libs.plugins.cyclonedx.bom)
+    id("io.spring.dependency-management")
+    id("org.cyclonedx.bom")
 }
 
 dependencies {

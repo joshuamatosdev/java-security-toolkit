@@ -66,7 +66,7 @@ public interface AuthorizationPolicyContract {
                 organization(),
                 Set.of(RoleAssignment.tenant(Roles.PLATFORM_ADMIN)),
                 UUID.fromString("0190a000-0000-7000-8000-0000000000f6"));
-        final ProtectedResource resource = new ProtectedResource(
+        final ProtectedResource resource = ProtectedResource.userOwned(
                 ResourceId.fromString("0190a000-0000-7000-8000-0000000000e5"),
                 otherTenant(),
                 organization(),
@@ -85,7 +85,7 @@ public interface AuthorizationPolicyContract {
                 organization(),
                 Set.of(RoleAssignment.tenant(Roles.PLATFORM_ADMIN)),
                 UUID.fromString("0190a000-0000-7000-8000-0000000000f6"));
-        final ProtectedResource resource = new ProtectedResource(
+        final ProtectedResource resource = ProtectedResource.userOwned(
                 ResourceId.fromString("0190a000-0000-7000-8000-0000000000e5"),
                 tenant(),
                 organization(),
@@ -197,7 +197,7 @@ public interface AuthorizationPolicyContract {
     }
 
     private ProtectedResource organizationResource(final OrganizationId resourceOrganization) {
-        return new ProtectedResource(
+        return ProtectedResource.userOwned(
                 ResourceId.fromString("0190a000-0000-7000-8000-0000000000e5"),
                 tenant(),
                 resourceOrganization,

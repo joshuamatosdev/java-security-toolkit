@@ -7,9 +7,7 @@ and SLF4J. Spring lives in the demo app. The web boundary lives there too.
 Persistence lives there too. That app is
 [`authorization-showcase`](../authorization-showcase/).
 
-It covers Layer 2, authorization. That fits the
-[five-layer posture](../docs/adr/0001-five-layer-security-posture.md). The
-decision record is [ADR-0003](../docs/adr/0003-authorization.md).
+It covers Layer 2, authorization, in the repository's composed security posture.
 
 ## Table of Contents
 

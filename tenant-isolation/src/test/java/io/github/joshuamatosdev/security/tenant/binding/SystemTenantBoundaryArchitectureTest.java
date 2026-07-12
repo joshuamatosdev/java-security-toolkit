@@ -60,7 +60,9 @@ class SystemTenantBoundaryArchitectureTest {
         final Path sourceRoot = Path.of(MAIN_SOURCE_ROOT);
         final Set<String> allowedSources = Set.of(
                 "io/github/joshuamatosdev/security/tenant/TenantIds.java",
+                "io/github/joshuamatosdev/security/tenant/PostgresConnectionPolicy.java",
                 "io/github/joshuamatosdev/security/tenant/binding/TenantContext.java",
+                "io/github/joshuamatosdev/security/tenant/binding/TenantBinding.java",
                 "io/github/joshuamatosdev/security/tenant/binding/SystemTenantBoundary.java",
                 "io/github/joshuamatosdev/security/tenant/config/TenantIsolationProperties.java",
                 "io/github/joshuamatosdev/security/tenant/config/TenantPlacementValidator.java",

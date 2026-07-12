@@ -6,9 +6,10 @@ import io.github.joshuamatosdev.security.authz.request.RequestContext;
 import io.github.joshuamatosdev.security.authz.principal.UserPrincipal;
 import io.github.joshuamatosdev.security.shared.OrganizationId;
 import io.github.joshuamatosdev.security.shared.TenantId;
-import java.util.HashSet;
+import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
+import java.util.stream.Collectors;
 import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.security.oauth2.server.resource.authentication.JwtAuthenticationToken;
 
@@ -61,19 +62,26 @@ final class RequestContexts {
 
     private static Set<RoleAssignment> assignments(final Jwt jwt, final OrganizationId organization) {
         final var roles = jwt.getClaimAsStringList(ROLES_CLAIM);
-        final Set<RoleAssignment> assignments = new HashSet<>();
         if (roles == null) {
-            return assignments;
+            return Set.of();
         }
-        for (final String role : roles) {
-            if (Roles.PLATFORM_ADMIN.equals(role)) {
-                assignments.add(RoleAssignment.tenant(Roles.PLATFORM_ADMIN));
-            } else if (Roles.MEMBER.equals(role)) {
-                assignments.add(organization == null
-                        ? RoleAssignment.tenant(Roles.MEMBER)
-                        : RoleAssignment.organization(Roles.MEMBER, organization));
-            }
+        return roles.stream()
+                .map(role -> assignment(role, organization))
+                .flatMap(Optional::stream)
+                .collect(Collectors.toUnmodifiableSet());
+    }
+
+    private static Optional<RoleAssignment> assignment(
+            final String role,
+            final OrganizationId organization) {
+        if (Roles.PLATFORM_ADMIN.equals(role)) {
+            return Optional.of(RoleAssignment.tenant(Roles.PLATFORM_ADMIN));
         }
-        return assignments;
+        if (Roles.MEMBER.equals(role)) {
+            return Optional.of(organization == null
+                    ? RoleAssignment.tenant(Roles.MEMBER)
+                    : RoleAssignment.organization(Roles.MEMBER, organization));
+        }
+        return Optional.empty();
     }
 }

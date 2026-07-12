@@ -3,7 +3,7 @@ package io.github.joshuamatosdev.security.tenant.datasource.routing;
 import io.github.joshuamatosdev.security.shared.TenantId;
 import io.github.joshuamatosdev.security.tenant.TenantIds;
 import io.github.joshuamatosdev.security.tenant.binding.SystemTenantBoundary;
-import io.github.joshuamatosdev.security.tenant.binding.TenantContext;
+import io.github.joshuamatosdev.security.tenant.binding.TenantBindingSource;
 import io.github.joshuamatosdev.security.tenant.datasource.pool.TenantPoolInspection;
 import io.github.joshuamatosdev.security.tenant.datasource.pool.TenantPoolSnapshot;
 import io.github.joshuamatosdev.security.tenant.datasource.session.TenantSessionDataSourceProxy;
@@ -22,7 +22,7 @@ import org.springframework.jdbc.datasource.AbstractDataSource;
 /**
  * Tenant-aware datasource for schema-per-tenant deployments.
  *
- * <p>The active {@link TenantContext} is resolved against an allowlisted tenant-to-schema map before
+ * <p>The active {@link TenantBindingSource} is resolved against an allowlisted tenant-to-schema map before
  * a connection is returned. The connection is wrapped so the selected schema is reset before the
  * connection returns to the pool.
  *
@@ -42,14 +42,17 @@ public final class TenantSchemaDataSource extends AbstractDataSource implements 
     private final DataSource delegate;
     private final Map<TenantId, String> schemaByTenant;
     private final TenantPoolInspection poolInspection;
+    private final TenantBindingSource bindingSource;
 
     public TenantSchemaDataSource(
             final DataSource delegate,
             final Map<TenantId, String> schemaByTenant,
-            final TenantPoolInspection poolInspection) {
+            final TenantPoolInspection poolInspection,
+            final TenantBindingSource bindingSource) {
         this.delegate = Objects.requireNonNull(delegate, "delegate");
         this.schemaByTenant = validateSchemaPlacements(schemaByTenant);
         this.poolInspection = Objects.requireNonNull(poolInspection, "poolInspection");
+        this.bindingSource = Objects.requireNonNull(bindingSource, "bindingSource");
     }
 
     @Override
@@ -86,7 +89,7 @@ public final class TenantSchemaDataSource extends AbstractDataSource implements 
     }
 
     private String requireSchemaForCurrentTenant() {
-        final TenantId tenant = TenantContext.requireCurrent();
+        final TenantId tenant = bindingSource.requireCurrent();
         if (TenantIds.SYSTEM_OPS.equals(tenant)) {
             throw new SecurityException(
                     "schema isolation cannot use one ambient system-ops connection across all tenants");
