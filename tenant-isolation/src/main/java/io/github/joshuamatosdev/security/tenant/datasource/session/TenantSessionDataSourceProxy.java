@@ -279,7 +279,7 @@ public final class TenantSessionDataSourceProxy extends AbstractDataSource imple
             throw ex;
         }
         notifyObserver(() -> observer.onBindingSet(poolName));
-        return wrapForSessionReset(raw, organizationClaim != null);
+        return wrapForSessionReset(raw);
     }
 
     /**
@@ -352,9 +352,9 @@ public final class TenantSessionDataSourceProxy extends AbstractDataSource imple
     private static void applyBinding(
             final Connection raw, final String tenantClaim, final @Nullable String organizationClaim)
             throws SQLException {
-        setConfig(raw, TENANT_CLAIM_SETTING, tenantClaim);
-        if (organizationClaim != null) {
-            setConfig(raw, ORGANIZATION_CLAIM_SETTING, organizationClaim);
+        try (PreparedStatement stmt = raw.prepareStatement(SET_CONFIG_SQL)) {
+            setConfig(stmt, TENANT_CLAIM_SETTING, tenantClaim);
+            setConfig(stmt, ORGANIZATION_CLAIM_SETTING, organizationClaim);
         }
     }
 
@@ -364,19 +364,22 @@ public final class TenantSessionDataSourceProxy extends AbstractDataSource imple
      * <p>The third {@code set_config} argument is {@code false} so the value is session-scoped
      * rather than transaction-local; this lets RLS see it for the full borrow until close resets it.
      *
-     * @param raw the connection whose PostgreSQL session setting should be populated
+     * @param stmt prepared {@code set_config} statement
      * @param setting the custom session setting name
-     * @param value the signed claim
+     * @param value the signed claim, or {@code null} to clear stale state before the borrow
      * @throws SQLException when the setting cannot be written
      */
-    private static void setConfig(final Connection raw, final String setting, final String value)
+    private static void setConfig(
+            final PreparedStatement stmt, final String setting, final @Nullable String value)
             throws SQLException {
-        try (PreparedStatement stmt = raw.prepareStatement(SET_CONFIG_SQL)) {
-            stmt.setString(1, setting);
+        stmt.setString(1, setting);
+        if (value == null) {
+            stmt.setNull(2, Types.VARCHAR);
+        } else {
             stmt.setString(2, value);
-            stmt.setBoolean(3, false);
-            stmt.execute();
         }
+        stmt.setBoolean(3, false);
+        stmt.execute();
     }
 
     /**
@@ -387,16 +390,12 @@ public final class TenantSessionDataSourceProxy extends AbstractDataSource imple
      * rolled back by an open transaction.
      *
      * @param raw the connection whose PostgreSQL session settings should be cleared
-     * @param clearOrganization whether this borrow also bound an organization claim
      * @throws SQLException when a setting cannot be cleared
      */
-    private static void clearConfig(final Connection raw, final boolean clearOrganization)
-            throws SQLException {
+    private static void clearConfig(final Connection raw) throws SQLException {
         try (PreparedStatement stmt = raw.prepareStatement(SET_CONFIG_SQL)) {
             clearSetting(stmt, TENANT_CLAIM_SETTING);
-            if (clearOrganization) {
-                clearSetting(stmt, ORGANIZATION_CLAIM_SETTING);
-            }
+            clearSetting(stmt, ORGANIZATION_CLAIM_SETTING);
         }
     }
 
@@ -424,16 +423,14 @@ public final class TenantSessionDataSourceProxy extends AbstractDataSource imple
      * clears the claims so Hikari's close-time rollback cannot resurrect the prior binding.
      *
      * @param raw the connection being returned to the pool
-     * @param clearOrganization whether this borrow also bound an organization claim
      * @throws SQLException when rollback, autocommit restoration, or claim clearing fails
      */
-    private static void resetSessionBinding(final Connection raw, final boolean clearOrganization)
-            throws SQLException {
+    private static void resetSessionBinding(final Connection raw) throws SQLException {
         if (!raw.getAutoCommit()) {
             raw.rollback();
             raw.setAutoCommit(true);
         }
-        clearConfig(raw, clearOrganization);
+        clearConfig(raw);
     }
 
     /**
@@ -444,15 +441,14 @@ public final class TenantSessionDataSourceProxy extends AbstractDataSource imple
      * implementation class.
      *
      * @param raw the tenant-bound raw connection
-     * @param clearOrganization whether this borrow also bound an organization claim
      * @return a connection proxy that resets the session binding before returning to the pool
      */
-    private Connection wrapForSessionReset(final Connection raw, final boolean clearOrganization) {
+    private Connection wrapForSessionReset(final Connection raw) {
         return ResettingConnectionProxy.wrap(
                 raw,
                 "tenant-guarded connection is closed",
                 "tenant-guarded connection does not expose its delegate",
-                connection -> closeTenantSession(connection, clearOrganization));
+                this::closeTenantSession);
     }
 
     /**
@@ -464,13 +460,11 @@ public final class TenantSessionDataSourceProxy extends AbstractDataSource imple
      * reset fails.
      *
      * @param raw the tenant-bound connection returned by the underlying pool
-     * @param clearOrganization whether this borrow also bound an organization claim
      * @throws SQLException when returning the connection to the pool fails
      */
-    private void closeTenantSession(final Connection raw, final boolean clearOrganization)
-            throws SQLException {
+    private void closeTenantSession(final Connection raw) throws SQLException {
         try {
-            resetSessionBinding(raw, clearOrganization);
+            resetSessionBinding(raw);
         } catch (SQLException | RuntimeException ex) {
             notifyObserver(() -> observer.onResetFailed(poolName));
             ResettingConnectionProxy.abortQuietly(raw);

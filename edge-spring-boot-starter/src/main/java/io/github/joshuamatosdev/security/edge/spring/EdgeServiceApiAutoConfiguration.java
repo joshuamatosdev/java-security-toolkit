@@ -27,7 +27,7 @@ import org.springframework.security.oauth2.jwt.ReactiveJwtDecoder;
  */
 @AutoConfiguration(
         afterName =
-            "org.springframework.boot.autoconfigure.security.oauth2.resource.reactive.ReactiveOAuth2ResourceServerAutoConfiguration")
+            "org.springframework.boot.security.oauth2.server.resource.autoconfigure.reactive.ReactiveOAuth2ResourceServerAutoConfiguration")
 @ConditionalOnClass(ReactiveJwtDecoder.class)
 @ConditionalOnWebApplication(type = ConditionalOnWebApplication.Type.REACTIVE)
 @ConditionalOnProperty(

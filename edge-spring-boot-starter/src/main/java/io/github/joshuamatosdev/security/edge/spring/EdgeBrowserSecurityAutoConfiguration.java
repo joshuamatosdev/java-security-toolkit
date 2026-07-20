@@ -23,7 +23,7 @@ import org.springframework.security.oauth2.client.registration.ReactiveClientReg
  */
 @AutoConfiguration(
         afterName =
-            "org.springframework.boot.autoconfigure.security.oauth2.client.reactive.ReactiveOAuth2ClientAutoConfiguration")
+            "org.springframework.boot.security.oauth2.client.autoconfigure.reactive.ReactiveOAuth2ClientAutoConfiguration")
 @ConditionalOnClass(ReactiveClientRegistrationRepository.class)
 @ConditionalOnWebApplication(type = ConditionalOnWebApplication.Type.REACTIVE)
 @ConditionalOnProperty(

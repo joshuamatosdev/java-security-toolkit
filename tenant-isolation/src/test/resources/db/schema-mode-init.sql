@@ -100,7 +100,7 @@ BEGIN
         RETURN NULL;
     END IF;
 
-    IF claim_exp_text::bigint <= extract(epoch FROM clock_timestamp())::bigint THEN
+    IF claim_exp_text::bigint <= extract(epoch FROM clock_timestamp()) THEN
         RETURN NULL;
     END IF;
 

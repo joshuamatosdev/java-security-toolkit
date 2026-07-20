@@ -46,7 +46,9 @@ class TenantClaimVerifierSqlAuditTest {
                     .contains("pgcrypto extension must be installed in tenant_security");
             assertThat(sql)
                     .as(script + " must expire claims against wall-clock time, not transaction-start time")
-                    .contains("extract(epoch FROM clock_timestamp())::bigint")
+                    .contains("claim_exp_text::bigint <= extract(epoch FROM clock_timestamp())")
+                    .doesNotContain(
+                            "claim_exp_text::bigint <= extract(epoch FROM clock_timestamp())::bigint")
                     .doesNotContain("extract(epoch FROM now())::bigint");
             assertThat(sql)
                     .as(script + " must not mark a wall-clock/random verifier as STABLE")

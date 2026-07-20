@@ -15,13 +15,15 @@ spring:
       hibernate:
         boot:
           allow_jdbc_metadata_access: false
-  # Production: point the resource server at your issuer. The integration tests
-  # fabricate JWTs with spring-security-test instead, so no issuer is configured here.
-  # security:
-  #   oauth2:
-  #     resourceserver:
-  #       jwt:
-  #         issuer-uri: https://issuer.acme.example
+  security:
+    oauth2:
+      resourceserver:
+        jwt:
+          # Production must also set issuer-uri. The integration tests fabricate most JWTs,
+          # while SecurityBoundaryTest supplies a local public key and exercises this audience.
+          # issuer-uri: https://issuer.acme.example
+          audiences:
+            - ${JWT_AUDIENCE:tenant-isolation-api}
 
 tenant:
   isolation:

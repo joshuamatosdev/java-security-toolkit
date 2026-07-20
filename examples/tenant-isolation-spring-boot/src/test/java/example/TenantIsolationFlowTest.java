@@ -161,6 +161,16 @@ class TenantIsolationFlowTest {
     }
 
     @Test
+    void malformedTenantOrOrganizationClaimIsForbidden() throws Exception {
+        mvc.perform(get("/notes").with(jwt().jwt(token -> token.claim("tenant_id", "not-a-uuid"))))
+                .andExpect(status().isForbidden());
+        mvc.perform(get("/notes").with(jwt().jwt(token -> token
+                        .claim("tenant_id", ACME.value().toString())
+                        .claim("organization_id", "not-a-uuid"))))
+                .andExpect(status().isForbidden());
+    }
+
+    @Test
     void unauthenticatedRequestIsRejectedBeforeAnyDataAccess() throws Exception {
         mvc.perform(get("/notes")).andExpect(status().isUnauthorized());
     }

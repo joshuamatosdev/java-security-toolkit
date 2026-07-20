@@ -50,8 +50,18 @@ class TenantBindingFilter extends OncePerRequestFilter {
             response.sendError(HttpServletResponse.SC_FORBIDDEN);
             return;
         }
-        final TenantId tenant = TenantId.fromString(tenantClaim);
         final String organizationClaim = jwt.getClaimAsString("organization_id");
+        final TenantId tenant;
+        final OrganizationId organization;
+        try {
+            tenant = TenantId.fromString(tenantClaim);
+            organization = organizationClaim == null
+                    ? null
+                    : OrganizationId.fromString(organizationClaim);
+        } catch (IllegalArgumentException ex) {
+            response.sendError(HttpServletResponse.SC_FORBIDDEN);
+            return;
+        }
         final Runnable work = () -> {
             try {
                 chain.doFilter(request, response);
@@ -59,10 +69,10 @@ class TenantBindingFilter extends OncePerRequestFilter {
                 throw new IllegalStateException(e);
             }
         };
-        if (organizationClaim == null) {
+        if (organization == null) {
             tenantContext.runAs(tenant, work);
         } else {
-            tenantContext.runAs(tenant, OrganizationId.fromString(organizationClaim), work);
+            tenantContext.runAs(tenant, organization, work);
         }
     }
 }

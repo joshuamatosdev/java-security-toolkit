@@ -53,6 +53,7 @@ class OrganizationScopeRlsIsolationTest extends AbstractRlsTest {
     @DynamicPropertySource
     static void organizationScope(final DynamicPropertyRegistry registry) {
         registry.add("tenant.binding.organization-scope", () -> "optional");
+        registry.add("spring.datasource.hikari.maximum-pool-size", () -> "1");
     }
 
     @Autowired
@@ -76,6 +77,29 @@ class OrganizationScopeRlsIsolationTest extends AbstractRlsTest {
         seedTenantWithTwoOrganizations();
 
         var tenantView = tenantContext.supplyAs(TenantIds.ACME, repository::findAll);
+
+        assertThat(tenantView)
+                .extracting(DocumentEntity::getTitle)
+                .containsExactlyInAnyOrder(ENGINEERING_TITLE, LOGISTICS_TITLE, UNASSIGNED_TITLE);
+    }
+
+    @Test
+    void statementConnectionBackReferenceCannotBypassOrganizationReset() throws Exception {
+        seedTenantWithTwoOrganizations();
+
+        tenantContext.runAs(TenantIds.ACME, ENGINEERING, () -> {
+            try {
+                final Connection guarded = dataSource.getConnection();
+                final Statement statement = guarded.createStatement();
+                final Connection childBackReference = statement.getConnection();
+                statement.close();
+                childBackReference.close();
+            } catch (Exception ex) {
+                throw new IllegalStateException(ex);
+            }
+        });
+
+        final var tenantView = tenantContext.supplyAs(TenantIds.ACME, repository::findAll);
 
         assertThat(tenantView)
                 .extracting(DocumentEntity::getTitle)

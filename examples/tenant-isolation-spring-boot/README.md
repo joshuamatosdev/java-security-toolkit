@@ -5,9 +5,10 @@ It is a real consumer app. It compiles and passes tests. It owns exactly four
 adopter tasks. The walkthrough assigns these four:
 
 1. **Depend** — [`build.gradle.kts`](build.gradle.kts) pulls one starter.
-2. **Configure** — [`application.yaml`](src/main/resources/application.yaml) binds three
-   things. It binds the datasource. It binds the claim secret. It binds the
-   `organization-scope` rollout dial. All from the environment.
+2. **Configure** — [`application.yaml`](src/main/resources/application.yaml) binds four
+   things. It binds the datasource. It binds the JWT audience. It binds the claim secret.
+   It binds the `organization-scope` rollout dial. All deployable values can come from the
+   environment.
 3. **One filter** — [`TenantBindingFilter`](src/main/java/example/TenantBindingFilter.java)
    does two jobs. It resolves tenant and organization. It reads the verified JWT. It
    binds them atomically.
@@ -50,9 +51,10 @@ their CI.
 
 ## Production notes
 
-- Set `spring.security.oauth2.resourceserver.jwt.issuer-uri` for your issuer. Delete
-  the test-only `JwtDecoder`. The tests fabricate tokens instead. They use
-  spring-security-test.
+- Set `spring.security.oauth2.resourceserver.jwt.issuer-uri` for your issuer and override
+  `JWT_AUDIENCE` when this API's registered audience differs from `tenant-isolation-api`.
+  Delete the test-only `JwtDecoder`. Most flow tests fabricate tokens with
+  spring-security-test; `SecurityBoundaryTest` uses a real signed JWT to prove the audience gate.
 - Install the claim secret properly. Use your secret management. The committed value is
   fictional. It is a local-dev constant. Keep the Java signer in sync. Keep the database
   verifier too.

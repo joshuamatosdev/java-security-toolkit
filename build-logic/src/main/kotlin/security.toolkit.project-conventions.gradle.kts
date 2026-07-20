@@ -3,6 +3,8 @@ import org.gradle.api.artifacts.VersionCatalogsExtension
 import org.gradle.api.plugins.JavaPluginExtension
 import org.gradle.api.publish.PublishingExtension
 import org.gradle.api.publish.maven.MavenPublication
+import org.gradle.api.publish.maven.tasks.PublishToMavenLocal
+import org.gradle.api.publish.maven.tasks.PublishToMavenRepository
 import org.gradle.api.tasks.javadoc.Javadoc
 import org.gradle.api.tasks.bundling.Jar
 import org.gradle.api.tasks.testing.Test
@@ -50,6 +52,8 @@ val frameworkFreeRuntimeAllowedGroups = mapOf(
         "org.slf4j"
     )
 )
+
+val unpublishedProjects = setOf(":authorization-showcase")
 
 val securityPinnedDependencyVersions = mapOf(
     ":edge" to mapOf(
@@ -318,10 +322,19 @@ plugins.withId("io.spring.dependency-management") {
         imports {
             mavenBom("org.springframework.boot:spring-boot-dependencies:$springBootVersion")
 
-            if (project.path in setOf(":tenant-isolation", ":authorization", ":authorization-showcase")) {
+            if (project.path in setOf(":tenant-isolation", ":authorization-showcase")) {
                 mavenBom("org.testcontainers:testcontainers-bom:$testcontainersVersion")
             }
         }
+    }
+}
+
+if (project.path in unpublishedProjects) {
+    tasks.withType<PublishToMavenLocal>().configureEach {
+        enabled = false
+    }
+    tasks.withType<PublishToMavenRepository>().configureEach {
+        enabled = false
     }
 }
 

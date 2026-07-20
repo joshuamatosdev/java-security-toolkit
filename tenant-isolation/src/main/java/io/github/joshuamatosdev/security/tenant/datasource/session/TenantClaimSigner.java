@@ -5,6 +5,7 @@ import java.nio.charset.StandardCharsets;
 import java.security.GeneralSecurityException;
 import java.time.Clock;
 import java.time.Duration;
+import java.time.Instant;
 import java.util.HexFormat;
 import java.util.Objects;
 import java.util.UUID;
@@ -111,7 +112,10 @@ public final class TenantClaimSigner {
      * @return the full claim including the trailing HMAC field
      */
     private String signedClaim(final String version, final UUID id) {
-        final long exp = clock.instant().plus(claimTtl).getEpochSecond();
+        final Instant expiresAt = clock.instant().plus(claimTtl);
+        final long exp = expiresAt.getNano() == 0
+                ? expiresAt.getEpochSecond()
+                : Math.addExact(expiresAt.getEpochSecond(), 1L);
         final String payload = version + ":" + id + ":" + exp;
         return payload + ":" + HexFormat.of().formatHex(hmac(payload));
     }

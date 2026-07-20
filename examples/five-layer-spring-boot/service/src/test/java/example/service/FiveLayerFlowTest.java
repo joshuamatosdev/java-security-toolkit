@@ -252,6 +252,16 @@ class FiveLayerFlowTest {
     }
 
     @Test
+    void malformedTenantOrOrganizationClaimIsForbiddenBeforeAnyDecisionRuns() throws Exception {
+        mvc.perform(get("/documents").with(member("alice", "not-a-uuid", null)))
+                .andExpect(status().isForbidden());
+        mvc.perform(get("/documents").with(member("alice", ACME_TENANT, "not-a-uuid")))
+                .andExpect(status().isForbidden());
+
+        assertThat(audit.records()).isEmpty();
+    }
+
+    @Test
     void anUnauthenticatedRequestIsChallengedAtTheDoor() throws Exception {
         mvc.perform(get("/documents")).andExpect(status().isUnauthorized());
         assertThat(audit.records()).isEmpty();

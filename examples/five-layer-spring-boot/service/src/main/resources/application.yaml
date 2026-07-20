@@ -18,14 +18,15 @@ spring:
       hibernate:
         boot:
           allow_jdbc_metadata_access: false
-  # Production: point the resource server at the same issuer the BFF trusts
-  # (edge.identity.issuer-uri on the BFF side). The integration tests fabricate
-  # JWTs with spring-security-test instead, so no issuer is configured here.
-  # security:
-  #   oauth2:
-  #     resourceserver:
-  #       jwt:
-  #         issuer-uri: https://idp.acme.example
+  security:
+    oauth2:
+      resourceserver:
+        jwt:
+          # Production must also set the issuer trusted by the BFF. Most integration tests
+          # fabricate JWTs; SecurityBoundaryTest supplies a local public key for this boundary.
+          # issuer-uri: https://idp.acme.example
+          audiences:
+            - ${JWT_AUDIENCE:edge-service-api}
 
 tenant:
   isolation:

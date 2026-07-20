@@ -48,8 +48,9 @@ environment variable and is checked against the release checklist.
 - Anonymous requests redirect to login. CSRF-less writes are refused. Both happen
   before any downstream call.
 
-Both applications share one identity contract. They use the same pinned issuer. They
-use the same claims. These are `tenant_id`, `organization_id`, `roles`. Each test
+Both applications share one identity contract. They use the same pinned issuer and the
+service accepts only the BFF's `edge-service-api` audience. They use the same claims.
+These are `tenant_id`, `organization_id`, `roles`. Each test
 drives its own half. It uses that shared contract. The real mechanics live elsewhere.
 The edge module proves OIDC/PKCE. It proves the JWT-decoder too. Its tests use an
 in-process JWKS.
@@ -85,4 +86,6 @@ TENANT_BINDING_SYSTEM_OPS_PASSWORD=local_dev_only \
 
 A full interactive login needs more. Register a real OIDC provider. Put it in the
 BFF's `application.yaml`. The shipped endpoints are fictional. So the context boots
-offline. Point both apps at one issuer. Then the relay carries identity fully.
+offline. Point both apps at one issuer, and override `JWT_AUDIENCE` only if the
+service registration uses a value other than `edge-service-api`. Then the relay carries
+identity fully.

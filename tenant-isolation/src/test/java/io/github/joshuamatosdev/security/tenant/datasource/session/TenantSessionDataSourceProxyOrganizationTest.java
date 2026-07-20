@@ -37,7 +37,7 @@ import org.junit.jupiter.api.Test;
  *       organization;
  *   <li>{@code required} fails closed before any connection is borrowed when an ordinary tenant
  *       binding has no organization — and exempts the system-operations tenant;
- *   <li>connection return clears the organization claim whenever this borrow bound one.
+ *   <li>every borrow and return clears organization state when no organization claim is present.
  * </ol>
  *
  * <p>Why this is important to test: the organization claim is the only input organization-aware row
@@ -70,13 +70,14 @@ class TenantSessionDataSourceProxyOrganizationTest {
     }
 
     @Test
-    void offScopeNeverBindsAnOrganizationClaim() throws SQLException {
+    void offScopeClearsAnyStaleOrganizationClaim() throws SQLException {
         final TenantSessionDataSourceProxy proxy = proxy(OrganizationScope.OFF);
 
         borrowAs(TenantIds.ACME, ENGINEERING, proxy);
 
         verify(statement).setString(1, TENANT_CLAIM_SETTING);
-        verify(statement, never()).setString(1, ORGANIZATION_CLAIM_SETTING);
+        verify(statement).setString(1, ORGANIZATION_CLAIM_SETTING);
+        verify(statement).setNull(2, Types.VARCHAR);
     }
 
     @Test
@@ -92,13 +93,14 @@ class TenantSessionDataSourceProxyOrganizationTest {
     }
 
     @Test
-    void optionalScopeSkipsTheOrganizationClaimWhenAbsent() throws SQLException {
+    void optionalScopeClearsAnyStaleOrganizationClaimWhenAbsent() throws SQLException {
         final TenantSessionDataSourceProxy proxy = proxy(OrganizationScope.OPTIONAL);
 
         borrowAs(TenantIds.ACME, null, proxy);
 
         verify(statement).setString(1, TENANT_CLAIM_SETTING);
-        verify(statement, never()).setString(1, ORGANIZATION_CLAIM_SETTING);
+        verify(statement).setString(1, ORGANIZATION_CLAIM_SETTING);
+        verify(statement).setNull(2, Types.VARCHAR);
     }
 
     @Test
@@ -136,7 +138,8 @@ class TenantSessionDataSourceProxyOrganizationTest {
 
         assertThat(borrowed).isNotNull();
         verify(statement).setString(1, TENANT_CLAIM_SETTING);
-        verify(statement, never()).setString(1, ORGANIZATION_CLAIM_SETTING);
+        verify(statement).setString(1, ORGANIZATION_CLAIM_SETTING);
+        verify(statement).setNull(2, Types.VARCHAR);
     }
 
     @Test
@@ -154,13 +157,13 @@ class TenantSessionDataSourceProxyOrganizationTest {
     }
 
     @Test
-    void closeDoesNotTouchTheOrganizationSettingForTenantOnlyBorrows() throws SQLException {
+    void closeClearsTheOrganizationSettingForTenantOnlyBorrows() throws SQLException {
         final TenantSessionDataSourceProxy proxy = proxy(OrganizationScope.OPTIONAL);
 
         final Connection borrowed = borrowAs(TenantIds.ACME, null, proxy);
         borrowed.close();
 
-        verify(statement, never()).setString(1, ORGANIZATION_CLAIM_SETTING);
+        verify(statement, times(2)).setString(1, ORGANIZATION_CLAIM_SETTING);
     }
 
     private TenantSessionDataSourceProxy proxy(final OrganizationScope scope) {

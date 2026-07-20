@@ -15,10 +15,13 @@ import org.springframework.jdbc.core.JdbcTemplate;
 import javax.crypto.Mac;
 import javax.crypto.spec.SecretKeySpec;
 import javax.sql.DataSource;
+import java.math.BigDecimal;
+import java.math.RoundingMode;
 import java.nio.charset.StandardCharsets;
 import java.sql.Connection;
 import java.sql.DriverManager;
 import java.sql.Statement;
+import java.time.Duration;
 import java.time.Instant;
 import java.util.HexFormat;
 import java.util.UUID;
@@ -261,7 +264,7 @@ class RlsIsolationTest extends AbstractRlsTest {
             c.setAutoCommit(false);
 
             final long currentDatabaseEpoch;
-            try (var rs = st.executeQuery("SELECT extract(epoch FROM clock_timestamp())::bigint")) {
+            try (var rs = st.executeQuery("SELECT floor(extract(epoch FROM clock_timestamp()))::bigint")) {
                 rs.next();
                 currentDatabaseEpoch = rs.getLong(1);
             }
@@ -276,6 +279,22 @@ class RlsIsolationTest extends AbstractRlsTest {
     }
 
     @Test
+    void claimForTheNextEpochSecondRemainsValidBeforeThatSecondBegins() throws Exception {
+        seedAsSuperuser(UUID.randomUUID(), TenantIds.ACME,
+                TenantTestConstants.ACME_DOCUMENT_TITLE, TenantTestConstants.DOCUMENT_BODY_X);
+
+        try (Connection c = DriverManager.getConnection(POSTGRES.getJdbcUrl(), RUNTIME_USERNAME, DEV_PASSWORD);
+                Statement st = c.createStatement()) {
+            final long exp = nextEpochSecondInsidePostgresRoundingWindow(st);
+            st.execute(SET_TENANT_CLAIM_SQL_PREFIX + signedClaim(TenantIds.ACME, exp) + "'");
+
+            assertThat(countDocuments(st))
+                    .as("a claim must remain valid until its integer expiration second begins")
+                    .isEqualTo(1L);
+        }
+    }
+
+    @Test
     void claimExpiresAgainstWallClockInsideALongTransaction() throws Exception {
         seedAsSuperuser(UUID.randomUUID(), TenantIds.ACME,
                 TenantTestConstants.ACME_DOCUMENT_TITLE, TenantTestConstants.DOCUMENT_BODY_X);
@@ -285,7 +304,7 @@ class RlsIsolationTest extends AbstractRlsTest {
             c.setAutoCommit(false);
 
             final long transactionEpoch;
-            try (var rs = st.executeQuery("SELECT extract(epoch FROM now())::bigint")) {
+            try (var rs = st.executeQuery("SELECT floor(extract(epoch FROM now()))::bigint")) {
                 rs.next();
                 transactionEpoch = rs.getLong(1);
             }
@@ -340,9 +359,29 @@ class RlsIsolationTest extends AbstractRlsTest {
     }
 
     private static long currentWallClockEpoch(final Statement st) throws Exception {
-        try (var rs = st.executeQuery("SELECT extract(epoch FROM clock_timestamp())::bigint")) {
+        try (var rs = st.executeQuery("SELECT floor(extract(epoch FROM clock_timestamp()))::bigint")) {
             rs.next();
             return rs.getLong(1);
+        }
+    }
+
+    private static long nextEpochSecondInsidePostgresRoundingWindow(final Statement st) throws Exception {
+        final long deadline = System.nanoTime() + Duration.ofSeconds(5).toNanos();
+        while (true) {
+            final BigDecimal epoch;
+            try (var rs = st.executeQuery("SELECT extract(epoch FROM clock_timestamp())")) {
+                rs.next();
+                epoch = rs.getBigDecimal(1);
+            }
+            final BigDecimal fraction = epoch.remainder(BigDecimal.ONE);
+            if (fraction.compareTo(new BigDecimal("0.52")) >= 0
+                    && fraction.compareTo(new BigDecimal("0.60")) <= 0) {
+                return epoch.setScale(0, RoundingMode.CEILING).longValueExact();
+            }
+            if (System.nanoTime() >= deadline) {
+                throw new AssertionError("PostgreSQL clock did not enter the expected rounding window");
+            }
+            Thread.sleep(10);
         }
     }
 

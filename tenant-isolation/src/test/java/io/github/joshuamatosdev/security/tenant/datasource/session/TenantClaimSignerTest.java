@@ -49,6 +49,20 @@ class TenantClaimSignerTest {
     }
 
     @Test
+    void fractionalIssueTimePreservesTheFullConfiguredTtl() {
+        final Instant fractionalNow = Instant.parse("2026-06-02T00:00:00.750Z");
+        final Duration oneSecond = Duration.ofSeconds(1);
+        final TenantClaimSigner signer = new TenantClaimSigner(
+                TenantTestConstants.CLAIM_SECRET,
+                oneSecond,
+                Clock.fixed(fractionalNow, ZoneOffset.UTC));
+
+        final long exp = expOf(signer.sign(TenantIds.ACME.value()));
+
+        assertThat(exp).isEqualTo(fractionalNow.plus(oneSecond).getEpochSecond() + 1);
+    }
+
+    @Test
     void tenantAndSecretBothAffectTheSignature() {
         final TenantClaimSigner signer = new TenantClaimSigner(TenantTestConstants.CLAIM_SECRET, TTL, CLOCK);
         final TenantClaimSigner otherSecret =

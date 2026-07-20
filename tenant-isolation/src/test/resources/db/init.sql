@@ -134,7 +134,7 @@ BEGIN
     -- Signature verified, so the exp field is authentic. Reject a claim at or past its lifetime
     -- using wall-clock time, not transaction-start time, so a long transaction cannot continue to
     -- use a claim after it has expired.
-    IF claim_exp_text::bigint <= extract(epoch FROM clock_timestamp())::bigint THEN
+    IF claim_exp_text::bigint <= extract(epoch FROM clock_timestamp()) THEN
         RETURN NULL;
     END IF;
 
@@ -215,7 +215,7 @@ BEGIN
         RETURN NULL;
     END IF;
 
-    IF claim_exp_text::bigint <= extract(epoch FROM clock_timestamp())::bigint THEN
+    IF claim_exp_text::bigint <= extract(epoch FROM clock_timestamp()) THEN
         RETURN NULL;
     END IF;
 
@@ -329,7 +329,7 @@ SET search_path = pg_catalog, tenant_security
 AS $$
 DECLARE
     sentinel constant uuid := '0190a000-0000-7000-8000-0000000000c3';
-    exp_epoch text := (extract(epoch FROM clock_timestamp())::bigint + 30)::text;
+    exp_epoch text := (ceil(extract(epoch FROM clock_timestamp()))::bigint + 30)::text;
     secret_value text;
     payload text;
     signature text;

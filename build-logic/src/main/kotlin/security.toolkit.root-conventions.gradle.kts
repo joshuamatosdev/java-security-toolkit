@@ -28,7 +28,7 @@ reporting {
 
 dependencies {
     jacocoAggregation(platform("org.springframework.boot:spring-boot-dependencies:$springBootVersion"))
-    subprojects.forEach { jacocoAggregation(it) }
+    subprojects.forEach { jacocoAggregation(project(it.path)) }
 }
 
 // The network-backed CVE scan is intentionally separate from `check`; CI invokes the aggregate

@@ -75,6 +75,44 @@ class EdgeAutoConfigurationTest {
     }
 
     @Test
+    void registersBothSecurityChainsAfterBootCreatesTheirOauth2Dependencies() {
+        new ReactiveWebApplicationContextRunner()
+                .withConfiguration(AutoConfigurations.of(
+                        org.springframework.boot.security.oauth2.client.autoconfigure.reactive
+                                .ReactiveOAuth2ClientAutoConfiguration.class,
+                        org.springframework.boot.security.oauth2.server.resource.autoconfigure.reactive
+                                .ReactiveOAuth2ResourceServerAutoConfiguration.class,
+                        EdgeAutoConfiguration.class,
+                        EdgeBrowserSecurityAutoConfiguration.class,
+                        EdgeServiceApiAutoConfiguration.class))
+                .withPropertyValues(
+                        "spring.security.oauth2.client.registration.idp.client-id=edge-test",
+                        "spring.security.oauth2.client.registration.idp.client-authentication-method=none",
+                        "spring.security.oauth2.client.registration.idp.authorization-grant-type=authorization_code",
+                        "spring.security.oauth2.client.registration.idp.redirect-uri={baseUrl}/login/oauth2/code/idp",
+                        "spring.security.oauth2.client.registration.idp.scope=openid,profile",
+                        "spring.security.oauth2.client.provider.idp.authorization-uri=https://idp.acme.example/authorize",
+                        "spring.security.oauth2.client.provider.idp.token-uri=https://idp.acme.example/token",
+                        "spring.security.oauth2.client.provider.idp.jwk-set-uri=https://idp.acme.example/jwks",
+                        "spring.security.oauth2.client.provider.idp.user-info-uri=https://idp.acme.example/userinfo",
+                        "spring.security.oauth2.client.provider.idp.user-name-attribute=sub",
+                        "spring.security.oauth2.resourceserver.jwt.jwk-set-uri=https://idp.acme.example/jwks",
+                        "edge.identity.issuer-uri=https://idp.acme.example",
+                        "edge.service-jwt.audiences=edge-service-api",
+                        "edge.cors.allowed-origins=https://app.acme.example")
+                .run(context -> {
+                    assertThat(context).hasNotFailed();
+                    assertThat(context)
+                            .hasSingleBean(org.springframework.security.oauth2.client.registration
+                                    .ReactiveClientRegistrationRepository.class);
+                    assertThat(context)
+                            .hasSingleBean(org.springframework.security.oauth2.jwt.ReactiveJwtDecoder.class);
+                    assertThat(context).hasBean("browserSecurityFilterChain");
+                    assertThat(context).hasBean("serviceApiSecurityFilterChain");
+                });
+    }
+
+    @Test
     void degradesWithoutOauth2ConfigurationInsteadOfFailingContextStartup() {
         // A reactive app that adds the starter with no OAuth2 client or resource-server configuration
         // must start cleanly (the previous behavior was a NoSuchBeanDefinitionException on

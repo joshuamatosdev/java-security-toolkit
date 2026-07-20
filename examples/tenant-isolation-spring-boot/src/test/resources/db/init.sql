@@ -139,7 +139,7 @@ BEGIN
     -- Signature verified, so the exp field is authentic. Reject a claim at or past its lifetime
     -- using wall-clock time, not transaction-start time, so a long transaction cannot continue to
     -- use a claim after it has expired.
-    IF claim_exp_text::bigint <= extract(epoch FROM clock_timestamp())::bigint THEN
+    IF claim_exp_text::bigint <= extract(epoch FROM clock_timestamp()) THEN
         RETURN NULL;
     END IF;
 
@@ -220,7 +220,7 @@ BEGIN
         RETURN NULL;
     END IF;
 
-    IF claim_exp_text::bigint <= extract(epoch FROM clock_timestamp())::bigint THEN
+    IF claim_exp_text::bigint <= extract(epoch FROM clock_timestamp()) THEN
         RETURN NULL;
     END IF;
 

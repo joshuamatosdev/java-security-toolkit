@@ -128,7 +128,11 @@ class DocumentRelayFlowTest {
 
     @Test
     void refusesAnonymousRequestsAtThePerimeterWithoutTouchingDownstream() throws Exception {
-        client.get().uri("/api/documents").exchange().expectStatus().isUnauthorized();
+        client.get()
+                .uri("/api/documents")
+                .exchange()
+                .expectStatus().is3xxRedirection()
+                .expectHeader().valueEquals(HttpHeaders.LOCATION, "/oauth2/authorization/idp");
 
         assertNothingWasRelayed();
     }
