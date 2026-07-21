@@ -107,6 +107,7 @@ tenant:
     claim-secret: ${TENANT_BINDING_CLAIM_SECRET}
     system-ops-password: ${TENANT_BINDING_SYSTEM_OPS_PASSWORD}
     organization-scope: optional      # off -> optional -> required
+    claim-ttl: 2m                     # exceed the longest connection hold time
 ```
 
 The `spring.jpa` block is load-bearing. It is not styling. The starter's
@@ -336,6 +337,12 @@ Ordinary SQL can change custom settings. These are PostgreSQL custom settings.
 So the database distrusts `app.tenant_claim`. It never trusts it directly. The
 verifier must recompute the HMAC. The claim must not be expired. Only then is
 the tenant accepted.
+
+Claims are minted after a physical or pooled connection is acquired, so pool
+wait time does not consume their lifetime. `tenant.binding.claim-ttl` defaults
+to two minutes and must be at least one second. Set it above the application's
+longest connection hold time, including its longest statement or transaction,
+while keeping it as short as practical to limit replay exposure.
 
 ## Organization Scope
 

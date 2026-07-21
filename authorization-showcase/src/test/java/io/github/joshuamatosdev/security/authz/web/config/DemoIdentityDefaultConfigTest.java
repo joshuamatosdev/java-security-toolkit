@@ -20,6 +20,7 @@ class DemoIdentityDefaultConfigTest {
         final Properties properties = load("application.yaml");
 
         assertThat(properties.getProperty("showcase.demo-identity")).isEqualTo("false");
+        assertThat(properties).doesNotContainKey("authorization.demo-policy.enabled");
     }
 
     @Test
@@ -27,6 +28,7 @@ class DemoIdentityDefaultConfigTest {
         final Properties properties = load("application-showcase.yaml");
 
         assertThat(properties.getProperty("showcase.demo-identity")).isEqualTo("true");
+        assertThat(properties.getProperty("authorization.demo-policy.enabled")).isEqualTo("true");
     }
 
     private static Properties load(final String resource) {

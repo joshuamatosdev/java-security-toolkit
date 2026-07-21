@@ -6,6 +6,8 @@ plugins {
 dependencies {
     api(libs.jspecify)
     implementation(libs.jackson.databind)
+    implementation(libs.jackson.yaml)
+    implementation(libs.packageurl)
 
     testImplementation(project(":supply-chain-testkit"))
 }
@@ -13,6 +15,7 @@ dependencies {
 dependencyCheck {
     failBuildOnCVSS = 7.0f
     formats = listOf("HTML", "JSON")
+    nvd.apiKey.set(providers.environmentVariable("NVD_API_KEY"))
 }
 
 tasks.test {

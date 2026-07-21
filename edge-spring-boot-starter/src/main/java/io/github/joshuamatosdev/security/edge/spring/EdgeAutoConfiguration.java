@@ -3,6 +3,7 @@ package io.github.joshuamatosdev.security.edge.spring;
 import io.github.joshuamatosdev.security.edge.config.CookiePolicyConfig;
 import io.github.joshuamatosdev.security.edge.config.CorsAllowListConfig;
 import io.github.joshuamatosdev.security.edge.config.EdgeProperties;
+import io.github.joshuamatosdev.security.edge.chain.FallbackDenySecurityChainConfig;
 import io.github.joshuamatosdev.security.edge.csrf.CsrfProtectionConfig;
 import io.github.joshuamatosdev.security.edge.filter.BrowserCredentialIsolationFilter;
 import org.springframework.boot.autoconfigure.AutoConfiguration;
@@ -17,15 +18,17 @@ import org.springframework.context.annotation.Import;
  *
  * <p>This entrypoint imports only the credential-plane-agnostic hardening that needs no OAuth2
  * configuration: the CORS allow-list, CSRF double-submit, cookie policy, and the browser/service
- * credential-isolation filter. The two security filter chains are activated by separate
+ * credential-isolation filter and an order-last deny chain. The two credential-bearing security
+ * filter chains are activated by separate
  * auto-configurations that switch on only when their credential infrastructure is present:
  * {@link EdgeBrowserSecurityAutoConfiguration} when an OAuth2 client registration is
  * configured, and {@link EdgeServiceApiAutoConfiguration} when a resource-server JWT
  * decoder is configured.
  *
  * <p>Splitting the chains out this way means a reactive application that adds the starter without any
- * OAuth2 configuration gets a clean context (the always-on hardening, no perimeter chains) instead
- * of a context-startup failure on a missing {@code ReactiveClientRegistrationRepository}.
+ * OAuth2 configuration gets a clean, fail-closed context instead of a context-startup failure on a
+ * missing {@code ReactiveClientRegistrationRepository}. The fallback chain denies every request
+ * until a credential plane owns it.
  */
 // Ordered before Boot's WebSessionIdResolverAutoConfiguration: both define a bean named
 // webSessionIdResolver, and Boot's carries @ConditionalOnMissingBean while the edge policy bean is
@@ -46,7 +49,8 @@ import org.springframework.context.annotation.Import;
     CsrfProtectionConfig.class,
     CorsAllowListConfig.class,
     CookiePolicyConfig.class,
-    BrowserCredentialIsolationFilter.class
+    BrowserCredentialIsolationFilter.class,
+    FallbackDenySecurityChainConfig.class
 })
 public class EdgeAutoConfiguration {
 }

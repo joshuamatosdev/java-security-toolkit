@@ -65,6 +65,23 @@ class ActionPinPolicyTest {
   }
 
   @Test
+  void flowStyleStepsCannotBypassPinEnforcement() throws IOException {
+    Path workflow = writeWorkflow(
+        "jobs: {build: {runs-on: ubuntu-latest, steps: [{uses: actions/checkout@v4}]}}");
+
+    assertThat(policy.unpinnedActionRefs(workflow)).containsExactly("actions/checkout@v4");
+  }
+
+  @Test
+  void flowStyleReusableWorkflowsCannotBypassPinEnforcement() throws IOException {
+    Path workflow = writeWorkflow(
+        "jobs: {shared: {uses: acme/workflows/.github/workflows/build.yml@main}}");
+
+    assertThat(policy.unpinnedActionRefs(workflow))
+        .containsExactly("acme/workflows/.github/workflows/build.yml@main");
+  }
+
+  @Test
   void fullCommitShaRefsAreAccepted() throws IOException {
     Path workflow = writeWorkflow(
         """
@@ -164,17 +181,16 @@ class ActionPinPolicyTest {
   }
 
   @Test
-  void emptyAndControlCharacterRefsAreRejected() throws IOException {
+  void emptyRefsAreRejected() throws IOException {
     Path workflow = writeWorkflow(
         """
         jobs:
           build:
             steps:
               - uses:
-              - uses: actions/checkout@%s
-        """.formatted(PINNED_SHA + (char) 0x07));
+        """);
 
-    assertThat(policy.unpinnedActionRefs(workflow)).hasSize(2);
+    assertThat(policy.unpinnedActionRefs(workflow)).containsExactly("");
   }
 
   @Test

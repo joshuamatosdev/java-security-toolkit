@@ -8,8 +8,19 @@ import org.junit.jupiter.api.Test;
 import org.springframework.boot.autoconfigure.AutoConfigurations;
 import org.springframework.boot.test.context.runner.ApplicationContextRunner;
 import org.springframework.boot.test.context.runner.ReactiveWebApplicationContextRunner;
+import org.springframework.context.annotation.Bean;
+import org.springframework.context.annotation.Configuration;
+import org.springframework.core.annotation.Order;
+import org.springframework.mock.http.server.reactive.MockServerHttpRequest;
+import org.springframework.mock.web.server.MockServerWebExchange;
+import org.springframework.security.config.web.server.ServerHttpSecurity;
+import org.springframework.security.oauth2.jwt.BadJwtException;
+import org.springframework.security.oauth2.jwt.ReactiveJwtDecoder;
+import org.springframework.security.web.server.SecurityWebFilterChain;
+import org.springframework.security.web.server.util.matcher.ServerWebExchangeMatchers;
 import org.springframework.security.web.server.csrf.ServerCsrfTokenRepository;
 import org.springframework.web.cors.reactive.CorsConfigurationSource;
+import reactor.core.publisher.Mono;
 
 class EdgeAutoConfigurationTest {
 
@@ -109,6 +120,46 @@ class EdgeAutoConfigurationTest {
                             .hasSingleBean(org.springframework.security.oauth2.jwt.ReactiveJwtDecoder.class);
                     assertThat(context).hasBean("browserSecurityFilterChain");
                     assertThat(context).hasBean("serviceApiSecurityFilterChain");
+                    assertThat(context).hasBean("fallbackDenySecurityFilterChain");
+                });
+    }
+
+    @Test
+    void serviceOnlyConfigurationStillOwnsEveryNonServiceRequest() {
+        new ReactiveWebApplicationContextRunner()
+                .withConfiguration(AutoConfigurations.of(
+                        EdgeAutoConfiguration.class,
+                        EdgeServiceApiAutoConfiguration.class))
+                .withUserConfiguration(JwtDecoderConfiguration.class)
+                .run(context -> {
+                    assertThat(context).hasNotFailed();
+                    assertThat(context).hasBean("serviceApiSecurityFilterChain");
+                    assertThat(context).doesNotHaveBean("browserSecurityFilterChain");
+                    assertThat(context).hasBean("fallbackDenySecurityFilterChain");
+
+                    final SecurityWebFilterChain fallback = context.getBean(
+                            "fallbackDenySecurityFilterChain", SecurityWebFilterChain.class);
+                    final MockServerWebExchange nonServiceRequest = MockServerWebExchange.from(
+                            MockServerHttpRequest.get("/api/public/status"));
+
+                    assertThat(fallback.matches(nonServiceRequest).block()).isTrue();
+                });
+    }
+
+    @Test
+    void applicationSecurityChainRunsBeforeTheFallbackDenyChain() {
+        reactiveRunner
+                .withUserConfiguration(ApplicationSecurityChainConfiguration.class)
+                .run(context -> {
+                    assertThat(context).hasNotFailed();
+
+                    final SecurityWebFilterChain application = context.getBean(
+                            "applicationSecurityFilterChain", SecurityWebFilterChain.class);
+                    final SecurityWebFilterChain fallback = context.getBean(
+                            "fallbackDenySecurityFilterChain", SecurityWebFilterChain.class);
+
+                    assertThat(context.getBeanProvider(SecurityWebFilterChain.class).orderedStream())
+                            .containsSubsequence(application, fallback);
                 });
     }
 
@@ -116,13 +167,36 @@ class EdgeAutoConfigurationTest {
     void degradesWithoutOauth2ConfigurationInsteadOfFailingContextStartup() {
         // A reactive app that adds the starter with no OAuth2 client or resource-server configuration
         // must start cleanly (the previous behavior was a NoSuchBeanDefinitionException on
-        // ReactiveClientRegistrationRepository). Neither security filter chain activates.
+        // ReactiveClientRegistrationRepository). Neither credential-bearing chain activates; the
+        // always-on fallback still owns and denies every request.
         reactiveRunner.run(context -> {
             assertThat(context).hasNotFailed();
             assertThat(context).hasSingleBean(EdgeProperties.class);
             assertThat(context).doesNotHaveBean("browserSecurityFilterChain");
             assertThat(context).doesNotHaveBean("authorizationRequestResolver");
             assertThat(context).doesNotHaveBean("serviceApiSecurityFilterChain");
+            assertThat(context).hasBean("fallbackDenySecurityFilterChain");
         });
+    }
+
+    @Configuration(proxyBeanMethods = false)
+    static class JwtDecoderConfiguration {
+
+        @Bean
+        ReactiveJwtDecoder testJwtDecoder() {
+            return token -> Mono.error(new BadJwtException("decoder is not invoked by this topology test"));
+        }
+    }
+
+    @Configuration(proxyBeanMethods = false)
+    static class ApplicationSecurityChainConfiguration {
+
+        @Bean
+        @Order(10)
+        SecurityWebFilterChain applicationSecurityFilterChain(ServerHttpSecurity http) {
+            return http.securityMatcher(ServerWebExchangeMatchers.pathMatchers("/application/**"))
+                    .authorizeExchange(exchanges -> exchanges.anyExchange().permitAll())
+                    .build();
+        }
     }
 }

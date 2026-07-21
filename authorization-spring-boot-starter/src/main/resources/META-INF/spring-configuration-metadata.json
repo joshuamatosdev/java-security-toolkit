@@ -6,6 +6,13 @@
       "sourceType": "io.github.joshuamatosdev.security.authz.spring.AuthorizationAutoConfiguration",
       "description": "Whether the authorization auto-configuration activates and wires the reference AuthorizationService, policy, rule repository, audit sink, and clock (each individually replaceable via @ConditionalOnMissingBean).",
       "defaultValue": true
+    },
+    {
+      "name": "authorization.demo-policy.enabled",
+      "type": "java.lang.Boolean",
+      "sourceType": "io.github.joshuamatosdev.security.authz.spring.AuthorizationConfig",
+      "description": "Whether to install the permissive in-memory showcase policy. Local demonstrations only; production applications should provide a PolicyRuleRepository.",
+      "defaultValue": false
     }
   ]
 }

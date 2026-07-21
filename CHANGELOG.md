@@ -108,3 +108,11 @@ Entries mirror the commit history. One section per history segment. Oldest first
 - The repository is `java-security-toolkit`. The brand name is gone.
 - Config prefixes match module roots. `authorization.enabled`, `edge.enabled`, `crypto.*`, `tenant.isolation.enabled`.
 - Nothing was published. Nothing breaks.
+
+### 22. Runtime and policy hardening
+
+- Partial edge configurations now end in an explicit deny-all security chain.
+- Workflow action pins use structural YAML parsing. Package URLs use the reference parser.
+- Tenant claims mint after pool acquisition. Their validated lifetime is configurable.
+- Authorization starters grant no demo permissions unless a local profile opts in.
+- Dependency-Check consumes the documented `NVD_API_KEY` environment variable.

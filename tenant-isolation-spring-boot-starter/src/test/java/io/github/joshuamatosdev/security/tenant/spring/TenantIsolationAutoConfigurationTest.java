@@ -2,9 +2,11 @@ package io.github.joshuamatosdev.security.tenant.spring;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
+import io.github.joshuamatosdev.security.tenant.config.TenantBindingProperties;
 import io.github.joshuamatosdev.security.tenant.datasource.factory.DataSourceConfig;
 import io.github.joshuamatosdev.security.tenant.datasource.session.TenantSessionDataSourceProxy;
 import java.time.Clock;
+import java.time.Duration;
 import java.time.Instant;
 import java.time.ZoneOffset;
 import javax.sql.DataSource;
@@ -55,6 +57,14 @@ class TenantIsolationAutoConfigurationTest {
         bootDataSourceContextRunner
                 .withBean(Clock.class, () -> clock)
                 .run(context -> assertThat(context.getBean(Clock.class)).isSameAs(clock));
+    }
+
+    @Test
+    void bindsConfiguredClaimTtl() {
+        bootDataSourceContextRunner
+                .withPropertyValues("tenant.binding.claim-ttl=15m")
+                .run(context -> assertThat(context.getBean(TenantBindingProperties.class).claimTtl())
+                        .isEqualTo(Duration.ofMinutes(15)));
     }
 
     @Test

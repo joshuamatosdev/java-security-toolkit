@@ -100,6 +100,7 @@ class DocumentControllerSecurityTest {
         registry.add("spring.datasource.username", () -> RUNTIME_USERNAME);
         registry.add("spring.datasource.password", () -> DEV_PASSWORD);
         registry.add("showcase.demo-identity", () -> "true");
+        registry.add("authorization.demo-policy.enabled", () -> "true");
     }
 
     @Autowired

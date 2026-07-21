@@ -1,5 +1,7 @@
 package io.github.joshuamatosdev.security.supplychain.sbom;
 
+import com.github.packageurl.MalformedPackageURLException;
+import com.github.packageurl.PackageURL;
 import java.io.ByteArrayOutputStream;
 import java.nio.ByteBuffer;
 import java.nio.charset.CharacterCodingException;
@@ -10,113 +12,150 @@ import java.util.Locale;
 import java.util.Set;
 import java.util.regex.Pattern;
 
+/** Thin adapter around the package-url reference implementation with strict input validation. */
 final class PackageUrls {
 
-  private static final Pattern PACKAGE_URL =
-      Pattern.compile(
-          "pkg:[a-z][a-z0-9.-]*/[^\\s/?#]+(?:/[^\\s/?#]+)*(?:@[^\\s/?#]+)?(?:\\?[^\\s#]+)?(?:#[^\\s]+)?");
+  private static final Pattern TYPE = Pattern.compile("[a-z][a-z0-9.-]*");
   private static final Pattern QUALIFIER_KEY = Pattern.compile("[a-z][a-z0-9._-]*");
-  private static final String COORDINATE_DELIMITERS = "/@?=#&";
-  private static final String QUALIFIER_VALUE_DELIMITERS = "/@?=#&";
+  private static final String PURL_PUNCTUATION = ".-_~%:/@?=&#";
 
   private PackageUrls() {}
 
   static String canonicalize(String purl) {
-    if (!purl.regionMatches(true, 0, "pkg:", 0, "pkg:".length())) {
-      return purl;
-    }
-    int typeStart = "pkg:".length();
-    while (typeStart < purl.length() && purl.charAt(typeStart) == '/') {
-      typeStart++;
-    }
-    int typeEnd = purl.indexOf('/', typeStart);
-    if (typeEnd < 0) {
-      return purl;
-    }
-    return "pkg:" + purl.substring(typeStart, typeEnd).toLowerCase(Locale.ROOT) + purl.substring(typeEnd);
+    // Keep canonicalization lossless. The reference constructor supplies structural validation,
+    // but packageurl-java 1.5.0's renderer corrupts non-ASCII octets on current JDKs. Normalize only
+    // the scheme/type fields whose representation this boundary controls directly.
+    return normalizeSchemeAndType(purl);
   }
 
   static boolean isValid(String purl) {
-    return hasOnlyPackageUrlCharacters(purl)
-        && hasValidPercentEncoding(purl)
-        && hasValidPercentEncodedUtf8(purl)
-        && PACKAGE_URL.matcher(purl).matches()
-        && hasValidVersionDelimiter(purl)
-        && hasValidCoordinateSeparators(purl)
-        && hasNoPercentEncodedCoordinateDelimiters(purl)
-        && hasValidNamespaceSegments(purl)
-        && hasValidQualifiers(purl)
-        && hasAtMostOneFragmentDelimiter(purl)
-        && hasValidSubpath(purl);
-  }
-
-  private static boolean hasValidVersionDelimiter(String purl) {
-    String coordinate = coordinate(purl);
-    int versionDelimiter = coordinate.indexOf('@');
-    if (versionDelimiter < 0) {
-      return true;
+    String normalized = normalizeSchemeAndType(purl);
+    if (!hasOnlyPermittedCharacters(normalized)
+        || !hasValidPercentEncodedUtf8(normalized)
+        || !hasValidStructure(normalized)) {
+      return false;
     }
-    int lastPathSeparator = coordinate.lastIndexOf('/');
-    return versionDelimiter > 0
-        && versionDelimiter < coordinate.length() - 1
-        && versionDelimiter > lastPathSeparator + 1
-        && coordinate.charAt(versionDelimiter - 1) != '/'
-        && coordinate.indexOf('/', versionDelimiter + 1) < 0
-        && coordinate.indexOf('@', versionDelimiter + 1) < 0;
+    try {
+      new PackageURL(normalized);
+      return true;
+    } catch (MalformedPackageURLException ex) {
+      return false;
+    }
   }
 
-  private static boolean hasValidNamespaceSegments(String purl) {
-    String coordinate = coordinate(purl);
+  private static boolean hasValidStructure(String purl) {
+    if (!purl.startsWith("pkg:")) {
+      return false;
+    }
+    int typeEnd = purl.indexOf('/', "pkg:".length());
+    if (typeEnd < 0 || !TYPE.matcher(purl.substring("pkg:".length(), typeEnd)).matches()) {
+      return false;
+    }
+
+    int queryStart = purl.indexOf('?', typeEnd + 1);
+    int fragmentStart = purl.indexOf('#', typeEnd + 1);
+    if (queryStart >= 0 && fragmentStart >= 0 && queryStart > fragmentStart) {
+      return false;
+    }
+    int coordinateEnd = firstDelimiter(purl.length(), queryStart, fragmentStart);
+    String coordinate = purl.substring(typeEnd + 1, coordinateEnd);
+    if (!hasValidCoordinates(coordinate)) {
+      return false;
+    }
+    return hasValidQualifiers(purl, queryStart, fragmentStart)
+        && hasValidSubpath(purl, fragmentStart);
+  }
+
+  private static boolean hasValidCoordinates(String coordinate) {
+    if (coordinate.indexOf('=') >= 0 || coordinate.indexOf('&') >= 0) {
+      return false;
+    }
     int versionDelimiter = coordinate.indexOf('@');
+    if (versionDelimiter >= 0
+        && (versionDelimiter == 0
+            || versionDelimiter == coordinate.length() - 1
+            || coordinate.indexOf('@', versionDelimiter + 1) >= 0
+            || coordinate.indexOf('/', versionDelimiter + 1) >= 0)) {
+      return false;
+    }
+
     String coordinatePath =
         versionDelimiter < 0 ? coordinate : coordinate.substring(0, versionDelimiter);
+    coordinatePath = trimSlashes(coordinatePath);
+    if (coordinatePath.isEmpty()) {
+      return false;
+    }
     String[] segments = coordinatePath.split("/", -1);
-    for (int index = 0; index < segments.length - 1; index++) {
-      if (containsPercentEncodedSlash(segments[index])) {
+    for (int index = 0; index < segments.length; index++) {
+      if (segments[index].isEmpty()
+          || (index < segments.length - 1 && containsPercentEncodedSlash(segments[index]))) {
         return false;
       }
     }
     return true;
   }
 
-  private static boolean hasValidCoordinateSeparators(String purl) {
-    String coordinate = coordinate(purl);
-    return coordinate.indexOf('=') < 0 && coordinate.indexOf('&') < 0;
-  }
-
-  private static boolean hasNoPercentEncodedCoordinateDelimiters(String purl) {
-    return !containsPercentEncodedDelimiter(coordinate(purl), COORDINATE_DELIMITERS);
-  }
-
-  private static boolean hasOnlyPackageUrlCharacters(String purl) {
-    for (int index = 0; index < purl.length(); index++) {
-      int character = purl.charAt(index);
-      if (isAsciiAlphaNumeric(character)) {
-        continue;
+  private static boolean hasValidQualifiers(
+      String purl, int queryStart, int fragmentStart) {
+    if (queryStart < 0) {
+      return true;
+    }
+    int queryEnd = fragmentStart < 0 ? purl.length() : fragmentStart;
+    String query = purl.substring(queryStart + 1, queryEnd);
+    if (query.isEmpty()) {
+      return false;
+    }
+    Set<String> keys = new HashSet<>();
+    for (String qualifier : query.split("&", -1)) {
+      int separator = qualifier.indexOf('=');
+      if (separator <= 0
+          || separator == qualifier.length() - 1
+          || qualifier.indexOf('=', separator + 1) >= 0) {
+        return false;
       }
-      switch (character) {
-        case '.', '-', '_', '~', '%', ':', '/', '@', '?', '=', '&', '#' -> {
-          // allowed package-url punctuation
-        }
-        default -> {
-          return false;
-        }
+      String key = qualifier.substring(0, separator);
+      String value = qualifier.substring(separator + 1);
+      if (!QUALIFIER_KEY.matcher(key).matches()
+          || containsRawQualifierDelimiter(value)
+          || !keys.add(key)) {
+        return false;
       }
     }
     return true;
   }
 
-  private static boolean hasValidPercentEncoding(String purl) {
-    for (int index = 0; index < purl.length(); index++) {
-      if (purl.charAt(index) != '%') {
-        continue;
-      }
-      if (index + 2 >= purl.length()
-          || !isAsciiHexDigit(purl.charAt(index + 1))
-          || !isAsciiHexDigit(purl.charAt(index + 2))) {
+  private static boolean containsRawQualifierDelimiter(String value) {
+    return value.indexOf('/') >= 0 || value.indexOf('@') >= 0 || value.indexOf('?') >= 0;
+  }
+
+  private static boolean hasValidSubpath(String purl, int fragmentStart) {
+    if (fragmentStart < 0) {
+      return true;
+    }
+    if (purl.indexOf('#', fragmentStart + 1) >= 0) {
+      return false;
+    }
+    String subpath = trimSlashes(purl.substring(fragmentStart + 1));
+    if (subpath.isEmpty()) {
+      return false;
+    }
+    for (String segment : subpath.split("/", -1)) {
+      if (segment.isEmpty() || containsPercentEncodedSlash(segment) || isDotSegment(segment)) {
         return false;
       }
-      index += 2;
+    }
+    return true;
+  }
+
+  private static boolean hasOnlyPermittedCharacters(String purl) {
+    for (int index = 0; index < purl.length(); index++) {
+      char character = purl.charAt(index);
+      if (!(character >= 'a' && character <= 'z')
+          && !(character >= 'A' && character <= 'Z')
+          && !(character >= '0' && character <= '9')
+          && PURL_PUNCTUATION.indexOf(character) < 0) {
+        return false;
+      }
     }
     return true;
   }
@@ -125,12 +164,17 @@ final class PackageUrls {
     ByteArrayOutputStream decoded = new ByteArrayOutputStream(purl.length());
     for (int index = 0; index < purl.length(); index++) {
       char character = purl.charAt(index);
-      if (character == '%') {
-        decoded.write(Integer.parseInt(purl.substring(index + 1, index + 3), 16));
-        index += 2;
-      } else {
+      if (character != '%') {
         decoded.write(character);
+        continue;
       }
+      if (index + 2 >= purl.length()
+          || !isAsciiHexDigit(purl.charAt(index + 1))
+          || !isAsciiHexDigit(purl.charAt(index + 2))) {
+        return false;
+      }
+      decoded.write(Integer.parseInt(purl.substring(index + 1, index + 3), 16));
+      index += 2;
     }
     try {
       String decodedText =
@@ -146,73 +190,32 @@ final class PackageUrls {
     }
   }
 
-  private static boolean hasValidQualifiers(String purl) {
-    int queryStart = purl.indexOf('?');
-    if (queryStart < 0) {
-      return true;
+  private static String normalizeSchemeAndType(String purl) {
+    if (!purl.regionMatches(true, 0, "pkg:", 0, "pkg:".length())) {
+      return purl;
     }
-    int fragmentStart = purl.indexOf('#', queryStart + 1);
-    String qualifiers =
-        purl.substring(queryStart + 1, fragmentStart < 0 ? purl.length() : fragmentStart);
-    Set<String> keys = new HashSet<>();
-    for (String qualifier : qualifiers.split("&", -1)) {
-      int separator = qualifier.indexOf('=');
-      if (separator <= 0 || separator == qualifier.length() - 1) {
-        return false;
-      }
-      String key = qualifier.substring(0, separator);
-      String value = qualifier.substring(separator + 1);
-      if (!QUALIFIER_KEY.matcher(key).matches()
-          || hasRawQualifierValueDelimiter(value)
-          || containsPercentEncodedDelimiter(value, QUALIFIER_VALUE_DELIMITERS)
-          || !keys.add(key)) {
-        return false;
-      }
+    int typeStart = "pkg:".length();
+    while (typeStart < purl.length() && purl.charAt(typeStart) == '/') {
+      typeStart++;
     }
-    return true;
+    int typeEnd = purl.indexOf('/', typeStart);
+    if (typeEnd < 0) {
+      return purl;
+    }
+    return "pkg:"
+        + purl.substring(typeStart, typeEnd).toLowerCase(Locale.ROOT)
+        + purl.substring(typeEnd);
   }
 
-  private static boolean hasRawQualifierValueDelimiter(String value) {
-    return value.indexOf('?') >= 0
-        || value.indexOf('=') >= 0
-        || value.indexOf('/') >= 0
-        || value.indexOf('@') >= 0;
-  }
-
-  private static boolean hasAtMostOneFragmentDelimiter(String purl) {
-    int fragmentStart = purl.indexOf('#');
-    return fragmentStart < 0 || purl.indexOf('#', fragmentStart + 1) < 0;
-  }
-
-  private static boolean hasValidSubpath(String purl) {
-    int fragmentStart = purl.indexOf('#');
-    if (fragmentStart < 0) {
-      return true;
+  private static int firstDelimiter(int fallback, int first, int second) {
+    int result = fallback;
+    if (first >= 0) {
+      result = first;
     }
-    String subpath = trimSlashes(purl.substring(fragmentStart + 1));
-    if (subpath.isEmpty()) {
-      return false;
+    if (second >= 0) {
+      result = Math.min(result, second);
     }
-    for (String segment : subpath.split("/", -1)) {
-      if (segment.isEmpty() || containsPercentEncodedSlash(segment) || isDotSegment(segment)) {
-        return false;
-      }
-    }
-    return true;
-  }
-
-  private static String coordinate(String purl) {
-    int coordinateStart = purl.indexOf('/') + 1;
-    int coordinateEnd = purl.length();
-    int queryStart = purl.indexOf('?');
-    if (queryStart >= 0) {
-      coordinateEnd = queryStart;
-    }
-    int fragmentStart = purl.indexOf('#');
-    if (fragmentStart >= 0) {
-      coordinateEnd = Math.min(coordinateEnd, fragmentStart);
-    }
-    return purl.substring(coordinateStart, coordinateEnd);
+    return result;
   }
 
   private static String trimSlashes(String value) {
@@ -227,64 +230,16 @@ final class PackageUrls {
     return value.substring(start, end);
   }
 
-  private static boolean isDotSegment(String segment) {
-    int dots = 0;
-    for (int index = 0; index < segment.length(); ) {
-      if (segment.charAt(index) == '.') {
-        dots++;
-        index++;
-      } else if (isPercentEncodedDot(segment, index)) {
-        dots++;
-        index += 3;
-      } else {
-        return false;
-      }
-    }
-    return dots == 1 || dots == 2;
-  }
-
-  private static boolean isPercentEncodedDot(String value, int index) {
-    return index + 2 < value.length()
-        && value.charAt(index) == '%'
-        && value.charAt(index + 1) == '2'
-        && (value.charAt(index + 2) == 'e' || value.charAt(index + 2) == 'E');
-  }
-
   private static boolean containsPercentEncodedSlash(String value) {
-    for (int index = 0; index + 2 < value.length(); index++) {
-      if (value.charAt(index) == '%'
-          && value.charAt(index + 1) == '2'
-          && (value.charAt(index + 2) == 'f' || value.charAt(index + 2) == 'F')) {
-        return true;
-      }
-    }
-    return false;
+    return value.toLowerCase(Locale.ROOT).contains("%2f");
   }
 
-  private static boolean containsPercentEncodedDelimiter(String value, String delimiters) {
-    for (int index = 0; index + 2 < value.length(); index++) {
-      if (value.charAt(index) != '%') {
-        continue;
-      }
-      if (!isAsciiHexDigit(value.charAt(index + 1)) || !isAsciiHexDigit(value.charAt(index + 2))) {
-        continue;
-      }
-      int decoded = Integer.parseInt(value.substring(index + 1, index + 3), 16);
-      if (delimiters.indexOf(decoded) >= 0) {
-        return true;
-      }
-      index += 2;
-    }
-    return false;
+  private static boolean isDotSegment(String segment) {
+    String decodedDots = segment.toLowerCase(Locale.ROOT).replace("%2e", ".");
+    return decodedDots.equals(".") || decodedDots.equals("..");
   }
 
-  private static boolean isAsciiAlphaNumeric(int character) {
-    return character >= 'a' && character <= 'z'
-        || character >= 'A' && character <= 'Z'
-        || character >= '0' && character <= '9';
-  }
-
-  private static boolean isAsciiHexDigit(int character) {
+  private static boolean isAsciiHexDigit(char character) {
     return character >= 'a' && character <= 'f'
         || character >= 'A' && character <= 'F'
         || character >= '0' && character <= '9';

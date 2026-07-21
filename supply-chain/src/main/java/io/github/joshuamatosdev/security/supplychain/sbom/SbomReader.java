@@ -109,11 +109,10 @@ public final class SbomReader {
     if (rawPurl == null) {
       return null;
     }
-    String purl = PackageUrls.canonicalize(rawPurl);
-    if (!PackageUrls.isValid(purl)) {
+    if (!PackageUrls.isValid(rawPurl)) {
       throw new IllegalArgumentException(
           "CycloneDX field purl must be a package-url value when present");
     }
-    return purl;
+    return PackageUrls.canonicalize(rawPurl);
   }
 }

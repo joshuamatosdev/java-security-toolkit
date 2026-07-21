@@ -1,12 +1,16 @@
 package io.github.joshuamatosdev.security.supplychain.policy;
 
+import com.fasterxml.jackson.core.StreamReadFeature;
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.dataformat.yaml.YAMLFactory;
 import java.io.IOException;
 import java.io.UncheckedIOException;
-import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
+import java.util.Iterator;
 import java.util.List;
-import java.util.regex.Matcher;
+import java.util.Map;
 import java.util.regex.Pattern;
 
 /**
@@ -19,9 +23,9 @@ import java.util.regex.Pattern;
  * workflow executes code CI never reviewed. A commit SHA names exact content. Repository-local
  * composite actions ({@code ./.github/actions/...}) are not external inputs and are exempt.
  *
- * <p>The scan is line-oriented over the conventional workflow layout ({@code uses:} as a plain
- * scalar on one line, optionally quoted, optionally followed by a comment) — the same layout every
- * mainstream workflow uses and the one this repository's CI is written in.
+ * <p>The workflow is parsed as YAML so block and flow collections, quoted scalars, comments, and
+ * reusable-workflow jobs are evaluated consistently. Only schema-defined action references are
+ * inspected: job-level {@code uses} and each {@code jobs.*.steps[*].uses} value.
  *
  * <p>Why this exists: the {@code Dockerfile} and the Gradle wrapper have executable pin policies;
  * the workflows that run them are build inputs of the same trust horizon, so their pins must be a
@@ -29,8 +33,11 @@ import java.util.regex.Pattern;
  */
 public final class ActionPinPolicy {
 
-  private static final Pattern USES_LINE =
-      Pattern.compile("^\\s*(?:-\\s+)?uses:\\s*(.*?)\\s*$", Pattern.CASE_INSENSITIVE);
+  private static final ObjectMapper WORKFLOW_MAPPER =
+      new ObjectMapper(
+          YAMLFactory.builder()
+              .enable(StreamReadFeature.STRICT_DUPLICATE_DETECTION)
+              .build());
 
   private static final Pattern SHA_PINNED = Pattern.compile("^[^@\\s]+@[0-9a-f]{40}$");
 
@@ -49,21 +56,49 @@ public final class ActionPinPolicy {
    * immutable revision. An empty result means the workflow satisfies the policy.
    */
   public List<String> unpinnedActionRefs(Path workflow) {
+    JsonNode document = readWorkflow(workflow);
+    JsonNode jobs = requiredObject(document, "jobs", "workflow");
     List<String> unpinned = new ArrayList<>();
-    for (String line : readLines(workflow)) {
-      if (line.stripLeading().startsWith("#")) {
-        continue;
-      }
-      Matcher uses = USES_LINE.matcher(line);
-      if (!uses.matches()) {
-        continue;
-      }
-      String ref = unquotedRef(uses.group(1));
-      if (!isPinnedOrLocal(ref)) {
-        unpinned.add(ref);
-      }
+
+    Iterator<Map.Entry<String, JsonNode>> jobFields = jobs.properties().iterator();
+    while (jobFields.hasNext()) {
+      Map.Entry<String, JsonNode> jobField = jobFields.next();
+      String jobPath = "jobs." + jobField.getKey();
+      JsonNode job = requiredObject(jobField.getValue(), null, jobPath);
+      inspectUses(job.get("uses"), jobPath + ".uses", unpinned);
+      inspectSteps(job.get("steps"), jobPath, unpinned);
     }
-    return unpinned;
+    return List.copyOf(unpinned);
+  }
+
+  private void inspectSteps(JsonNode steps, String jobPath, List<String> unpinned) {
+    if (steps == null) {
+      return;
+    }
+    if (!steps.isArray()) {
+      throw new IllegalArgumentException(jobPath + ".steps must be a sequence");
+    }
+    for (int index = 0; index < steps.size(); index++) {
+      JsonNode step = requiredObject(steps.get(index), null, jobPath + ".steps[" + index + "]");
+      inspectUses(step.get("uses"), jobPath + ".steps[" + index + "].uses", unpinned);
+    }
+  }
+
+  private void inspectUses(JsonNode uses, String path, List<String> unpinned) {
+    if (uses == null) {
+      return;
+    }
+    String ref;
+    if (uses.isNull()) {
+      ref = "";
+    } else if (uses.isTextual()) {
+      ref = uses.textValue();
+    } else {
+      throw new IllegalArgumentException(path + " must be a string");
+    }
+    if (!isPinnedOrLocal(ref)) {
+      unpinned.add(ref);
+    }
   }
 
   private boolean isPinnedOrLocal(String ref) {
@@ -80,33 +115,24 @@ public final class ActionPinPolicy {
     return isShaPinned(ref);
   }
 
-  /**
-   * Extracts the reference from the scalar after {@code uses:}: strips one level of single or
-   * double quotes, otherwise takes the first whitespace-delimited token (which also drops a
-   * trailing {@code # comment}).
-   */
-  private static String unquotedRef(String rawValue) {
-    if (rawValue.length() >= 2
-        && (rawValue.charAt(0) == '\'' || rawValue.charAt(0) == '"')) {
-      int closingQuote = rawValue.indexOf(rawValue.charAt(0), 1);
-      if (closingQuote > 0) {
-        return rawValue.substring(1, closingQuote);
-      }
-      return rawValue;
+  private static JsonNode requiredObject(JsonNode parent, String field, String path) {
+    JsonNode value = field == null ? parent : parent.get(field);
+    if (value == null || !value.isObject()) {
+      String fieldPath = field == null ? path : path + "." + field;
+      throw new IllegalArgumentException(fieldPath + " must be a mapping");
     }
-    int firstWhitespace = 0;
-    while (firstWhitespace < rawValue.length()
-        && !Character.isWhitespace(rawValue.charAt(firstWhitespace))) {
-      firstWhitespace++;
-    }
-    return rawValue.substring(0, firstWhitespace);
+    return value;
   }
 
-  private static List<String> readLines(Path workflow) {
+  private static JsonNode readWorkflow(Path workflow) {
     try {
-      return Files.readAllLines(workflow);
-    } catch (IOException e) {
-      throw new UncheckedIOException("failed to read workflow at " + workflow, e);
+      JsonNode document = WORKFLOW_MAPPER.readTree(workflow.toFile());
+      if (document == null || !document.isObject()) {
+        throw new IllegalArgumentException("workflow must contain a YAML mapping: " + workflow);
+      }
+      return document;
+    } catch (IOException ex) {
+      throw new UncheckedIOException("failed to parse workflow at " + workflow, ex);
     }
   }
 }

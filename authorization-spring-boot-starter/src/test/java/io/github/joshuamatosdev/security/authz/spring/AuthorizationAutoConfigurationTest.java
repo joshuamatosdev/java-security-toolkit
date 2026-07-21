@@ -4,9 +4,18 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.Mockito.mock;
 
 import io.github.joshuamatosdev.security.authz.audit.AuthorizationAuditSink;
+import io.github.joshuamatosdev.security.authz.policy.Action;
+import io.github.joshuamatosdev.security.authz.policy.PolicyScopeType;
+import io.github.joshuamatosdev.security.authz.policy.RoleAssignment;
+import io.github.joshuamatosdev.security.authz.policy.Roles;
+import io.github.joshuamatosdev.security.authz.policy.rule.InMemoryPolicyRuleRepository;
 import io.github.joshuamatosdev.security.authz.policy.rule.PolicyRuleRepository;
 import io.github.joshuamatosdev.security.authz.service.AuthorizationPolicy;
 import io.github.joshuamatosdev.security.authz.service.AuthorizationService;
+import io.github.joshuamatosdev.security.shared.OrganizationId;
+import io.github.joshuamatosdev.security.shared.TenantId;
+import java.util.Set;
+import java.util.UUID;
 import org.junit.jupiter.api.Test;
 import org.springframework.boot.autoconfigure.AutoConfigurations;
 import org.springframework.boot.test.context.runner.ApplicationContextRunner;
@@ -25,12 +34,59 @@ class AuthorizationAutoConfigurationTest {
     }
 
     @Test
+    void defaultRuleRepositoryDeniesMemberAccess() {
+        contextRunner.run(context -> {
+            final PolicyRuleRepository repository = context.getBean(PolicyRuleRepository.class);
+            final TenantId tenant = new TenantId(UUID.randomUUID());
+            final OrganizationId organization = new OrganizationId(UUID.randomUUID());
+
+            assertThat(repository.effectivePolicyFor(tenant).allowingScope(
+                            Set.of(RoleAssignment.organization(Roles.MEMBER, organization)),
+                            organization,
+                            null,
+                            Action.READ))
+                    .isEmpty();
+        });
+    }
+
+    @Test
+    void demoPolicyRequiresExplicitOptIn() {
+        contextRunner
+                .withPropertyValues("authorization.demo-policy.enabled=true")
+                .run(context -> {
+                    final PolicyRuleRepository repository = context.getBean(PolicyRuleRepository.class);
+                    final TenantId tenant = new TenantId(UUID.randomUUID());
+                    final OrganizationId organization = new OrganizationId(UUID.randomUUID());
+
+                    assertThat(repository).isInstanceOf(InMemoryPolicyRuleRepository.class);
+                    assertThat(repository.effectivePolicyFor(tenant).allowingScope(
+                                    Set.of(RoleAssignment.organization(Roles.MEMBER, organization)),
+                                    organization,
+                                    null,
+                                    Action.READ))
+                            .contains(PolicyScopeType.ORGANIZATION);
+                });
+    }
+
+    @Test
     void backsOffWhenApplicationProvidesAnAuditSink() {
         contextRunner
                 .withUserConfiguration(CustomAuditSinkConfiguration.class)
                 .run(context -> {
                     assertThat(context).hasSingleBean(AuthorizationAuditSink.class);
                     assertThat(context).hasSingleBean(AuthorizationService.class);
+                });
+    }
+
+    @Test
+    void customRuleRepositoryOverridesBothStarterModes() {
+        contextRunner
+                .withUserConfiguration(CustomRuleRepositoryConfiguration.class)
+                .withPropertyValues("authorization.demo-policy.enabled=true")
+                .run(context -> {
+                    assertThat(context).hasSingleBean(PolicyRuleRepository.class);
+                    assertThat(context.getBean(PolicyRuleRepository.class))
+                            .isSameAs(context.getBean(CustomRuleRepositoryConfiguration.class).repository);
                 });
     }
 
@@ -78,6 +134,16 @@ class AuthorizationAutoConfigurationTest {
         @Bean
         AuthorizationAuditSink customAuditSink() {
             return record -> { };
+        }
+    }
+
+    @Configuration(proxyBeanMethods = false)
+    static class CustomRuleRepositoryConfiguration {
+        final PolicyRuleRepository repository = mock(PolicyRuleRepository.class);
+
+        @Bean
+        PolicyRuleRepository customPolicyRuleRepository() {
+            return repository;
         }
     }
 

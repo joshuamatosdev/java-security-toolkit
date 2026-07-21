@@ -7,11 +7,11 @@ import io.github.joshuamatosdev.security.authz.policy.rule.PolicyRuleRepository;
 import io.github.joshuamatosdev.security.authz.service.AuthorizationPolicy;
 import io.github.joshuamatosdev.security.authz.service.AuthorizationService;
 import io.github.joshuamatosdev.security.authz.service.DefaultAuthorizationService;
+import java.time.Clock;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
-
-import java.time.Clock;
 
 /**
  * Composition root for the framework-free decision core. The pure classes carry no Spring
@@ -38,7 +38,20 @@ public class AuthorizationConfig {
 
     @Bean
     @ConditionalOnMissingBean(PolicyRuleRepository.class)
-    PolicyRuleRepository policyRuleRepository() {
+    @ConditionalOnProperty(
+            prefix = "authorization.demo-policy",
+            name = "enabled",
+            havingValue = "false",
+            matchIfMissing = true)
+    PolicyRuleRepository denyAllPolicyRuleRepository() {
+        return new DenyAllPolicyRuleRepository();
+    }
+
+    @Bean
+    @ConditionalOnMissingBean(PolicyRuleRepository.class)
+    @ConditionalOnProperty(
+            prefix = "authorization.demo-policy", name = "enabled", havingValue = "true")
+    PolicyRuleRepository demoPolicyRuleRepository() {
         return new InMemoryPolicyRuleRepository();
     }
 

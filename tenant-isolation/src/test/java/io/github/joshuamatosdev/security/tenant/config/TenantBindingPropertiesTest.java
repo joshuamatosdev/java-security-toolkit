@@ -4,6 +4,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import io.github.joshuamatosdev.security.tenant.testfixtures.TenantTestConstants;
+import java.time.Duration;
 import org.junit.jupiter.api.Test;
 
 /**
@@ -55,5 +56,28 @@ class TenantBindingPropertiesTest {
 
         assertThat(properties.requireClaimSecret()).isEqualTo(TenantTestConstants.CLAIM_SECRET);
         assertThat(properties.requireSystemOpsPasswordForIdMode()).isEqualTo(TenantTestConstants.DEV_PASSWORD);
+        assertThat(properties.claimTtl()).isEqualTo(Duration.ofSeconds(120));
+    }
+
+    @Test
+    void claimTtlCanCoverTheApplicationsLongestBorrow() {
+        final TenantBindingProperties properties = new TenantBindingProperties(
+                TenantTestConstants.CLAIM_SECRET,
+                TenantTestConstants.DEV_PASSWORD,
+                null,
+                Duration.ofMinutes(15));
+
+        assertThat(properties.claimTtl()).isEqualTo(Duration.ofMinutes(15));
+    }
+
+    @Test
+    void claimTtlRejectsSubSecondValues() {
+        assertThatThrownBy(() -> new TenantBindingProperties(
+                        TenantTestConstants.CLAIM_SECRET,
+                        TenantTestConstants.DEV_PASSWORD,
+                        null,
+                        Duration.ofMillis(999)))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessage("tenant.binding.claim-ttl must be at least 1 second");
     }
 }

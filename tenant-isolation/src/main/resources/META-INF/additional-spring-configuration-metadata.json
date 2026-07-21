@@ -7,6 +7,12 @@
     {
       "name": "tenant.binding.organization-scope",
       "defaultValue": "off"
+    },
+    {
+      "name": "tenant.binding.claim-ttl",
+      "type": "java.time.Duration",
+      "description": "Lifetime of tenant and organization claims minted after pool acquisition. Configure it above the application's longest connection hold time.",
+      "defaultValue": "2m"
     }
   ]
 }

@@ -9,9 +9,9 @@ import java.sql.ShardingKeyBuilder;
 import java.sql.Types;
 import java.util.List;
 import java.util.Objects;
-import java.util.Optional;
 import javax.sql.DataSource;
 
+import io.github.joshuamatosdev.security.shared.OrganizationId;
 import io.github.joshuamatosdev.security.shared.RequiredText;
 import io.github.joshuamatosdev.security.shared.TenantId;
 import io.github.joshuamatosdev.security.tenant.TenantIds;
@@ -179,13 +179,12 @@ public final class TenantSessionDataSourceProxy extends AbstractDataSource imple
     }
 
     /**
-     * Signs the current tenant claim (and, per the configured {@link OrganizationScope}, the
-     * organization claim), borrows a connection, and immediately binds the claims to the PostgreSQL
-     * session.
+     * Validates the current binding, borrows a connection, then mints and immediately binds the
+     * tenant claim and, per the configured {@link OrganizationScope}, the organization claim.
      *
-     * <p>Fail-closed behavior is enforced before the caller receives the connection: if no
-     * a tenant binding exists — or the scope is {@code required} and an ordinary tenant borrow
-     * has no organization — no connection is borrowed and no SQL can run.
+     * <p>Binding requirements are checked before pool acquisition. Claims are minted afterward so
+     * pool wait time cannot consume their configured lifetime. Any signing or binding failure
+     * aborts the acquired connection before it can return to the pool.
      *
      * @return a guarded connection whose {@link Connection#close()} clears the bound claims
      * @throws SQLException when borrowing or binding, the underlying connection fails
@@ -193,9 +192,18 @@ public final class TenantSessionDataSourceProxy extends AbstractDataSource imple
     @Override
     public @NonNull Connection getConnection() throws SQLException {
         final TenantId tenant = requireTenantOrFail();
-        final String tenantClaim = claimSigner.sign(tenant.value());
-        final String organizationClaim = organizationClaimFor(tenant);
-        return bind(delegate.getConnection(), tenantClaim, organizationClaim);
+        final @Nullable OrganizationId organization = organizationFor(tenant);
+        final Connection raw = delegate.getConnection();
+        try {
+            final String tenantClaim = claimSigner.sign(tenant.value());
+            final @Nullable String organizationClaim = organization == null
+                    ? null
+                    : claimSigner.signOrganization(organization.value());
+            return bind(raw, tenantClaim, organizationClaim);
+        } catch (SQLException | RuntimeException | Error ex) {
+            ResettingConnectionProxy.abortQuietly(raw);
+            throw ex;
+        }
     }
 
     /**
@@ -260,9 +268,6 @@ public final class TenantSessionDataSourceProxy extends AbstractDataSource imple
     /**
      * Applies the signed claims to a freshly borrowed raw connection.
      *
-     * <p>If binding fails, the connection is aborted instead of returned normally to the pool because
-     * its session state is unknown.
-     *
      * @param raw the raw connection returned by the delegate datasource
      * @param tenantClaim signed tenant claim to bind into the PostgreSQL session
      * @param organizationClaim signed organization claim, or {@code null} when this borrow binds none
@@ -272,12 +277,7 @@ public final class TenantSessionDataSourceProxy extends AbstractDataSource imple
     private Connection bind(
             final Connection raw, final String tenantClaim, final @Nullable String organizationClaim)
             throws SQLException {
-        try {
-            applyBinding(raw, tenantClaim, organizationClaim);
-        } catch (SQLException | RuntimeException ex) {
-            ResettingConnectionProxy.abortQuietly(raw);
-            throw ex;
-        }
+        applyBinding(raw, tenantClaim, organizationClaim);
         notifyObserver(() -> observer.onBindingSet(poolName));
         return wrapForSessionReset(raw);
     }
@@ -301,30 +301,29 @@ public final class TenantSessionDataSourceProxy extends AbstractDataSource imple
     }
 
     /**
-     * Returns the signed organization claim this borrow should bind, or fails closed.
+     * Returns the organization this borrow should bind, or fails closed.
      *
      * <p>{@link OrganizationScope#OFF} never binds one. The system-operations tenant never carries
      * one — cross-tenant operational work is not organization-scoped — so the {@code required}
      * check applies to ordinary tenants only.
      *
      * @param tenant the tenant bound to the calling thread
-     * @return signed organization claim, or {@code null} when this borrow binds none
+     * @return organization identifier, or {@code null} when this borrow binds none
      * @throws IllegalStateException when the scope is {@code required} and an ordinary tenant borrow
      *     has no bound organization
      */
-    private @Nullable String organizationClaimFor(final TenantId tenant) {
+    private @Nullable OrganizationId organizationFor(final TenantId tenant) {
         if (organizationScope == OrganizationScope.OFF || TenantIds.SYSTEM_OPS.equals(tenant)) {
             return null;
         }
-        final Optional<String> claim = bindingSource.currentOrganization()
-                .map(organization -> claimSigner.signOrganization(organization.value()));
-        if (claim.isEmpty() && organizationScope == OrganizationScope.REQUIRED) {
+        final @Nullable OrganizationId organization = bindingSource.currentOrganization().orElse(null);
+        if (organization == null && organizationScope == OrganizationScope.REQUIRED) {
             notifyObserver(() -> observer.onOrganizationBindingMissing(poolName));
             throw new IllegalStateException("TenantContext organization not populated — tenant-scoped"
                     + " datasource '" + poolName + "' requires organization binding"
                     + " (tenant.binding.organization-scope=required)");
         }
-        return claim.orElse(null);
+        return organization;
     }
 
     /**

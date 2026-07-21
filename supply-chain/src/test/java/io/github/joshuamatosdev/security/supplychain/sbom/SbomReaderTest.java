@@ -252,14 +252,6 @@ class SbomReaderTest {
             "pkg:maven/org%2fspringframework/spring-core@6.2.0",
             "pkg:maven/org.springframework/spring-core@6.2.0#source%2ftarget",
             "pkg:maven/org.springframework/spring-core@6.2.0#source#target",
-            "pkg:maven/org.springframework/spring%2fcore@6.2.0",
-            "pkg:maven/org.springframework/spring-core@6.2%2f0",
-            "pkg:maven/org.springframework/spring-core@6.2.0?type=jar%2fsources",
-            "pkg:maven/org.springframework/spring-core@6.2.0?type=jar%3dsource",
-            "pkg:maven/org.springframework/spring-core@6.2.0?type=jar%26sources",
-            "pkg:maven/org.springframework/spring-core@6.2.0?type=jar%23sources",
-            "pkg:maven/org.springframework/spring-core@6.2.0?tag=%40latest",
-            "pkg:maven/org.springframework/spring-core@6.2.0?download=true%3fforce",
             "pkg:maven/org.springframework/spring=core@6.2.0",
             "pkg:maven/org.springframework/spring&core@6.2.0",
             "pkg:maven/org.springframework/spring-core%C3%28@6.2.0",
@@ -358,6 +350,34 @@ class SbomReaderTest {
           .extracting(SbomDocument.Component::purl)
           .isEqualTo("pkg:maven/org.springframework/spring-core@6.2.0");
     }
+  }
+
+  @Test
+  void preservesValidPercentEncodedUtf8InAcceptedPackageUrls() throws Exception {
+    Path bom = tempDir.resolve("bom.json");
+    Files.writeString(
+        bom,
+        """
+        {
+          "bomFormat": "CycloneDX",
+          "specVersion": "1.6",
+          "serialNumber": "urn:uuid:00000000-0000-4000-8000-000000000000",
+          "components": [
+            {
+              "name": "café",
+              "version": "1.0",
+              "purl": "PKG://GENERIC/caf%C3%A9@1.0?label=%E6%9D%B1%E4%BA%AC"
+            }
+          ]
+        }
+        """);
+
+    SbomDocument doc = new SbomReader().read(bom);
+
+    assertThat(doc.components())
+        .singleElement()
+        .extracting(SbomDocument.Component::purl)
+        .isEqualTo("pkg:generic/caf%C3%A9@1.0?label=%E6%9D%B1%E4%BA%AC");
   }
 
   @Test

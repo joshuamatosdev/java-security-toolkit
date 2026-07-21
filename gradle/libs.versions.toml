@@ -14,6 +14,7 @@ commonsLang3 = "3.20.0"
 netty = "4.2.15.Final"
 postgresql = "42.7.12"
 tomcat = "10.1.55"
+packageUrl = "1.5.0"
 
 [libraries]
 jspecify = { module = "org.jspecify:jspecify", version.ref = "jspecify" }
@@ -23,6 +24,8 @@ junit-jupiter-api = { module = "org.junit.jupiter:junit-jupiter-api", version.re
 junit-jupiter-engine = { module = "org.junit.jupiter:junit-jupiter-engine", version.ref = "junit" }
 junit-platform-launcher = { module = "org.junit.platform:junit-platform-launcher" }
 jackson-databind = { module = "com.fasterxml.jackson.core:jackson-databind", version.ref = "jackson" }
+jackson-yaml = { module = "com.fasterxml.jackson.dataformat:jackson-dataformat-yaml", version.ref = "jackson" }
+packageurl = { module = "com.github.package-url:packageurl-java", version.ref = "packageUrl" }
 assertj-core = { module = "org.assertj:assertj-core", version.ref = "assertj" }
 mockwebserver = { module = "com.squareup.okhttp3:mockwebserver", version.ref = "mockwebserver" }
 commons-compress = { module = "org.apache.commons:commons-compress", version.ref = "commonsCompress" }

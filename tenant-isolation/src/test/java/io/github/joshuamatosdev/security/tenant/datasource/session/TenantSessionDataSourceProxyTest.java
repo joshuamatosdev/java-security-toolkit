@@ -148,8 +148,9 @@ class TenantSessionDataSourceProxyTest {
     }
 
     @Test
-    void signerFailureHappensBeforeBorrowingConnection() throws Exception {
+    void signerFailureAfterBorrowAbortsTheConnection() throws Exception {
         final DataSource delegate = mock(DataSource.class);
+        final Connection raw = mock(Connection.class);
         final Clock failingClock = mock(Clock.class);
         final TenantClaimSigner failingSigner = new TenantClaimSigner(
                 TenantTestConstants.CLAIM_SECRET,
@@ -157,13 +158,17 @@ class TenantSessionDataSourceProxyTest {
                 failingClock);
         final TenantSessionDataSourceProxy proxy =
                 new TenantSessionDataSourceProxy(delegate, POOL_NAME, failingSigner, tenantContext);
+        when(delegate.getConnection()).thenReturn(raw);
         when(failingClock.instant()).thenThrow(new IllegalStateException("clock failed"));
 
         assertThatThrownBy(() -> supplyAsAcme(proxy::getConnection))
                 .isInstanceOf(IllegalStateException.class)
                 .hasMessageContaining("clock failed");
 
-        verify(delegate, never()).getConnection();
+        final InOrder order = inOrder(delegate, failingClock, raw);
+        order.verify(delegate).getConnection();
+        order.verify(failingClock).instant();
+        order.verify(raw).abort(any());
     }
 
     @Test

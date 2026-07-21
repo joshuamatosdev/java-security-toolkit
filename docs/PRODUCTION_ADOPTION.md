@@ -107,6 +107,7 @@ Adopt it three ways. As a library. As a source module. As an integration pattern
 Adopt three things. The decision model. The audit contract. The deny-overrides behavior. Spring apps can start with `authorization-spring-boot-starter`. Policy implementers can reuse `authorization-testkit`. Before production use:
 
 - Replace demo role resolution. `authorization-showcase` illustrates it. Use a real authorization store.
+- Provide a production `PolicyRuleRepository`; keep `authorization.demo-policy.enabled` disabled.
 - Model revocation and authorization-version behavior.
 - Send audit records to durable storage.
 - Decide how policy changes flow. Review them. Stage them. Roll them back.

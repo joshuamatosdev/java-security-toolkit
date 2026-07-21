@@ -53,6 +53,7 @@ dependencies {
 dependencyCheck {
     failBuildOnCVSS = 7.0f
     formats = listOf("HTML", "JSON")
+    nvd.apiKey.set(providers.environmentVariable("NVD_API_KEY"))
 }
 
 val releaseTextIncludes = listOf(
