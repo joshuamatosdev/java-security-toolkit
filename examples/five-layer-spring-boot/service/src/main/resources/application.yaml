@@ -36,6 +36,8 @@ tenant:
     system-ops-password: ${TENANT_BINDING_SYSTEM_OPS_PASSWORD}
     organization-scope: optional          # off -> optional -> required
 
-# authorization.enabled defaults to true: the starter wires the reference
-# AuthorizationService, policy, rule repository, audit sink, and the servlet 403
-# denial advice. Each bean backs off to an application-provided replacement.
+# This runnable example explicitly opts into the seeded policy. Deployments must
+# provide their own PolicyRuleRepository and leave this demo switch disabled.
+authorization:
+  demo-policy:
+    enabled: true
