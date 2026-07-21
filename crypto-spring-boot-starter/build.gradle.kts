@@ -1,7 +1,6 @@
 plugins {
     `java-library`
     id("io.spring.dependency-management")
-    id("org.cyclonedx.bom")
 }
 
 dependencies {

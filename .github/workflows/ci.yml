@@ -4,7 +4,7 @@ on:
   push:
     branches: [main]
   schedule:
-    # Weekly dependency CVE scan against a fresh NVD feed, independent of commit cadence.
+    # Weekly dependency CVE scan, independent of commit cadence.
     - cron: "0 7 * * 1"
   workflow_dispatch:
 
@@ -79,7 +79,7 @@ jobs:
   dependency-scan:
     name: dependency CVE scan
     runs-on: ubuntu-latest
-    # The OWASP scan needs the NVD feed (network + API key), so it runs on a schedule and on demand
+    # The external vulnerability scan is network-backed, so it runs on a schedule and on demand
     # rather than on every push, keeping the default build offline.
     if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
     timeout-minutes: 30
@@ -99,16 +99,28 @@ jobs:
         with:
           validate-wrappers: true
 
-      - name: Require NVD API key
-        env:
-          NVD_API_KEY: ${{ secrets.NVD_API_KEY }}
+      - name: Generate every module's CycloneDX SBOM
+        run: ./gradlew collectCycloneDxSboms --console=plain --no-daemon
+
+      - name: Scan generated SBOMs with OSV
         run: |
-          if [ -z "$NVD_API_KEY" ]; then
-            echo "::error::NVD_API_KEY secret is required for dependencyCheckAggregate."
+          set -euo pipefail
+          mapfile -t sboms < <(find build/reports/cyclonedx -name '*.cdx.json' -print | sort)
+          if [ "${#sboms[@]}" -eq 0 ]; then
+            echo "::error::No CycloneDX SBOMs were generated for scanning."
             exit 1
           fi
+          args=(scan source)
+          for sbom in "${sboms[@]}"; do
+            args+=(--lockfile "$sbom")
+          done
+          docker run --rm -v "$PWD:/src" -w /src \
+            ghcr.io/google/osv-scanner@sha256:64e86bec6df2466feea5137fc7c78fb3b7c21ec077f014d7130f64810e50676b \
+            "${args[@]}"
 
-      - name: Scan every module's dependency closure for high-severity CVEs
-        env:
-          NVD_API_KEY: ${{ secrets.NVD_API_KEY }}
-        run: ./gradlew dependencyCheckPurge dependencyCheckAggregate --console=plain --no-daemon
+      - name: Upload dependency SBOMs
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: dependency-sboms
+          path: build/reports/cyclonedx/*.cdx.json

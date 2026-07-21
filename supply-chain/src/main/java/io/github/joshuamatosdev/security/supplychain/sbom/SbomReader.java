@@ -15,7 +15,7 @@ import java.util.regex.Pattern;
 import java.util.stream.StreamSupport;
 
 /**
- * Parses a CycloneDX {@code bom.json} into the {@link SbomDocument} projection the integrity gate
+ * Parses a CycloneDX JSON SBOM into the {@link SbomDocument} projection the integrity gate
  * checks. Missing fields read as {@code null} rather than throwing, so the gate — not the parser —
  * decides what a well-formed bill must contain.
  *

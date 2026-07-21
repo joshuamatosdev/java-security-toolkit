@@ -118,6 +118,7 @@ plugins.withId("java") {
     apply(plugin = "maven-publish")
     apply(plugin = "signing")
     apply(plugin = "jacoco")
+    apply(plugin = "org.cyclonedx.bom")
 
     extensions.configure<JavaPluginExtension>("java") {
         toolchain {
@@ -342,7 +343,7 @@ plugins.withId("org.cyclonedx.bom") {
     val cyclonedxDirectBom =
         tasks.named<org.cyclonedx.gradle.CyclonedxDirectTask>("cyclonedxDirectBom") {
             includeConfigs = listOf("runtimeClasspath")
-            jsonOutput.set(file("build/reports/bom.json"))
+            jsonOutput.set(file("build/reports/bom.cdx.json"))
             xmlOutput.unsetConvention()
             schemaVersion = org.cyclonedx.Version.VERSION_15
             projectType = org.cyclonedx.model.Component.Type.LIBRARY

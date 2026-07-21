@@ -1,6 +1,5 @@
 plugins {
     `java-library`
-    id("org.cyclonedx.bom")
     id("org.owasp.dependencycheck")
 }
 
@@ -20,7 +19,7 @@ tasks.test {
     dependsOn(tasks.named("cyclonedxDirectBom"))
     systemProperty(
         "sbom.path",
-        layout.buildDirectory.file("reports/bom.json").get().asFile.absolutePath,
+        layout.buildDirectory.file("reports/bom.cdx.json").get().asFile.absolutePath,
     )
     systemProperty(
         "dockerfile.path",

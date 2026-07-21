@@ -1,4 +1,5 @@
 import org.gradle.api.artifacts.VersionCatalogsExtension
+import org.gradle.api.tasks.Sync
 
 plugins {
     base
@@ -14,8 +15,24 @@ allprojects {
     version = "0.1.0-SNAPSHOT"
 }
 
+val collectCycloneDxSboms = tasks.register<Sync>("collectCycloneDxSboms") {
+    description = "Collects every Java module's CycloneDX SBOM for external vulnerability scanning."
+    group = "verification"
+    into(layout.buildDirectory.dir("reports/cyclonedx"))
+}
+
 subprojects {
     pluginManager.apply("security.toolkit.project-conventions")
+    plugins.withId("org.cyclonedx.bom") {
+        val moduleName = name
+        collectCycloneDxSboms {
+            val cyclonedxDirectBom = tasks.named("cyclonedxDirectBom")
+            dependsOn(cyclonedxDirectBom)
+            from(layout.buildDirectory.file("reports/bom.cdx.json")) {
+                rename { "$moduleName.cdx.json" }
+            }
+        }
+    }
 }
 
 reporting {

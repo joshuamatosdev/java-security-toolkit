@@ -4,6 +4,7 @@ import java.lang.reflect.InvocationHandler;
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
 import java.lang.reflect.Proxy;
+import java.sql.Array;
 import java.sql.CallableStatement;
 import java.sql.Connection;
 import java.sql.DatabaseMetaData;
@@ -13,6 +14,7 @@ import java.sql.SQLException;
 import java.sql.Statement;
 import java.util.Objects;
 import java.util.concurrent.Executor;
+import java.util.concurrent.atomic.AtomicBoolean;
 import org.jspecify.annotations.NonNull;
 import org.jspecify.annotations.Nullable;
 
@@ -47,10 +49,12 @@ public final class ResettingConnectionProxy {
         try {
             raw.abort(DIRECT_EXECUTOR);
         } catch (SQLException | RuntimeException suppressed) {
+            // The logical close below is the portable fallback when abort is unsupported or fails.
+        } finally {
             try {
                 raw.close();
             } catch (SQLException | RuntimeException closeSuppressed) {
-                // Preserve the original failure.
+                // Disposal is best effort; callers are already handling the operation that failed.
             }
         }
     }
@@ -72,7 +76,7 @@ public final class ResettingConnectionProxy {
         private final String closedMessage;
         private final String hiddenDelegateMessage;
         private final CloseAction closeAction;
-        private boolean closed;
+        private final Lifecycle lifecycle = new Lifecycle();
 
         private Handler(
                 final Connection delegate,
@@ -94,9 +98,9 @@ public final class ResettingConnectionProxy {
                 return null;
             }
             if ("isClosed".equals(methodName) && method.getParameterCount() == 0) {
-                return closed || Boolean.TRUE.equals(invokeDelegate(method, args));
+                return lifecycle.isClosed() || Boolean.TRUE.equals(invokeDelegate(method, args));
             }
-            if (closed && method.getDeclaringClass() != Object.class) {
+            if (lifecycle.isClosed() && method.getDeclaringClass() != Object.class) {
                 throw new SQLException(closedMessage);
             }
             if ("isWrapperFor".equals(methodName) && method.getParameterCount() == 1) {
@@ -110,18 +114,16 @@ public final class ResettingConnectionProxy {
                     (Connection) proxy,
                     null,
                     invokeDelegate(method, args),
-                    hiddenDelegateMessage);
+                    hiddenDelegateMessage,
+                    lifecycle,
+                    closedMessage);
         }
 
         private void closeOnce() throws SQLException {
-            if (closed) {
+            if (!lifecycle.close()) {
                 return;
             }
-            try {
-                closeAction.close(delegate);
-            } finally {
-                closed = true;
-            }
+            closeAction.close(delegate);
         }
 
         private Object unwrapProxy(final Object proxy, final @Nullable Class<?> iface) throws SQLException {
@@ -151,14 +153,18 @@ public final class ResettingConnectionProxy {
             final Connection guardedConnection,
             final @Nullable Statement guardedStatement,
             final @Nullable Object value,
-            final String hiddenDelegateMessage) {
+            final String hiddenDelegateMessage,
+            final Lifecycle lifecycle,
+            final String closedMessage) {
         if (value instanceof CallableStatement callableStatement) {
             return childProxy(
                     CallableStatement.class,
                     callableStatement,
                     guardedConnection,
                     null,
-                    hiddenDelegateMessage);
+                    hiddenDelegateMessage,
+                    lifecycle,
+                    closedMessage);
         }
         if (value instanceof PreparedStatement preparedStatement) {
             return childProxy(
@@ -166,7 +172,9 @@ public final class ResettingConnectionProxy {
                     preparedStatement,
                     guardedConnection,
                     null,
-                    hiddenDelegateMessage);
+                    hiddenDelegateMessage,
+                    lifecycle,
+                    closedMessage);
         }
         if (value instanceof Statement statement) {
             return childProxy(
@@ -174,7 +182,9 @@ public final class ResettingConnectionProxy {
                     statement,
                     guardedConnection,
                     null,
-                    hiddenDelegateMessage);
+                    hiddenDelegateMessage,
+                    lifecycle,
+                    closedMessage);
         }
         if (value instanceof ResultSet resultSet) {
             return childProxy(
@@ -182,7 +192,9 @@ public final class ResettingConnectionProxy {
                     resultSet,
                     guardedConnection,
                     guardedStatement,
-                    hiddenDelegateMessage);
+                    hiddenDelegateMessage,
+                    lifecycle,
+                    closedMessage);
         }
         if (value instanceof DatabaseMetaData metadata) {
             return childProxy(
@@ -190,7 +202,19 @@ public final class ResettingConnectionProxy {
                     metadata,
                     guardedConnection,
                     null,
-                    hiddenDelegateMessage);
+                    hiddenDelegateMessage,
+                    lifecycle,
+                    closedMessage);
+        }
+        if (value instanceof Array array) {
+            return childProxy(
+                    Array.class,
+                    array,
+                    guardedConnection,
+                    null,
+                    hiddenDelegateMessage,
+                    lifecycle,
+                    closedMessage);
         }
         return value;
     }
@@ -200,7 +224,9 @@ public final class ResettingConnectionProxy {
             final Object delegate,
             final Connection guardedConnection,
             final @Nullable Statement guardedStatement,
-            final String hiddenDelegateMessage) {
+            final String hiddenDelegateMessage,
+            final Lifecycle lifecycle,
+            final String closedMessage) {
         return Proxy.newProxyInstance(
                 ResettingConnectionProxy.class.getClassLoader(),
                 new Class<?>[] {jdbcInterface},
@@ -208,7 +234,9 @@ public final class ResettingConnectionProxy {
                         delegate,
                         guardedConnection,
                         guardedStatement,
-                        hiddenDelegateMessage));
+                        hiddenDelegateMessage,
+                        lifecycle,
+                        closedMessage));
     }
 
     private static final class JdbcChildHandler implements InvocationHandler {
@@ -216,22 +244,36 @@ public final class ResettingConnectionProxy {
         private final Connection guardedConnection;
         private final @Nullable Statement guardedStatement;
         private final String hiddenDelegateMessage;
+        private final Lifecycle lifecycle;
+        private final String closedMessage;
 
         private JdbcChildHandler(
                 final Object delegate,
                 final Connection guardedConnection,
                 final @Nullable Statement guardedStatement,
-                final String hiddenDelegateMessage) {
+                final String hiddenDelegateMessage,
+                final Lifecycle lifecycle,
+                final String closedMessage) {
             this.delegate = delegate;
             this.guardedConnection = guardedConnection;
             this.guardedStatement = guardedStatement;
             this.hiddenDelegateMessage = hiddenDelegateMessage;
+            this.lifecycle = lifecycle;
+            this.closedMessage = closedMessage;
         }
 
         @Override
         public @Nullable Object invoke(final Object proxy, final Method method, final @Nullable Object[] args)
                 throws Throwable {
             final String methodName = method.getName();
+            if ("isClosed".equals(methodName) && method.getParameterCount() == 0) {
+                return lifecycle.isClosed() || Boolean.TRUE.equals(invokeDelegate(method, args));
+            }
+            if (lifecycle.isClosed()
+                    && method.getDeclaringClass() != Object.class
+                    && !isCleanupMethod(methodName, method.getParameterCount())) {
+                throw new SQLException(closedMessage);
+            }
             if ("getConnection".equals(methodName)
                     && method.getParameterCount() == 0
                     && Connection.class.isAssignableFrom(method.getReturnType())) {
@@ -255,7 +297,9 @@ public final class ResettingConnectionProxy {
                     guardedConnection,
                     resultSetParent,
                     result,
-                    hiddenDelegateMessage);
+                    hiddenDelegateMessage,
+                    lifecycle,
+                    closedMessage);
         }
 
         private Object unwrapProxy(final Object proxy, final @Nullable Class<?> iface) throws SQLException {
@@ -279,6 +323,22 @@ public final class ResettingConnectionProxy {
             } catch (InvocationTargetException ex) {
                 throw ex.getTargetException();
             }
+        }
+    }
+
+    private static boolean isCleanupMethod(final String methodName, final int parameterCount) {
+        return parameterCount == 0 && ("close".equals(methodName) || "free".equals(methodName));
+    }
+
+    private static final class Lifecycle {
+        private final AtomicBoolean closed = new AtomicBoolean();
+
+        private boolean isClosed() {
+            return closed.get();
+        }
+
+        private boolean close() {
+            return closed.compareAndSet(false, true);
         }
     }
 }

@@ -9,7 +9,7 @@ import org.junit.jupiter.api.Test;
 /**
  * Proves the build emits a CycloneDX SBOM and that the bill has integrity. The {@code test} task
  * {@code dependsOn(cyclonedxDirectBom)} and passes {@code -Dsbom.path}, so these assertions run
- * against the REAL generated {@code build/reports/bom.json} — not a checked-in fixture.
+ * against the REAL generated {@code build/reports/bom.cdx.json} — not a checked-in fixture.
  *
  * <p>Why this is important to test: build trust checks only protect the system when generated
  * SBOMs and base-image pins are asserted continuously.
